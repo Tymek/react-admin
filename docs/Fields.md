@@ -261,7 +261,7 @@ This component accepts a `showTime` attribute (`false` by default) to force the 
 ```
 {% endraw %}
 
-See [Intl.DateTimeFormat documentation](https://developer.mozilla.org/fr/docs/Web/JavaScript/Reference/Objets_globaux/Date/toLocaleDateString) for the `options` prop syntax.
+See [Intl.DateTimeFormat documentation](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toLocaleDateString) for the `options` prop syntax.
 
 **Tip**: If you need more formatting options than what `Intl.DateTimeFormat` can provide, build your own field component leveraging a third-party library like [moment.js](https://momentjs.com/).
 
@@ -988,7 +988,7 @@ Also, you can filter the query used to populate the possible values. Use the `fi
 
 This [Enterprise Edition](https://marmelab.com/ra-enterprise)<img class="icon" src="./img/premium.svg" /> component fetches a list of referenced records by lookup in an associative table, and passes the records down to its child component, which must be an iterator component.
 
-For instance, here is how to fetch the authors related to a book record by matching book.id to book_authors.post_id, then matching book_authors.author_id to authors.id, and then display the author last_name for each, in a <ChipField>:
+For instance, here is how to fetch the authors related to a book record by matching book.id to book_authors.post_id, then matching book_authors.author_id to authors.id, and then display the author last_name for each, in a `<ChipField>`:
 
 ```jsx
 import * as React from 'react';
@@ -1423,7 +1423,7 @@ The component will be:
 import * as React from "react";
 import { List, Datagrid, TextField, useRecordContext } from 'react-admin';
 
-const FullNameField = () => {
+const FullNameField = (props) => {
     const record = useRecordContext(props);
 
     return <span>{record.firstName} {record.lastName}</span>;

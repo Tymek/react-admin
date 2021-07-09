@@ -200,6 +200,7 @@ const SelectArrayInput = (props: SelectArrayInputProps) => {
                 resource={resource}
                 className={className}
                 isRequired={isRequired}
+                margin={margin}
             >
                 <LinearProgress />
             </Labeled>
@@ -290,7 +291,7 @@ SelectArrayInput.propTypes = {
     classes: PropTypes.object,
     className: PropTypes.string,
     children: PropTypes.node,
-    label: PropTypes.string,
+    label: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
     options: PropTypes.object,
     optionText: PropTypes.oneOfType([
         PropTypes.string,
