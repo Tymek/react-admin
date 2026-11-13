@@ -1,167 +1,291 @@
-import React, {
-    Fragment,
-    ReactEventHandler,
-    FC,
-    ReactElement,
-    SyntheticEvent,
-} from 'react';
-import PropTypes from 'prop-types';
-import { makeStyles } from '@material-ui/core/styles';
-import { fade } from '@material-ui/core/styles/colorManipulator';
-import ActionDelete from '@material-ui/icons/Delete';
-import classnames from 'classnames';
-import inflection from 'inflection';
+import React, { Fragment, isValidElement, ReactEventHandler } from 'react';
+import { useFormContext } from 'react-hook-form';
+import ActionDelete from '@mui/icons-material/Delete';
 import {
-    useTranslate,
-    MutationMode,
-    Record,
-    RedirectionSideEffect,
-    useDeleteWithConfirmController,
-    OnSuccess,
-    OnFailure,
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import clsx from 'clsx';
+
+import {
+    RaRecord,
+    useRecordContext,
     useResourceContext,
+    useTranslate,
+    useGetRecordRepresentation,
+    useResourceTranslation,
+    useDeleteController,
+    useNotify,
+    useUnselect,
+    useRedirect,
+    UseDeleteControllerParams,
 } from 'ra-core';
+import { humanize, singularize } from 'inflection';
 
-import Confirm from '../layout/Confirm';
-import Button, { ButtonProps } from './Button';
+import { Confirm } from '../layout';
+import { Button, ButtonProps } from './Button';
 
-const DeleteWithConfirmButton: FC<DeleteWithConfirmButtonProps> = props => {
-    const {
-        basePath,
-        classes: classesOverride,
-        className,
-        confirmTitle = 'ra.message.delete_title',
-        confirmContent = 'ra.message.delete_content',
-        icon = defaultIcon,
-        label = 'ra.action.delete',
-        mutationMode,
-        onClick,
-        record,
-        redirect = 'list',
-        onSuccess,
-        onFailure,
-        ...rest
-    } = props;
-    const translate = useTranslate();
-    const classes = useStyles(props);
-    const resource = useResourceContext(props);
-    const {
-        open,
-        loading,
-        handleDialogOpen,
-        handleDialogClose,
-        handleDelete,
-    } = useDeleteWithConfirmController({
-        record,
-        redirect,
-        basePath,
-        mutationMode,
-        onClick,
-        onSuccess,
-        onFailure,
-        resource,
-    });
+type DeleteWithConfirmButtonComponent = <
+    RecordType extends RaRecord = any,
+    MutationOptionsError = unknown,
+    RootComponent extends React.ElementType = 'button',
+>(
+    props: DeleteWithConfirmButtonProps<
+        RecordType,
+        MutationOptionsError,
+        RootComponent
+    > &
+        React.RefAttributes<HTMLButtonElement | HTMLAnchorElement>
+) => React.ReactElement | null;
 
-    return (
-        <Fragment>
-            <Button
-                onClick={handleDialogOpen}
-                label={label}
-                className={classnames(
-                    'ra-delete-button',
-                    classes.deleteButton,
-                    className
-                )}
-                key="button"
-                {...rest}
-            >
-                {icon}
-            </Button>
-            <Confirm
-                isOpen={open}
-                loading={loading}
-                title={confirmTitle}
-                content={confirmContent}
-                translateOptions={{
-                    name: translate(`resources.${resource}.forcedCaseName`, {
-                        smart_count: 1,
-                        _: inflection.humanize(
-                            translate(`resources.${resource}.name`, {
-                                smart_count: 1,
-                                _: inflection.singularize(resource),
-                            }),
-                            true
-                        ),
-                    }),
-                    id: record.id,
-                }}
-                onConfirm={handleDelete}
-                onClose={handleDialogClose}
-            />
-        </Fragment>
-    );
-};
+export const DeleteWithConfirmButton = React.forwardRef(
+    function DeleteWithConfirmButton<
+        RecordType extends RaRecord = any,
+        RootComponent extends React.ElementType = 'button',
+    >(
+        inProps: DeleteWithConfirmButtonProps<
+            RecordType,
+            unknown,
+            RootComponent
+        >,
+        ref: React.ForwardedRef<HTMLButtonElement | HTMLAnchorElement>
+    ) {
+        const props = useThemeProps({
+            props: inProps,
+            name: PREFIX,
+        });
+
+        const {
+            className,
+            confirmTitle: confirmTitleProp,
+            confirmContent: confirmContentProp,
+            confirmColor = 'primary',
+            icon = defaultIcon,
+            label: labelProp,
+            mutationMode = 'pessimistic',
+            onClick,
+            redirect: redirectTo = 'list',
+            translateOptions = {},
+            titleTranslateOptions = translateOptions,
+            contentTranslateOptions = translateOptions,
+            mutationOptions,
+            color = 'error',
+            successMessage,
+            ...rest
+        } = props;
+        const translate = useTranslate();
+        const record = useRecordContext(props);
+        const resource = useResourceContext(props);
+        const notify = useNotify();
+        const unselect = useUnselect(resource);
+        const redirect = useRedirect();
+        // null when the delete button is used outside a form (e.g. in a list)
+        const form = useFormContext();
+        const [open, setOpen] = React.useState(false);
+        if (!resource) {
+            throw new Error(
+                '<DeleteWithConfirmButton> components should be used inside a <Resource> component or provided with a resource prop. (The <Resource> component set the resource prop for all its children).'
+            );
+        }
+
+        const { onSuccess, onError, ...otherMutationOptions } =
+            mutationOptions || {};
+
+        const { isPending, handleDelete } = useDeleteController({
+            record,
+            redirect: redirectTo,
+            mutationMode,
+            mutationOptions: {
+                ...otherMutationOptions,
+                onSuccess: (...args) => {
+                    setOpen(false);
+                    if (onSuccess) {
+                        onSuccess(...args);
+                    } else {
+                        notify(
+                            successMessage ??
+                                `resources.${resource}.notifications.deleted`,
+                            {
+                                type: 'info',
+                                messageArgs: {
+                                    smart_count: 1,
+                                    _: translate('ra.notification.deleted', {
+                                        smart_count: 1,
+                                    }),
+                                },
+                                undoable: mutationMode === 'undoable',
+                            }
+                        );
+                        record && unselect([record.id]);
+                        // Clear the form dirty state so warnWhenUnsavedChanges
+                        // doesn't block the redirect: the record is gone, so the
+                        // unsaved changes are moot.
+                        form?.reset(undefined, { keepValues: true });
+                        redirect(redirectTo, resource);
+                    }
+                },
+                onError: (...args) => {
+                    setOpen(false);
+                    if (onError) {
+                        onError(...args);
+                    } else {
+                        const [error] = args;
+                        notify(
+                            typeof error === 'string'
+                                ? error
+                                : (error as Error)?.message ||
+                                      'ra.notification.http_error',
+                            {
+                                type: 'error',
+                                messageArgs: {
+                                    _:
+                                        typeof error === 'string'
+                                            ? error
+                                            : (error as Error)?.message
+                                              ? (error as Error).message
+                                              : undefined,
+                                },
+                            }
+                        );
+                    }
+                },
+            },
+            resource,
+            successMessage,
+        });
+
+        const handleDialogOpen: ReactEventHandler<any> = event => {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(true);
+        };
+        const handleDialogClose: ReactEventHandler<any> = () => {
+            setOpen(false);
+        };
+
+        const getRecordRepresentation = useGetRecordRepresentation(resource);
+        let recordRepresentation = getRecordRepresentation(record);
+        const resourceName = translate(`resources.${resource}.forcedCaseName`, {
+            smart_count: 1,
+            _: humanize(
+                translate(`resources.${resource}.name`, {
+                    smart_count: 1,
+                    _: resource ? singularize(resource) : undefined,
+                }),
+                true
+            ),
+        });
+        // We don't support React elements for this
+        if (isValidElement(recordRepresentation)) {
+            recordRepresentation = `#${record?.id}`;
+        }
+        const label = useResourceTranslation({
+            resourceI18nKey: `resources.${resource}.action.delete`,
+            baseI18nKey: 'ra.action.delete',
+            options: {
+                name: resourceName,
+                recordRepresentation,
+            },
+            userText: labelProp,
+        });
+        const confirmTitle = useResourceTranslation({
+            resourceI18nKey: `resources.${resource}.message.delete_title`,
+            baseI18nKey: 'ra.message.delete_title',
+            options: {
+                recordRepresentation,
+                name: resourceName,
+                id: record?.id,
+                ...titleTranslateOptions,
+            },
+            userText: confirmTitleProp,
+        });
+        const confirmContent = useResourceTranslation({
+            resourceI18nKey: `resources.${resource}.message.delete_content`,
+            baseI18nKey: 'ra.message.delete_content',
+            options: {
+                recordRepresentation,
+                name: resourceName,
+                id: record?.id,
+                ...contentTranslateOptions,
+            },
+            userText: confirmContentProp,
+        });
+
+        return (
+            <Fragment>
+                <StyledButton
+                    ref={ref}
+                    onClick={handleDialogOpen}
+                    // avoid double translation
+                    label={<>{label}</>}
+                    // If users provide a ReactNode as label, its their responsibility to also provide an aria-label should they need it
+                    aria-label={typeof label === 'string' ? label : undefined}
+                    className={clsx('ra-delete-button', className)}
+                    key="button"
+                    color={color}
+                    {...rest}
+                >
+                    {icon}
+                </StyledButton>
+                <Confirm
+                    isOpen={open}
+                    loading={isPending}
+                    title={<>{confirmTitle}</>}
+                    content={<>{confirmContent}</>}
+                    confirmColor={confirmColor}
+                    onConfirm={handleDelete}
+                    onClose={handleDialogClose}
+                />
+            </Fragment>
+        );
+    }
+) as DeleteWithConfirmButtonComponent;
 
 const defaultIcon = <ActionDelete />;
 
-const useStyles = makeStyles(
-    theme => ({
-        deleteButton: {
-            color: theme.palette.error.main,
-            '&:hover': {
-                backgroundColor: fade(theme.palette.error.main, 0.12),
-                // Reset on mouse devices
-                '@media (hover: none)': {
-                    backgroundColor: 'transparent',
-                },
-            },
-        },
-    }),
-    { name: 'RaDeleteWithConfirmButton' }
-);
+export type DeleteWithConfirmButtonProps<
+    RecordType extends RaRecord = any,
+    MutationOptionsError = unknown,
+    RootComponent extends React.ElementType = 'button',
+> = ButtonProps<RootComponent> &
+    UseDeleteControllerParams<RecordType, MutationOptionsError> & {
+        confirmTitle?: React.ReactNode;
+        confirmContent?: React.ReactNode;
+        icon?: React.ReactNode;
+        confirmColor?: 'primary' | 'warning';
+        onClick?: ReactEventHandler<any>;
+        // May be injected by Toolbar - sanitized in Button
+        /**
+         * @deprecated use `titleTranslateOptions` and `contentTranslateOptions` instead
+         */
+        translateOptions?: object;
+        titleTranslateOptions?: object;
+        contentTranslateOptions?: object;
+    };
 
-interface Props {
-    basePath?: string;
-    classes?: object;
-    className?: string;
-    confirmTitle?: string;
-    confirmContent?: React.ReactNode;
-    icon?: ReactElement;
-    label?: string;
-    mutationMode?: MutationMode;
-    onClick?: ReactEventHandler<any>;
-    record?: Record;
-    redirect?: RedirectionSideEffect;
-    resource?: string;
-    // May be injected by Toolbar - sanitized in Button
-    handleSubmit?: (event?: SyntheticEvent<HTMLFormElement>) => Promise<Object>;
-    handleSubmitWithRedirect?: (redirect?: RedirectionSideEffect) => void;
-    invalid?: boolean;
-    pristine?: boolean;
-    saving?: boolean;
-    submitOnEnter?: boolean;
-    undoable?: boolean;
-    onSuccess?: OnSuccess;
-    onFailure?: OnFailure;
+const PREFIX = 'RaDeleteWithConfirmButton';
+
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<DeleteWithConfirmButtonProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
 }
-
-export type DeleteWithConfirmButtonProps = Props & ButtonProps;
-
-DeleteWithConfirmButton.propTypes = {
-    basePath: PropTypes.string,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    confirmTitle: PropTypes.string,
-    confirmContent: PropTypes.string,
-    label: PropTypes.string,
-    record: PropTypes.any,
-    redirect: PropTypes.oneOfType([
-        PropTypes.string,
-        PropTypes.bool,
-        PropTypes.func,
-    ]),
-    resource: PropTypes.string,
-    icon: PropTypes.element,
-};
-
-export default DeleteWithConfirmButton;

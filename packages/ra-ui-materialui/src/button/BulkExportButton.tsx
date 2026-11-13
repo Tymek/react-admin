@@ -1,122 +1,125 @@
 import * as React from 'react';
-import { useCallback, FunctionComponent } from 'react';
-import PropTypes from 'prop-types';
-import DownloadIcon from '@material-ui/icons/GetApp';
+import { useCallback } from 'react';
+import DownloadIcon from '@mui/icons-material/GetApp';
 import {
-    fetchRelatedRecords,
-    useDataProvider,
-    useNotify,
-    Identifier,
-    Exporter,
-    useListContext,
+    useBulkExport,
+    useResourceContext,
+    UseBulkExportOptions,
 } from 'ra-core';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 
-import Button, { ButtonProps } from './Button';
+import { Button, ButtonProps } from './Button';
 
 /**
  * Export the selected rows
  *
- * To be used inside the <List bulkActionButtons> prop.
+ * To be used inside the <Datagrid bulkActionButtons> prop.
  *
  * @example // basic usage
- * import * as React from 'react';
- * import { Fragment } from 'react';
- * import { BulkDeleteButton, BulkExportButton } from 'react-admin';
+ * import { BulkDeleteButton, BulkExportButton, List, Datagrid } from 'react-admin';
  *
- * const PostBulkActionButtons = ({ basePath }) => (
- *     <Fragment>
+ * const PostBulkActionButtons = () => (
+ *     <>
  *         <BulkExportButton />
- *         <BulkDeleteButton basePath={basePath} />
- *     </Fragment>
+ *         <BulkDeleteButton />
+ *     </>
  * );
  *
- * export const PostList = (props) => (
- *     <List {...props} bulkActionButtons={<PostBulkActionButtons />}>
- *         ...
+ * export const PostList = () => (
+ *     <List>
+ *        <Datagrid bulkActionButtons={<PostBulkActionButtons />}>
+ *          ...
+ *       </Datagrid>
  *     </List>
  * );
  */
-const BulkExportButton: FunctionComponent<BulkExportButtonProps> = props => {
+export const BulkExportButton = React.forwardRef(function BulkExportButton(
+    inProps: BulkExportButtonProps,
+    ref: React.ForwardedRef<HTMLButtonElement>
+) {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
     const {
         onClick,
         label = 'ra.action.export',
         icon = defaultIcon,
         exporter: customExporter,
+        meta,
         ...rest
     } = props;
-    const {
-        exporter: exporterFromContext,
+    const resource = useResourceContext(props);
+    const bulkExport = useBulkExport({
+        exporter: customExporter,
         resource,
-        selectedIds,
-    } = useListContext(props);
-    const exporter = customExporter || exporterFromContext;
-    const dataProvider = useDataProvider();
-    const notify = useNotify();
+        meta,
+    });
     const handleClick = useCallback(
         event => {
-            exporter &&
-                dataProvider
-                    .getMany(resource, { ids: selectedIds })
-                    .then(({ data }) =>
-                        exporter(
-                            data,
-                            fetchRelatedRecords(dataProvider),
-                            dataProvider,
-                            resource
-                        )
-                    )
-                    .catch(error => {
-                        console.error(error);
-                        notify('ra.notification.http_error', 'warning');
-                    });
+            bulkExport();
+
             if (typeof onClick === 'function') {
                 onClick(event);
             }
         },
-        [dataProvider, exporter, notify, onClick, resource, selectedIds]
+        [bulkExport, onClick]
     );
 
     return (
-        <Button
+        <StyledButton
+            ref={ref}
             onClick={handleClick}
             label={label}
             {...sanitizeRestProps(rest)}
         >
             {icon}
-        </Button>
+        </StyledButton>
     );
-};
+});
 
 const defaultIcon = <DownloadIcon />;
 
 const sanitizeRestProps = ({
-    basePath,
-    filterValues,
-    selectedIds,
     resource,
     ...rest
-}: Omit<BulkExportButtonProps, 'exporter' | 'label'>) => rest;
+}: Omit<BulkExportButtonProps, 'exporter' | 'label' | 'meta'>) => rest;
 
-interface Props {
-    basePath?: string;
-    exporter?: Exporter;
-    filterValues?: any;
-    icon?: JSX.Element;
-    label?: string;
-    onClick?: (e: Event) => void;
-    selectedIds?: Identifier[];
+export interface BulkExportButtonProps
+    extends ButtonProps,
+        UseBulkExportOptions {
+    icon?: React.ReactNode;
     resource?: string;
+    meta?: any;
 }
 
-export type BulkExportButtonProps = Props & ButtonProps;
+const PREFIX = 'RaBulkExportButton';
 
-BulkExportButton.propTypes = {
-    basePath: PropTypes.string,
-    exporter: PropTypes.func,
-    label: PropTypes.string,
-    resource: PropTypes.string,
-    selectedIds: PropTypes.arrayOf(PropTypes.any).isRequired,
-    icon: PropTypes.element,
-};
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
 
-export default BulkExportButton;
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<BulkExportButtonProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

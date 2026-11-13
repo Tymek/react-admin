@@ -1,47 +1,40 @@
 import * as React from 'react';
-import { FC } from 'react';
-import Chip from '@material-ui/core/Chip';
-import { useTranslate, FieldProps } from 'react-admin';
+import { Stack, Chip } from '@mui/material';
+import { FieldProps, useTranslate, useRecordContext } from 'react-admin';
 import segments from '../segments/data';
 import { Customer } from '../types';
-import { makeStyles } from '@material-ui/core/styles';
 
-const useStyles = makeStyles({
-    main: {
-        display: 'flex',
-        flexWrap: 'wrap',
-        marginTop: -8,
-        marginBottom: -8,
+const segmentsById = segments.reduce(
+    (acc, segment) => {
+        acc[segment.id] = segment;
+        return acc;
     },
-    chip: { margin: 4 },
-});
+    {} as { [key: string]: any }
+);
 
-const SegmentsField: FC<FieldProps<Customer>> = ({ record }) => {
+const SegmentsField = (_: Omit<FieldProps, 'source'> & { source?: string }) => {
     const translate = useTranslate();
-    const classes = useStyles();
-
-    return record ? (
-        <span className={classes.main}>
-            {record.groups &&
-                record.groups.map(segmentId => {
-                    const segment = segments.find(s => s.id === segmentId);
-
-                    return segment ? (
-                        <Chip
-                            size="small"
-                            key={segment.id}
-                            className={classes.chip}
-                            label={translate(segment.name)}
-                        />
-                    ) : null;
-                })}
-        </span>
-    ) : null;
-};
-
-SegmentsField.defaultProps = {
-    addLabel: true,
-    source: 'groups',
+    const record = useRecordContext<Customer>();
+    if (!record || !record.groups) {
+        return null;
+    }
+    return (
+        <Stack
+            direction="row"
+            sx={{
+                gap: 1,
+                flexWrap: 'wrap',
+            }}
+        >
+            {record.groups.map(segmentId => (
+                <Chip
+                    size="small"
+                    key={segmentId}
+                    label={translate(segmentsById[segmentId].name)}
+                />
+            ))}
+        </Stack>
+    );
 };
 
 export default SegmentsField;

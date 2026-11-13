@@ -1,8 +1,20 @@
 import * as React from 'react';
-import { FC, ReactElement, ReactNode, HtmlHTMLAttributes } from 'react';
-import PropTypes from 'prop-types';
-import { FormWithRedirect, FormWithRedirectProps, MutationMode } from 'ra-core';
-import { SimpleFormView } from './SimpleFormView';
+import type { ReactNode } from 'react';
+import { Form, type FormProps } from 'ra-core';
+import {
+    Stack,
+    CardContent,
+    type SxProps,
+    type StackProps,
+} from '@mui/material';
+import {
+    type ComponentsOverrides,
+    styled,
+    type Theme,
+    useThemeProps,
+} from '@mui/material/styles';
+
+import { Toolbar } from './Toolbar';
 
 /**
  * Form with a one column layout, one input per line.
@@ -15,8 +27,8 @@ import { SimpleFormView } from './SimpleFormView';
  * import { Create, Edit, SimpleForm, TextInput, DateInput, ReferenceManyField, Datagrid, TextField, DateField, EditButton } from 'react-admin';
  * import RichTextInput from 'ra-input-rich-text';
  *
- * export const PostCreate = (props) => (
- *     <Create {...props}>
+ * export const PostCreate = () => (
+ *     <Create>
  *         <SimpleForm>
  *             <TextInput source="title" />
  *             <TextInput source="teaser" options={{ multiline: true }} />
@@ -27,65 +39,106 @@ import { SimpleFormView } from './SimpleFormView';
  * );
  *
  * @typedef {Object} Props the props you can use (other props are injected by Create or Edit)
- * @prop {ReactElement[]} children Input elements
- * @prop {Object} initialValues
+ * @prop {ReactNode[]} children Input elements
+ * @prop {Object} defaultValues
  * @prop {Function} validate
- * @prop {boolean} submitOnEnter
- * @prop {string} redirect
- * @prop {ReactElement} toolbar The element displayed at the bottom of the form, containing the SaveButton
- * @prop {string} variant Apply variant to all inputs. Possible values are 'standard', 'outlined', and 'filled' (default)
- * @prop {string} margin Apply variant to all inputs. Possible values are 'none', 'normal', and 'dense' (default)
- * @prop {boolean} sanitizeEmptyValues Whether or not deleted record attributes should be recreated with a `null` value (default: true)
+ * @prop {ReactNode} toolbar The element displayed at the bottom of the form, containing the SaveButton
  *
  * @param {Props} props
  */
-const SimpleForm: FC<SimpleFormProps> = props => (
-    <FormWithRedirect
-        {...props}
-        render={formProps => <SimpleFormView {...formProps} />}
-    />
-);
-
-SimpleForm.propTypes = {
-    children: PropTypes.node,
-    initialValues: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
-    mutationMode: PropTypes.oneOf(['pessimistic', 'optimistic', 'undoable']),
-    // @ts-ignore
-    record: PropTypes.object,
-    redirect: PropTypes.oneOfType([
-        PropTypes.string,
-        PropTypes.bool,
-        PropTypes.func,
-    ]),
-    save: PropTypes.func,
-    saving: PropTypes.bool,
-    submitOnEnter: PropTypes.bool,
-    toolbar: PropTypes.element,
-    undoable: PropTypes.bool,
-    validate: PropTypes.func,
-    version: PropTypes.number,
-    sanitizeEmptyValues: PropTypes.bool,
+export const SimpleForm = (inProps: SimpleFormProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const {
+        children,
+        className,
+        component: Component = DefaultComponent,
+        sx,
+        toolbar = DefaultToolbar,
+        ...rest
+    } = props;
+    return (
+        <Form {...rest}>
+            <Component className={className} sx={sx}>
+                <Stack
+                    {...sanitizeRestProps(props)}
+                    sx={{
+                        alignItems: 'flex-start',
+                    }}
+                >
+                    {children}
+                </Stack>
+            </Component>
+            {toolbar}
+        </Form>
+    );
 };
 
-export interface SimpleFormProps
-    extends Omit<FormWithRedirectProps, 'render'>,
-        Omit<
-            HtmlHTMLAttributes<HTMLFormElement>,
-            'defaultValue' | 'onSubmit' | 'children'
-        > {
-    basePath?: string;
+export interface SimpleFormProps<RecordType = any>
+    extends Omit<FormProps<RecordType>, 'render'>,
+        Omit<StackProps, 'onSubmit'> {
     children: ReactNode;
     className?: string;
     component?: React.ComponentType<any>;
-    initialValues?: any;
-    margin?: 'none' | 'normal' | 'dense';
-    mutationMode?: MutationMode;
-    resource?: string;
-    submitOnEnter?: boolean;
-    toolbar?: ReactElement;
-    /** @deprecated use mutationMode: undoable instead */
-    undoable?: boolean;
-    variant?: 'standard' | 'outlined' | 'filled';
+    defaultValues?: any;
+    toolbar?: ReactNode;
+    sx?: SxProps<Theme>;
 }
 
-export default SimpleForm;
+const PREFIX = 'RaSimpleForm';
+
+const DefaultComponent = styled(CardContent, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    [theme.breakpoints.down('sm')]: {
+        paddingBottom: '5em',
+    },
+}));
+
+const DefaultToolbar = <Toolbar />;
+
+const sanitizeRestProps = ({
+    children,
+    className,
+    component,
+    criteriaMode,
+    defaultValues,
+    delayError,
+    onSubmit,
+    record,
+    resource,
+    reValidateMode,
+    sx,
+    toolbar,
+    validate,
+    resetOptions,
+    resolver,
+    sanitizeEmptyValues,
+    shouldFocusError,
+    shouldUnregister,
+    shouldUseNativeValidation,
+    warnWhenUnsavedChanges,
+    ...props
+}: SimpleFormProps) => props;
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaSimpleForm: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaSimpleForm: Partial<SimpleFormProps>;
+    }
+
+    interface Components {
+        RaSimpleForm?: {
+            defaultProps?: ComponentsPropsList['RaSimpleForm'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaSimpleForm'];
+        };
+    }
+}

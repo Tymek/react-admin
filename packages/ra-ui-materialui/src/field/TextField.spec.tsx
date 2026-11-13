@@ -1,9 +1,11 @@
 import * as React from 'react';
 import expect from 'expect';
-import { render, getNodeText } from '@testing-library/react';
-import { RecordContextProvider } from 'ra-core';
+import { screen, render, getNodeText } from '@testing-library/react';
+import { RecordContextProvider, I18nContextProvider } from 'ra-core';
+import polyglotI18nProvider from 'ra-i18n-polyglot';
 
-import TextField from './TextField';
+import { TextField } from './TextField';
+import { Themed } from './TextField.stories';
 
 describe('<TextField />', () => {
     it('should display record specific value as plain text', () => {
@@ -78,5 +80,54 @@ describe('<TextField />', () => {
             <TextField record={record} source="title" emptyText="NA" />
         );
         expect(queryByText('NA')).not.toBeNull();
+    });
+
+    it('should translate emptyText', () => {
+        const i18nProvider = polyglotI18nProvider(
+            _locale =>
+                ({
+                    resources: {
+                        books: {
+                            name: 'Books',
+                            fields: {
+                                id: 'Id',
+                                title: 'Title',
+                                author: 'Author',
+                                year: 'Year',
+                            },
+                            not_found: 'Not found',
+                        },
+                    },
+                }) as any,
+            'en'
+        );
+        render(
+            <I18nContextProvider value={i18nProvider}>
+                <TextField
+                    record={{ id: 123 }}
+                    // @ts-expect-error source prop does not have a valid value
+                    source="foo.bar"
+                    emptyText="resources.books.not_found"
+                />
+            </I18nContextProvider>
+        );
+
+        expect(screen.getByText('Not found')).not.toBeNull();
+    });
+
+    it('should call toString on a value that is not a string', () => {
+        const record = {
+            id: 123,
+            type: ['Rock', 'Folk Rock'],
+        };
+        const { queryByText } = render(
+            <TextField record={record} source="type" />
+        );
+        expect(queryByText('Rock,Folk Rock')).not.toBeNull();
+    });
+
+    it('should be customized by a theme', async () => {
+        render(<Themed />);
+        expect(screen.getByTestId('themed')).toBeDefined();
     });
 });

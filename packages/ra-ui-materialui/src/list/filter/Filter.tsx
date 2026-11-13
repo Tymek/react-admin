@@ -1,84 +1,55 @@
 import * as React from 'react';
-import { FC, ReactNode } from 'react';
-import PropTypes from 'prop-types';
-import { makeStyles } from '@material-ui/core/styles';
-import { sanitizeListRestProps, useListContext } from 'ra-core';
+import { Children, ReactNode } from 'react';
+import { FilterContext } from 'ra-core';
 
-import FilterForm from './FilterForm';
-import FilterButton from './FilterButton';
-import { ClassesOverride } from '../../types';
+import { FilterForm } from './FilterForm';
+import { FilterButton } from './FilterButton';
 
-const useStyles = makeStyles(
-    {
-        button: {},
-        form: {},
-    },
-    { name: 'RaFilter' }
-);
-
-export interface FilterProps {
-    children: ReactNode;
-    classes?: ClassesOverride<typeof useStyles>;
-    context?: 'form' | 'button';
-    variant?: string;
-}
-
-const Filter: FC<FilterProps> = props => {
-    const classes = useStyles(props);
-    const {
-        resource,
-        showFilter,
-        hideFilter,
-        setFilters,
-        displayedFilters,
-        filterValues,
-    } = useListContext(props);
+/**
+ * Filter button/form combo
+ *
+ * @example
+ *
+ * const PostFilter = (props) => (
+ *     <Filter {...props}>
+ *         <TextInput label="Search" source="q" alwaysOn />
+ *         <TextInput label="Title" source="title" defaultValue="Hello, World!" />
+ *     </Filter>
+ * );
+ *
+ * export const PostList = () => (
+ *     <List filters={<PostFilter />}>
+ *         ...
+ *     </List>
+ * );
+ *
+ */
+export const Filter = (props: FilterProps) => {
+    const { children } = props;
     const renderButton = () => {
-        const {
-            classes: classesOverride,
-            context,
-            children,
-            variant,
-            ...rest
-        } = props;
-
-        return (
-            <FilterButton
-                className={classes.button}
-                resource={resource}
-                filters={React.Children.toArray(children)}
-                showFilter={showFilter}
-                displayedFilters={displayedFilters}
-                filterValues={filterValues}
-                {...sanitizeListRestProps(rest)}
-            />
-        );
+        return <FilterButton className={FilterClasses.button} />;
     };
 
     const renderForm = () => {
-        const { classes: classesOverride, context, children, ...rest } = props;
-
-        return (
-            <FilterForm
-                className={classes.form}
-                resource={resource}
-                filters={React.Children.toArray(children)}
-                hideFilter={hideFilter}
-                displayedFilters={displayedFilters}
-                initialValues={filterValues}
-                setFilters={setFilters}
-                {...sanitizeListRestProps(rest)}
-            />
-        );
+        return <FilterForm className={FilterClasses.form} />;
     };
 
-    return props.context === 'button' ? renderButton() : renderForm();
+    return (
+        <FilterContext.Provider value={Children.toArray(children)}>
+            {props.context === 'button' ? renderButton() : renderForm()}
+        </FilterContext.Provider>
+    );
 };
 
-Filter.propTypes = {
-    children: PropTypes.node,
-    classes: PropTypes.object,
-    context: PropTypes.oneOf(['form', 'button']),
+const PREFIX = 'RaFilter';
+
+export const FilterClasses = {
+    button: `${PREFIX}-button`,
+    form: `${PREFIX}-form`,
 };
 
-export default Filter;
+export interface FilterProps {
+    children: ReactNode;
+    context?: 'form' | 'button';
+    variant?: string;
+}

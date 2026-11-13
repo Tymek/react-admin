@@ -1,113 +1,129 @@
 import * as React from 'react';
 import { useState } from 'react';
-import { Paper, Typography, Link as MuiLink } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import ContactsIcon from '@material-ui/icons/AccountCircle';
-import DealIcon from '@material-ui/icons/MonetizationOn';
-import { linkToRecord, SelectField } from 'react-admin';
-import { Link } from 'react-router-dom';
+import { AvatarGroup, Paper, Typography, Box } from '@mui/material';
+import DealIcon from '@mui/icons-material/MonetizationOn';
+import {
+    useCreatePath,
+    SelectField,
+    useRecordContext,
+    Link,
+    ReferenceManyField,
+    useListContext,
+} from 'react-admin';
 
-import { sectors } from './sectors';
 import { CompanyAvatar } from './CompanyAvatar';
 import { Company } from '../types';
+import { useConfigurationContext } from '../root/ConfigurationContext';
+import { Avatar } from '../contacts/Avatar';
 
-const useStyles = makeStyles(theme => ({
-    paper: {
-        height: 200,
-        width: 193.5,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: '1em',
-    },
-    identity: {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-    },
-    name: {
-        textAlign: 'center',
-        marginTop: theme.spacing(1),
-    },
-    stats: {
-        display: 'flex',
-        justifyContent: 'space-around',
-        width: '100%',
-    },
-    singleStat: {
-        display: 'flex',
-        alignItems: 'center',
-    },
-    statIcon: {
-        marginRight: theme.spacing(1),
-    },
-}));
-
-export const CompanyCard = ({ record }: { record: Company }) => {
-    const classes = useStyles();
+export const CompanyCard = (props: { record?: Company }) => {
+    const { companySectors } = useConfigurationContext();
     const [elevation, setElevation] = useState(1);
+    const createPath = useCreatePath();
+    const record = useRecordContext<Company>(props);
+    if (!record) return null;
+
     return (
-        <MuiLink
-            component={Link}
-            to={linkToRecord('/companies', record.id, 'show')}
+        <Link
+            to={createPath({
+                resource: 'companies',
+                id: record.id,
+                type: 'show',
+            })}
             underline="none"
             onMouseEnter={() => setElevation(3)}
             onMouseLeave={() => setElevation(1)}
         >
-            <Paper className={classes.paper} elevation={elevation}>
-                <div className={classes.identity}>
-                    <CompanyAvatar record={record} />
-                    <div className={classes.name}>
+            <Paper
+                sx={{
+                    height: 200,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: '1em',
+                }}
+                elevation={elevation}
+            >
+                <Box display="flex" flexDirection="column" alignItems="center">
+                    <CompanyAvatar />
+                    <Box textAlign="center" marginTop={1}>
                         <Typography variant="subtitle2">
                             {record.name}
                         </Typography>
                         <SelectField
                             color="textSecondary"
                             source="sector"
-                            choices={sectors}
-                            record={record}
+                            choices={companySectors.map(sector => ({
+                                id: sector,
+                                name: sector,
+                            }))}
                         />
-                    </div>
-                </div>
-                <div className={classes.stats}>
-                    <div className={classes.singleStat}>
-                        <ContactsIcon
-                            color="disabled"
-                            className={classes.statIcon}
-                        />
-                        <div>
-                            <Typography
-                                variant="subtitle2"
-                                style={{ marginBottom: -8 }}
+                    </Box>
+                </Box>
+                <Box display="flex" width="100%">
+                    <Box display="flex" alignItems="center">
+                        {record.nb_contacts ? (
+                            <ReferenceManyField
+                                reference="contacts"
+                                target="company_id"
                             >
-                                {record.nb_contacts}
-                            </Typography>
-                            <Typography variant="caption" color="textSecondary">
-                                {record.nb_contacts > 1
-                                    ? 'contacts'
-                                    : 'contact'}
-                            </Typography>
-                        </div>
-                    </div>
-                    <div className={classes.singleStat}>
-                        <DealIcon
-                            color="disabled"
-                            className={classes.statIcon}
-                        />
-                        <div>
-                            <Typography
-                                variant="subtitle2"
-                                style={{ marginBottom: -8 }}
-                            >
+                                <AvatarGroupIterator />
+                            </ReferenceManyField>
+                        ) : null}
+                    </Box>
+                    {record.nb_deals ? (
+                        <Box
+                            sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                ml: 2,
+                                gap: 0.5,
+                            }}
+                        >
+                            <DealIcon color="disabled" />
+                            <Typography variant="subtitle2">
                                 {record.nb_deals}
                             </Typography>
                             <Typography variant="caption" color="textSecondary">
-                                {record.nb_deals > 1 ? 'deals' : 'deal'}
+                                {record.nb_deals
+                                    ? record.nb_deals > 1
+                                        ? 'deals'
+                                        : 'deal'
+                                    : 'deal'}
                             </Typography>
-                        </div>
-                    </div>
-                </div>
+                        </Box>
+                    ) : null}
+                </Box>
             </Paper>
-        </MuiLink>
+        </Link>
+    );
+};
+
+const AvatarGroupIterator = () => {
+    const { data, total, error, isPending } = useListContext();
+    if (isPending || error) return null;
+    return (
+        <AvatarGroup
+            max={4}
+            total={total}
+            spacing="medium"
+            sx={{
+                '& .MuiAvatar-circular': {
+                    width: 20,
+                    height: 20,
+                    fontSize: '0.6rem',
+                },
+            }}
+        >
+            {data.map((record: any) => (
+                <Avatar
+                    key={record.id}
+                    record={record}
+                    width={20}
+                    height={20}
+                    title={`${record.first_name} ${record.last_name}`}
+                />
+            ))}
+        </AvatarGroup>
     );
 };

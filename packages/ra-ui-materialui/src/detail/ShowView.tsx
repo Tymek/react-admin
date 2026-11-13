@@ -1,158 +1,151 @@
 import * as React from 'react';
-import { cloneElement, Children, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import Card from '@material-ui/core/Card';
-import { makeStyles } from '@material-ui/core/styles';
-import classnames from 'classnames';
+import type { ElementType, ReactNode } from 'react';
 import {
-    ShowControllerProps,
-    useResourceDefinition,
+    Card,
+    type ComponentsOverrides,
+    styled,
+    type SxProps,
+    type Theme,
+} from '@mui/material';
+import clsx from 'clsx';
+import {
     useShowContext,
+    useResourceDefinition,
+    ShowControllerResult,
 } from 'ra-core';
+import { ShowActions } from './ShowActions';
+import { Title } from '../layout';
+import { ShowProps } from './Show';
+import { Offline } from '../Offline';
 
-import { ShowActions as DefaultActions } from './ShowActions';
-import TitleForRecord from '../layout/TitleForRecord';
-import { ShowProps } from '../types';
+const defaultActions = <ShowActions />;
+const defaultOffline = <Offline />;
 
 export const ShowView = (props: ShowViewProps) => {
     const {
         actions,
         aside,
         children,
-        classes: classesOverride,
+        render,
         className,
-        component: Content,
+        component: Content = Card,
+        emptyWhileLoading = false,
+        offline = defaultOffline,
+        error,
         title,
         ...rest
     } = props;
 
-    const classes = useStyles(props);
-
+    const showContext = useShowContext();
     const {
-        basePath,
-        defaultTitle,
-        hasList,
-        record,
         resource,
-        version,
-    } = useShowContext(props);
-    const { hasEdit } = useResourceDefinition(props);
+        defaultTitle,
+        isPaused,
+        isPending,
+        record,
+        error: errorState,
+    } = showContext;
+    const { hasEdit } = useResourceDefinition();
 
     const finalActions =
-        typeof actions === 'undefined' && hasEdit ? (
-            <DefaultActions />
-        ) : (
-            actions
-        );
+        typeof actions === 'undefined' && hasEdit ? defaultActions : actions;
 
-    if (!children) {
+    const showOffline =
+        isPaused && isPending && offline !== undefined && offline !== false;
+
+    const showError = errorState && error !== false && error !== undefined;
+
+    if (
+        !record &&
+        isPending &&
+        emptyWhileLoading &&
+        !showOffline &&
+        !showError
+    ) {
         return null;
     }
+
     return (
-        <div
-            className={classnames('show-page', classes.root, className)}
-            {...sanitizeRestProps(rest)}
-        >
-            <TitleForRecord
-                title={title}
-                record={record}
-                defaultTitle={defaultTitle}
-            />
-            {finalActions &&
-                cloneElement(finalActions, {
-                    basePath,
-                    data: record,
-                    hasList,
-                    hasEdit,
-                    resource,
-                    //  Ensure we don't override any user provided props
-                    ...finalActions.props,
-                })}
+        <Root className={clsx('show-page', className)} {...rest}>
+            {title !== false && (
+                <Title
+                    title={title}
+                    defaultTitle={defaultTitle}
+                    preferenceKey={`${resource}.show.title`}
+                />
+            )}
+            {finalActions !== false && finalActions}
             <div
-                className={classnames(classes.main, {
-                    [classes.noActions]: !finalActions,
+                className={clsx(ShowClasses.main, {
+                    [ShowClasses.noActions]: !finalActions,
                 })}
             >
-                <Content className={classes.card}>
-                    {record &&
-                        cloneElement(Children.only(children), {
-                            resource,
-                            basePath,
-                            record,
-                            version,
-                        })}
+                <Content className={ShowClasses.card}>
+                    {showOffline
+                        ? offline
+                        : showError
+                          ? error
+                          : render
+                            ? render(showContext)
+                            : children}
                 </Content>
-                {aside &&
-                    cloneElement(aside, {
-                        resource,
-                        basePath,
-                        record,
-                        version,
-                    })}
+                {aside}
             </div>
-        </div>
+        </Root>
     );
 };
 
-interface ShowViewProps
-    extends ShowProps,
-        Partial<Omit<ShowControllerProps, 'resource'>> {
-    children: ReactElement;
+export interface ShowViewProps
+    extends Omit<React.HTMLAttributes<HTMLDivElement>, 'id' | 'title'> {
+    actions?: ReactNode | false;
+    aside?: ReactNode;
+    component?: ElementType;
+    emptyWhileLoading?: boolean;
+    offline?: ReactNode;
+    error?: ReactNode;
+    title?: ReactNode;
+    sx?: SxProps<Theme>;
+    render?: (showContext: ShowControllerResult) => ReactNode;
 }
 
-ShowView.propTypes = {
-    actions: PropTypes.oneOfType([PropTypes.element, PropTypes.bool]),
-    aside: PropTypes.element,
-    basePath: PropTypes.string,
-    children: PropTypes.element,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    defaultTitle: PropTypes.any,
-    hasEdit: PropTypes.bool,
-    hasList: PropTypes.bool,
-    loading: PropTypes.bool,
-    loaded: PropTypes.bool,
-    record: PropTypes.object,
-    resource: PropTypes.string,
-    title: PropTypes.any,
-    version: PropTypes.node,
+const PREFIX = 'RaShow';
+
+export const ShowClasses = {
+    main: `${PREFIX}-main`,
+    noActions: `${PREFIX}-noActions`,
+    card: `${PREFIX}-card`,
 };
 
-ShowView.defaultProps = {
-    classes: {},
-    component: Card,
-};
-
-const useStyles = makeStyles(
-    {
-        root: {},
-        main: {
-            display: 'flex',
-        },
-        noActions: {
-            marginTop: '1em',
-        },
-        card: {
-            flex: '1 1 auto',
-        },
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    [`& .${ShowClasses.main}`]: {
+        display: 'flex',
     },
-    { name: 'RaShow' }
-);
+    [`& .${ShowClasses.noActions}`]: {
+        marginTop: '1em',
+    },
+    [`& .${ShowClasses.card}`]: {
+        flex: '1 1 auto',
+    },
+});
 
-const sanitizeRestProps = ({
-    basePath = null,
-    defaultTitle = null,
-    hasCreate = null,
-    hasEdit = null,
-    hasList = null,
-    hasShow = null,
-    history = null,
-    id = null,
-    loaded = null,
-    loading = null,
-    location = null,
-    match = null,
-    options = null,
-    permissions = null,
-    ...rest
-}) => rest;
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaShow: 'root' | 'main' | 'noActions' | 'card';
+    }
+
+    interface ComponentsPropsList {
+        RaShow: Partial<ShowProps>;
+    }
+
+    interface Components {
+        RaShow?: {
+            defaultProps?: ComponentsPropsList['RaShow'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaShow'];
+        };
+    }
+}

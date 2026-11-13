@@ -1,0 +1,64 @@
+import * as React from 'react';
+import { useMemo, useRef } from 'react';
+import debounce from 'lodash/debounce.js';
+import { useEvent } from './useEvent';
+
+export interface DebouncedEvent<Args extends unknown[], Return> {
+    (...args: Args): Return | undefined;
+    cancel: () => void;
+    flush: () => Return | undefined;
+}
+
+// allow the hook to work in SSR
+const useLayoutEffect =
+    typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
+/**
+ * Hook somewhat equivalent to useEvent, but with a debounce
+ * Returns a debounced callback which will not change across re-renders unless the
+ * callback or delay changes
+ * @see https://reactjs.org/docs/hooks-faq.html#how-to-read-an-often-changing-value-from-usecallback
+ * @see https://github.com/facebook/react/issues/14099#issuecomment-440013892
+ */
+export const useDebouncedEvent = <Args extends unknown[], Return>(
+    callback: (...args: Args) => Return,
+    delay: number
+): DebouncedEvent<Args, Return> => {
+    // Create a ref that stores the debounced callback
+    const debouncedCallbackRef = useRef<DebouncedEvent<Args, Return>>(
+        Object.assign(
+            () => {
+                throw new Error(
+                    'Cannot call an event handler while rendering.'
+                );
+            },
+            { cancel: () => {}, flush: () => undefined }
+        )
+    );
+
+    // Keep a stable ref to the callback (in case it's an inline function for instance)
+    const stableCallback = useEvent(callback);
+
+    // Whenever callback or delay changes, we need to update the debounced callback
+    useLayoutEffect(() => {
+        const debounced = debounce(stableCallback, delay);
+        debouncedCallbackRef.current = debounced;
+        return () => {
+            debounced.flush();
+        };
+    }, [stableCallback, delay]);
+
+    // The function returned by useMemo will invoke the debounced callback
+    // Its dependencies array is empty, so it never changes across re-renders
+    return useMemo(
+        () =>
+            Object.assign(
+                (...args: Args) => debouncedCallbackRef.current(...args),
+                {
+                    cancel: () => debouncedCallbackRef.current.cancel(),
+                    flush: () => debouncedCallbackRef.current.flush(),
+                }
+            ),
+        []
+    );
+};

@@ -1,34 +1,9 @@
 import * as React from 'react';
-import { ReactNode, FunctionComponent } from 'react';
-import { useFormState } from 'react-final-form';
-import { FormSubscription } from 'final-form';
-import get from 'lodash/get';
-
-import warning from '../util/warning';
-
-export interface FormDataConsumerRenderParams {
-    formData: any;
-    scopedFormData?: any;
-    getSource?: (source: string) => string;
-}
-
-export type FormDataConsumerRender = (
-    params: FormDataConsumerRenderParams
-) => ReactNode;
-
-interface ConnectedProps {
-    children: FormDataConsumerRender;
-    form?: string;
-    record?: any;
-    source?: string;
-    subscription?: FormSubscription;
-    [key: string]: any;
-}
-
-interface Props extends ConnectedProps {
-    formData: any;
-    index?: number;
-}
+import { ReactNode } from 'react';
+import { useFormContext, FieldValues } from 'react-hook-form';
+import get from 'lodash/get.js';
+import { useFormValues } from './useFormValues';
+import { useWrappedSource } from '../core';
 
 /**
  * Get the current (edited) value of the record from the form and pass it
@@ -36,13 +11,13 @@ interface Props extends ConnectedProps {
  *
  * @example
  *
- * const PostEdit = (props) => (
- *     <Edit {...props}>
- *         <SimpleForm>
+ * const PostEdit = () => (
+ *     <Edit>
+ *         <SimpleForm<FieldValues>>
  *             <BooleanInput source="hasEmail" />
  *             <FormDataConsumer>
- *                 {({ formData, ...rest }) => formData.hasEmail &&
- *                      <TextInput source="email" {...rest} />
+ *                 {({ formData }) => formData.hasEmail &&
+ *                      <TextInput source="email" />
  *                 }
  *             </FormDataConsumer>
  *         </SimpleForm>
@@ -51,16 +26,15 @@ interface Props extends ConnectedProps {
  *
  * @example
  *
- * const OrderEdit = (props) => (
- *     <Edit {...props}>
+ * const OrderEdit = () => (
+ *     <Edit>
  *         <SimpleForm>
  *             <SelectInput source="country" choices={countries} />
- *             <FormDataConsumer>
- *                 {({ formData, ...rest }) =>
+ *             <FormDataConsumer<FieldValues>>
+ *                 {({ formData }) =>
  *                      <SelectInput
  *                          source="city"
  *                          choices={getCitiesFor(formData.country)}
- *                          {...rest}
  *                      />
  *                 }
  *             </FormDataConsumer>
@@ -68,66 +42,96 @@ interface Props extends ConnectedProps {
  *     </Edit>
  * );
  */
-const FormDataConsumer = ({ subscription, ...props }: ConnectedProps) => {
-    const formState = useFormState({ subscription });
-
-    return <FormDataConsumerView formData={formState.values} {...props} />;
+export const FormDataConsumer = <
+    TFieldValues extends FieldValues = FieldValues,
+>(
+    props: ConnectedProps<TFieldValues>
+) => {
+    const form = useFormContext<TFieldValues>();
+    const {
+        formState: {
+            // Don't know exactly why, but this is needed for the form values to be updated
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            isDirty,
+        },
+    } = form;
+    const formData = useFormValues<TFieldValues>();
+    return (
+        <FormDataConsumerView<TFieldValues> formData={formData} {...props} />
+    );
 };
 
-export const FormDataConsumerView: FunctionComponent<Props> = ({
-    children,
-    form,
-    formData,
-    source,
-    index,
-    ...rest
-}) => {
-    let scopedFormData = formData;
-    let getSource;
-    let getSourceHasBeenCalled = false;
-    let ret;
+export const FormDataConsumerView = <
+    TFieldValues extends FieldValues = FieldValues,
+>(
+    props: Props<TFieldValues>
+) => {
+    const { children, formData, source } = props;
+    let result;
+
+    const finalSource = useWrappedSource(source || '');
+
+    // Passes an empty string here as we don't have the children sources and we just want to know if we are in an iterator
+    const arraySource = getArraySource(finalSource);
 
     // If we have an index, we are in an iterator like component (such as the SimpleFormIterator)
-    if (typeof index !== 'undefined') {
-        scopedFormData = get(formData, source);
-        getSource = (scopedSource: string) => {
-            getSourceHasBeenCalled = true;
-            return `${source}.${scopedSource}`;
-        };
-        ret = children({ formData, scopedFormData, getSource, ...rest });
+    if (arraySource) {
+        const scopedFormData = get(formData, arraySource);
+        result = children({ formData, scopedFormData });
     } else {
-        ret = children({ formData, ...rest });
+        result = children({ formData });
     }
 
-    warning(
-        typeof index !== 'undefined' && ret && !getSourceHasBeenCalled,
-        `You're using a FormDataConsumer inside an ArrayInput and you did not call the getSource function supplied by the FormDataConsumer component. This is required for your inputs to get the proper source.
-
-<ArrayInput source="users">
-    <SimpleFormIterator>
-        <TextInput source="name" />
-
-        <FormDataConsumer>
-            {({
-                formData, // The whole form data
-                scopedFormData, // The data for this item of the ArrayInput
-                getSource, // A function to get the valid source inside an ArrayInput
-                ...rest,
-            }) =>
-                scopedFormData.name ? (
-                    <SelectInput
-                        source={getSource('role')} // Will translate to "users[0].role"
-                        choices={['admin', 'user']}
-                        {...rest}
-                    />
-                ) : null
-            }
-        </FormDataConsumer>
-    </SimpleFormIterator>
-</ArrayInput>`
-    );
-
-    return ret === undefined ? null : ret;
+    return result === undefined ? null : result;
 };
 
-export default FormDataConsumer;
+const getArraySource = (source: string) =>
+    source.lastIndexOf('.') > 0 && ArraySourceRegex.test(source)
+        ? source
+        : undefined;
+
+const ArraySourceRegex = /\.\d+$/;
+
+export interface FormDataConsumerRenderParams<
+    TFieldValues extends FieldValues = FieldValues,
+    TScopedFieldValues extends FieldValues = TFieldValues,
+> {
+    formData: TFieldValues;
+    scopedFormData?: TScopedFieldValues;
+}
+
+export type FormDataConsumerRender<
+    TFieldValues extends FieldValues = FieldValues,
+> = (params: FormDataConsumerRenderParams<TFieldValues>) => ReactNode;
+
+interface ConnectedProps<TFieldValues extends FieldValues = FieldValues> {
+    children: FormDataConsumerRender<TFieldValues>;
+    /**
+     * @deprecated This prop will be removed in a future major release.
+     */
+    form?: string;
+
+    /**
+     * @deprecated This prop will be removed in a future major release.
+     */
+    record?: any;
+
+    /**
+     * @deprecated This prop will be removed in a future major release.
+     */
+    source?: string;
+
+    /**
+     * @deprecated This prop will be removed in a future major release.
+     */
+    [key: string]: any;
+}
+
+interface Props<TFieldValues extends FieldValues> extends ConnectedProps {
+    formData: TFieldValues;
+
+    /**
+     * @deprecated This prop will be removed in a future major release.
+     */
+    index?: number;
+}

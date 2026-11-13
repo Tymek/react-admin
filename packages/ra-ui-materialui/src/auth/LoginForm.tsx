@@ -1,78 +1,27 @@
 import * as React from 'react';
-import { FunctionComponent } from 'react';
-import PropTypes from 'prop-types';
-import { Field, Form } from 'react-final-form';
 import {
-    Button,
-    CardActions,
-    CircularProgress,
-    TextField,
-} from '@material-ui/core';
-import { makeStyles, Theme } from '@material-ui/core/styles';
-import { useTranslate, useLogin, useNotify, useSafeSetState } from 'ra-core';
+    type ComponentsOverrides,
+    styled,
+    type SxProps,
+    type Theme,
+    useThemeProps,
+} from '@mui/material/styles';
+import { Button, CardContent, CircularProgress } from '@mui/material';
+import { Form, required, useTranslate, useLogin, useNotify } from 'ra-core';
+import { PasswordInput, TextInput } from '../input';
 
-interface Props {
-    redirectTo?: string;
-}
-
-interface FormData {
-    username: string;
-    password: string;
-}
-
-const useStyles = makeStyles(
-    (theme: Theme) => ({
-        form: {
-            padding: '0 1em 1em 1em',
-        },
-        input: {
-            marginTop: '1em',
-        },
-        button: {
-            width: '100%',
-        },
-        icon: {
-            marginRight: theme.spacing(1),
-        },
-    }),
-    { name: 'RaLoginForm' }
-);
-
-const Input = ({
-    meta: { touched, error }, // eslint-disable-line react/prop-types
-    input: inputProps, // eslint-disable-line react/prop-types
-    ...props
-}) => (
-    <TextField
-        error={!!(touched && error)}
-        helperText={touched && error}
-        {...inputProps}
-        {...props}
-        fullWidth
-    />
-);
-
-const LoginForm: FunctionComponent<Props> = props => {
-    const { redirectTo } = props;
-    const [loading, setLoading] = useSafeSetState(false);
+export const LoginForm = (inProps: LoginFormProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { redirectTo, className, sx, children } = props;
+    const [loading, setLoading] = React.useState(false);
     const login = useLogin();
     const translate = useTranslate();
     const notify = useNotify();
-    const classes = useStyles(props);
 
-    const validate = (values: FormData) => {
-        const errors = { username: undefined, password: undefined };
-
-        if (!values.username) {
-            errors.username = translate('ra.validation.required');
-        }
-        if (!values.password) {
-            errors.password = translate('ra.validation.required');
-        }
-        return errors;
-    };
-
-    const submit = values => {
+    const submit = (values: FormData) => {
         setLoading(true);
         login(values, redirectTo)
             .then(() => {
@@ -84,76 +33,124 @@ const LoginForm: FunctionComponent<Props> = props => {
                     typeof error === 'string'
                         ? error
                         : typeof error === 'undefined' || !error.message
-                        ? 'ra.auth.sign_in_error'
-                        : error.message,
-                    'warning',
+                          ? 'ra.auth.sign_in_error'
+                          : error.message,
                     {
-                        _:
-                            typeof error === 'string'
-                                ? error
-                                : error && error.message
-                                ? error.message
-                                : undefined,
+                        type: 'error',
+                        messageArgs: {
+                            _:
+                                typeof error === 'string'
+                                    ? error
+                                    : error && error.message
+                                      ? error.message
+                                      : undefined,
+                        },
                     }
                 );
             });
     };
 
     return (
-        <Form
+        <StyledForm
             onSubmit={submit}
-            validate={validate}
-            render={({ handleSubmit }) => (
-                <form onSubmit={handleSubmit} noValidate>
-                    <div className={classes.form}>
-                        <div className={classes.input}>
-                            <Field
-                                autoFocus
-                                id="username"
-                                name="username"
-                                component={Input}
-                                label={translate('ra.auth.username')}
-                                disabled={loading}
-                            />
-                        </div>
-                        <div className={classes.input}>
-                            <Field
-                                id="password"
-                                name="password"
-                                component={Input}
-                                label={translate('ra.auth.password')}
-                                type="password"
-                                disabled={loading}
-                                autoComplete="current-password"
-                            />
-                        </div>
-                    </div>
-                    <CardActions>
-                        <Button
-                            variant="contained"
-                            type="submit"
-                            color="primary"
-                            disabled={loading}
-                            className={classes.button}
-                        >
-                            {loading && (
-                                <CircularProgress
-                                    className={classes.icon}
-                                    size={18}
-                                    thickness={2}
-                                />
-                            )}
-                            {translate('ra.auth.sign_in')}
-                        </Button>
-                    </CardActions>
-                </form>
-            )}
-        />
+            mode="onChange"
+            noValidate
+            className={className}
+            sx={sx}
+        >
+            <CardContent className={LoginFormClasses.content}>
+                {children || (
+                    <>
+                        <TextInput
+                            autoFocus
+                            source="username"
+                            label={translate('ra.auth.username')}
+                            autoComplete="username"
+                            validate={required()}
+                        />
+                        <PasswordInput
+                            source="password"
+                            label={translate('ra.auth.password')}
+                            autoComplete="current-password"
+                            validate={required()}
+                        />
+                    </>
+                )}
+
+                <Button
+                    variant="contained"
+                    type="submit"
+                    color="primary"
+                    disabled={loading}
+                    fullWidth
+                    className={LoginFormClasses.button}
+                >
+                    {loading ? (
+                        <CircularProgress
+                            className={LoginFormClasses.icon}
+                            size={19}
+                            thickness={3}
+                        />
+                    ) : (
+                        translate('ra.auth.sign_in')
+                    )}
+                </Button>
+            </CardContent>
+        </StyledForm>
     );
 };
 
-LoginForm.propTypes = {
-    redirectTo: PropTypes.string,
+const PREFIX = 'RaLoginForm';
+
+export const LoginFormClasses = {
+    content: `${PREFIX}-content`,
+    button: `${PREFIX}-button`,
+    icon: `${PREFIX}-icon`,
 };
 
-export default LoginForm;
+const StyledForm = styled(Form, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    [`& .${LoginFormClasses.content}`]: {
+        width: 300,
+        paddingBottom: `${theme.spacing(2)}!important`,
+    },
+    [`& .${LoginFormClasses.button}`]: {
+        marginTop: theme.spacing(2),
+    },
+    [`& .${LoginFormClasses.icon}`]: {
+        margin: theme.spacing(0.3),
+    },
+}));
+
+export interface LoginFormProps {
+    redirectTo?: string;
+    className?: string;
+    sx?: SxProps<Theme>;
+    children?: React.ReactNode;
+}
+
+interface FormData {
+    username: string;
+    password: string;
+}
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaLoginForm: 'root' | 'content' | 'button' | 'icon';
+    }
+
+    interface ComponentsPropsList {
+        RaLoginForm: Partial<LoginFormProps>;
+    }
+
+    interface Components {
+        RaLoginForm?: {
+            defaultProps?: ComponentsPropsList['RaLoginForm'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaLoginForm'];
+        };
+    }
+}

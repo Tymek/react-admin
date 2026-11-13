@@ -1,44 +1,32 @@
 import * as React from 'react';
-import { Avatar } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import clsx from 'clsx';
+import { Avatar } from '@mui/material';
+import { useRecordContext } from 'react-admin';
 
 import { Company } from '../types';
 
-const useStyles = makeStyles({
-    avatar: {
-        width: 60,
-        height: 60,
-        backgroundColor: 'aliceblue',
-    },
-    img: {
-        objectFit: 'contain',
-    },
-    small: {
-        width: 20,
-        height: 20,
-    },
-    large: {
-        width: 40,
-        height: 40,
-    },
-});
-
-export const CompanyAvatar = ({
-    record,
-    size = 'large',
-}: {
+export const CompanyAvatar = (props: {
     record?: Company;
-    size?: 'small' | 'large';
+    width?: number;
+    height?: number;
 }) => {
-    const classes = useStyles();
+    const { width = 40, height = 40 } = props;
+    const record = useRecordContext<Company>(props);
     if (!record) return null;
     return (
         <Avatar
-            src={process.env.PUBLIC_URL + record.logo}
+            src={record.logo?.src}
             alt={record.name}
-            className={classes.avatar}
-            imgProps={{ className: clsx(classes.img, classes[size]) }}
-        />
+            sx={{
+                '& img': { objectFit: 'contain' },
+                width,
+                height,
+                fontSize: height !== 40 ? '0.6rem' : undefined,
+                '&.MuiAvatar-colorDefault': {
+                    color: 'primary.contrastText',
+                },
+            }}
+        >
+            {record.name.charAt(0)}
+        </Avatar>
     );
 };

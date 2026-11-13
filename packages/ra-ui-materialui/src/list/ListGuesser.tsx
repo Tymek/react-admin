@@ -1,24 +1,32 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import inflection from 'inflection';
+import { styled, useThemeProps } from '@mui/material/styles';
+import { Box, Typography } from '@mui/material';
+import Inbox from '@mui/icons-material/Inbox';
+
 import {
-    useListController,
+    ListBase,
     getElementsFromRecords,
     InferredElement,
-    ListContextProvider,
+    useListContext,
     useResourceContext,
+    RaRecord,
+    usePrevious,
+    useLocation,
+    useTranslate,
 } from 'ra-core';
 
-import ListView, { ListViewProps } from './ListView';
-import listFieldTypes from './listFieldTypes';
-import { ListProps } from '../types';
+import { ListProps } from './List';
+import { ListView, ListViewProps } from './ListView';
+import { listFieldTypes } from './listFieldTypes';
+import { capitalize, singularize } from 'inflection';
 
 /**
- * List component rendering a <Datagrid> based on the result of the
+ * List component rendering a <DataTable> based on the result of the
  * dataProvider.getList() call.
  *
  * The result (choice and type of columns) isn't configurable, but the
- * <ListGuesser> outputs the <Datagrid> it has guessed to the console so that
+ * <ListGuesser> outputs the <DataTable> it has guessed to the console so that
  * developers can start from there.
  *
  * To be used as the list prop of a <Resource>.
@@ -33,23 +41,70 @@ import { ListProps } from '../types';
  *     </Admin>
  * );
  */
-const ListGuesser = (props: ListProps) => {
-    const controllerProps = useListController(props);
+export const ListGuesser = <RecordType extends RaRecord = any>(
+    props: Omit<ListProps, 'children'> & { enableLog?: boolean }
+) => {
+    const {
+        debounce,
+        disableAuthentication,
+        disableSyncWithLocation,
+        empty,
+        exporter,
+        filter,
+        filterDefaultValues,
+        perPage,
+        queryOptions,
+        resource,
+        sort,
+        ...rest
+    } = props;
+    // force a rerender of this component when any list parameter changes
+    // otherwise the ListBase won't be rerendered when the sort changes
+    // and the following check won't be performed
+    useLocation();
+    // keep previous data, unless the resource changes
+    const resourceFromContext = useResourceContext(props);
+    const previousResource = usePrevious(resourceFromContext);
+    const keepPreviousData = previousResource === resourceFromContext;
     return (
-        <ListContextProvider value={controllerProps}>
-            <ListViewGuesser {...props} {...controllerProps} />
-        </ListContextProvider>
+        <ListBase<RecordType>
+            debounce={debounce}
+            disableAuthentication={disableAuthentication}
+            disableSyncWithLocation={disableSyncWithLocation}
+            empty={empty === undefined ? <ListGuesserEmpty /> : empty}
+            exporter={exporter}
+            filter={filter}
+            filterDefaultValues={filterDefaultValues}
+            perPage={perPage}
+            queryOptions={{
+                placeholderData: previousData =>
+                    keepPreviousData ? previousData : undefined,
+            }}
+            resource={resource}
+            sort={sort}
+        >
+            <ListGuesserView {...rest} />
+        </ListBase>
     );
 };
 
-const ListViewGuesser = (props: Omit<ListViewProps, 'children'>) => {
-    const { ids, data } = props;
-    const resource = useResourceContext(props);
-    const [inferredChild, setInferredChild] = useState(null);
+export const ListGuesserView = (
+    props: Omit<ListViewProps, 'children'> & { enableLog?: boolean }
+) => {
+    const { data } = useListContext();
+    const resource = useResourceContext();
+    const [child, setChild] = useState<React.ReactNode>(null);
+    const { enableLog = process.env.NODE_ENV === 'development', ...rest } =
+        props;
+
     useEffect(() => {
-        if (ids.length > 0 && data && !inferredChild) {
+        setChild(null);
+    }, [resource]);
+
+    useEffect(() => {
+        if (data && data.length > 0 && !child) {
             const inferredElements = getElementsFromRecords(
-                ids.map(id => data[id]),
+                data,
                 listFieldTypes
             );
             const inferredChild = new InferredElement(
@@ -57,27 +112,106 @@ const ListViewGuesser = (props: Omit<ListViewProps, 'children'>) => {
                 null,
                 inferredElements
             );
+            const inferredChildElement = inferredChild.getElement();
+            const representation = inferredChild.getRepresentation();
+            if (!resource) {
+                throw new Error(
+                    'Cannot use <ListGuesser> outside of a ResourceContext'
+                );
+            }
+            if (!inferredChildElement || !representation) {
+                return;
+            }
 
-            process.env.NODE_ENV !== 'production' &&
-                // eslint-disable-next-line no-console
+            setChild(inferredChildElement);
+
+            const components = ['List']
+                .concat(
+                    Array.from(
+                        new Set(
+                            Array.from(representation.matchAll(/<([^/\s>]+)/g))
+                                .map(match => match[1])
+                                .filter(component => component !== 'span')
+                        )
+                    )
+                )
+                .filter(component => !component.match(/[A-Za-z]+\.[A-Za-z]+/i))
+                .sort();
+
+            if (enableLog) {
                 console.log(
                     `Guessed List:
 
-export const ${inflection.capitalize(
-                        inflection.singularize(resource)
-                    )}List = props => (
-    <List {...props}>
+import { ${components.join(', ')} } from 'react-admin';
+
+export const ${capitalize(singularize(resource))}List = () => (
+    <List>
 ${inferredChild.getRepresentation()}
     </List>
 );`
                 );
-            setInferredChild(inferredChild.getElement());
+            }
         }
-    }, [data, ids, inferredChild, resource]);
+    }, [data, child, resource, enableLog]);
 
-    return <ListView {...props}>{inferredChild}</ListView>;
+    return <ListView {...rest}>{child}</ListView>;
 };
 
-ListViewGuesser.propTypes = ListView.propTypes;
+const ListGuesserEmpty = (inProps: ListGuesserEmptyProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: LIST_GUESSER_EMPTY_PREFIX,
+    });
+    const { className } = props;
+    const translate = useTranslate();
 
-export default ListGuesser;
+    return (
+        <ListGuesserEmptyRoot className={className}>
+            <Box className={ListGuesserEmptyClasses.message}>
+                <Inbox className={ListGuesserEmptyClasses.icon} />
+                <Typography
+                    variant="h4"
+                    sx={{
+                        marginBottom: '16px',
+                    }}
+                >
+                    {translate('ra.guesser.empty.title', {
+                        _: 'No data to display',
+                    })}
+                </Typography>
+                <Typography variant="body1">
+                    {translate('ra.guesser.empty.message', {
+                        _: 'Please check your data provider',
+                    })}
+                </Typography>
+            </Box>
+        </ListGuesserEmptyRoot>
+    );
+};
+
+interface ListGuesserEmptyProps {
+    className?: string;
+}
+
+const LIST_GUESSER_EMPTY_PREFIX = 'RaListGuesserEmpty';
+
+const ListGuesserEmptyClasses = {
+    message: `${LIST_GUESSER_EMPTY_PREFIX}-message`,
+    icon: `${LIST_GUESSER_EMPTY_PREFIX}-icon`,
+};
+
+const ListGuesserEmptyRoot = styled('span', {
+    name: LIST_GUESSER_EMPTY_PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    flex: 1,
+    [`& .${ListGuesserEmptyClasses.message}`]: {
+        textAlign: 'center',
+        margin: '0 1em',
+        color: (theme.vars || theme).palette.text.disabled,
+    },
+    [`& .${ListGuesserEmptyClasses.icon}`]: {
+        width: '9em',
+        height: '9em',
+    },
+}));

@@ -1,384 +1,958 @@
 import * as React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import {
+    FormDataConsumer,
+    ResourceContextProvider,
+    required,
+    testDataProvider,
+    useRecordContext,
+    useCreateSuggestionContext,
+} from 'ra-core';
+import { AdminContext } from '../AdminContext';
+import { SimpleForm } from '../form';
 
 import { AutocompleteInput } from './AutocompleteInput';
-import { Form } from 'react-final-form';
-import { TestTranslationProvider } from 'ra-core';
-import { useCreateSuggestionContext } from './useSupportCreateSuggestion';
+import {
+    DifferentShapeInGetMany,
+    InsideReferenceInput,
+    InsideReferenceInputDefaultValue,
+    InsideReferenceInputWithCustomizedItemRendering,
+    Basic,
+    NullishValuesSupport,
+    VeryLargeOptionsNumber,
+    TranslateChoice,
+    OnChange,
+    InsideReferenceInputOnChange,
+    WithInputProps,
+    OnCreate,
+    OnCreateWithAutoSelect,
+    OnCreateSlow,
+    OnCreatePrompt,
+    CreateLabel,
+    CreateItemLabel,
+    CreateItemLabelRendered,
+    FilterSelectedOptionsFalse,
+    GetOptionDisabled,
+} from './AutocompleteInput.stories';
+import { ReferenceArrayInput } from './ReferenceArrayInput';
+import { AutocompleteArrayInput } from './AutocompleteArrayInput';
 
 describe('<AutocompleteInput />', () => {
-    // Fix document.createRange is not a function error on fireEvent usage (Fixed in jsdom v16.0.0)
-    // reported by https://github.com/mui-org/material-ui/issues/15726#issuecomment-493124813
-    global.document.createRange = () => ({
-        setStart: () => {},
-        setEnd: () => {},
-        commonAncestorContainer: {
-            nodeName: 'BODY',
-            ownerDocument: document,
-        },
-    });
-
     const defaultProps = {
         source: 'role',
         resource: 'users',
     };
 
-    it('should use a Downshift', () => {
-        const { getByRole } = render(
-            <Form
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        choices={[{ id: 1, name: 'hello' }]}
-                    />
-                )}
-            />
-        );
-        expect(getByRole('combobox')).not.toBeNull();
-    });
-
-    it('should set AutocompleteInput value to an empty string when the selected item is null', () => {
-        const { queryByDisplayValue } = render(
-            <Form
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        choices={[{ id: 2, name: 'foo' }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByDisplayValue('')).not.toBeNull();
-    });
-
-    it('should use the input parameter value as the initial state and input searchText', () => {
-        const { queryByDisplayValue } = render(
-            <Form
-                onSubmit={jest.fn()}
-                initialValues={{ role: 2 }}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        choices={[{ id: 2, name: 'foo' }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByDisplayValue('foo')).not.toBeNull();
-    });
-
-    it('should use optionValue as value identifier', () => {
-        const { queryByDisplayValue } = render(
-            <Form
-                onSubmit={jest.fn()}
-                initialValues={{ role: 2 }}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        optionValue="foobar"
-                        choices={[{ foobar: 2, name: 'foo' }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByDisplayValue('foo')).not.toBeNull();
-    });
-
-    it('should use optionValue including "." as value identifier', () => {
-        const { queryByDisplayValue } = render(
-            <Form
-                onSubmit={jest.fn()}
-                initialValues={{ role: 2 }}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        optionValue="foobar.id"
-                        choices={[{ foobar: { id: 2 }, name: 'foo' }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByDisplayValue('foo')).not.toBeNull();
-    });
-
-    it('should use optionText with a string value as text identifier', () => {
-        const { queryByDisplayValue } = render(
-            <Form
-                onSubmit={jest.fn()}
-                initialValues={{ role: 2 }}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        optionText="foobar"
-                        choices={[{ id: 2, foobar: 'foo' }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByDisplayValue('foo')).not.toBeNull();
-    });
-
-    it('should use optionText with a string value including "." as text identifier', () => {
-        const { queryByDisplayValue } = render(
-            <Form
-                onSubmit={jest.fn()}
-                initialValues={{ role: 2 }}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        optionText="foobar.name"
-                        choices={[{ id: 2, foobar: { name: 'foo' } }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByDisplayValue('foo')).not.toBeNull();
-    });
-
-    it('should use optionText with a function value as text identifier', () => {
-        const { queryByDisplayValue } = render(
-            <Form
-                onSubmit={jest.fn()}
-                initialValues={{ role: 2 }}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        optionText={choice => choice.foobar}
-                        choices={[{ id: 2, foobar: 'foo' }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByDisplayValue('foo')).not.toBeNull();
-    });
-
-    it('should translate the value by default', () => {
-        const { queryByDisplayValue } = render(
-            <TestTranslationProvider translate={x => `**${x}**`}>
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: 2 }}
-                    render={() => (
+    it('should set AutocompleteInput value to an empty string when the selected item is null', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: null }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[{ id: 2, name: 'foo' }]}
                         />
-                    )}
-                />
-            </TestTranslationProvider>
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByDisplayValue('**foo**')).not.toBeNull();
+
+        await waitFor(() => {
+            expect(screen.queryByDisplayValue('')).not.toBeNull();
+        });
     });
 
-    it('should not translate the value if translateChoice is false', () => {
-        const { queryByDisplayValue } = render(
-            <TestTranslationProvider translate={x => `**${x}**`}>
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: 2 }}
-                    render={() => (
+    it('should use the input value as the initial state and input searchText', () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: 2 }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
-                            translateChoice={false}
                             choices={[{ id: 2, name: 'foo' }]}
                         />
-                    )}
-                />
-            </TestTranslationProvider>
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByDisplayValue('foo')).not.toBeNull();
-        expect(queryByDisplayValue('**foo**')).toBeNull();
+        expect(screen.queryByDisplayValue('foo')).not.toBeNull();
+    });
+
+    it('should immediately update input value when re-selecting the same option after partial deletion with filterSelectedOptions={false}', async () => {
+        render(<FilterSelectedOptionsFalse />);
+
+        // Wait for the Edit form to load — record has author: 1 (Leo Tolstoy)
+        const input = (await screen.findByDisplayValue(
+            'Leo Tolstoy'
+        )) as HTMLInputElement;
+
+        // Delete last character to trigger the filter while keeping the option visible
+        fireEvent.focus(input);
+        userEvent.type(input, '{end}');
+        userEvent.type(input, '{backspace}');
+        await waitFor(() => {
+            expect(input.value).toEqual('Leo Tolsto');
+        });
+
+        // Re-select the same option — input should restore immediately without blur
+        await waitFor(() => {
+            expect(screen.queryByText('Leo Tolstoy')).not.toBeNull();
+        });
+        fireEvent.click(screen.getByText('Leo Tolstoy'));
+        await waitFor(() => {
+            expect(input.value).toEqual('Leo Tolstoy');
+        });
+        expect(document.activeElement).toBe(input);
+    });
+
+    it('should allow filter to match the selected choice while removing characters in the input', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm>
+                        <AutocompleteInput
+                            {...defaultProps}
+                            choices={[
+                                { id: 1, name: 'foo' },
+                                { id: 2, name: 'bar' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+
+        fireEvent.mouseDown(input);
+        await waitFor(() => {
+            expect(screen.getByText('foo')).not.toBe(null);
+        });
+        fireEvent.click(screen.getByText('foo'));
+        await waitFor(() => {
+            expect(input.value).toEqual('foo');
+        });
+        fireEvent.focus(input);
+        userEvent.type(input, '{end}');
+        userEvent.type(input, '2');
+        await screen.findByDisplayValue('foo2');
+        userEvent.type(input, '{backspace}');
+        await waitFor(() => {
+            expect(input.value).toEqual('foo');
+        });
+    });
+
+    describe('emptyText', () => {
+        it('should allow to have an empty menu option text by passing a string', () => {
+            const emptyText = 'Default';
+
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm onSubmit={jest.fn()}>
+                            <AutocompleteInput
+                                emptyText={emptyText}
+                                {...defaultProps}
+                                choices={[{ id: 2, name: 'foo' }]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            fireEvent.mouseDown(
+                screen.getByLabelText('resources.users.fields.role')
+            );
+
+            expect(screen.queryAllByRole('option').length).toEqual(1);
+
+            const input = screen.getByRole('combobox') as HTMLInputElement;
+
+            expect(input.value).toEqual('Default');
+        });
+
+        it('should display the emptyText when input is not required', async () => {
+            const emptyText = 'Default';
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 1 }}
+                        >
+                            <AutocompleteInput
+                                emptyText={emptyText}
+                                {...defaultProps}
+                                choices={[]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            fireEvent.click(
+                await screen.findByLabelText('resources.users.fields.role')
+            );
+            await waitFor(() => {
+                expect(screen.queryAllByRole('option').length).toEqual(1);
+            });
+            expect(screen.queryByText('Default')).not.toBeNull();
+        });
+
+        it('should not display the emptyText when validate equals required', async () => {
+            const emptyText = 'Default';
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 1 }}
+                        >
+                            <AutocompleteInput
+                                emptyText={emptyText}
+                                {...defaultProps}
+                                choices={[]}
+                                validate={required()}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            fireEvent.click(
+                await screen.findByLabelText('resources.users.fields.role *')
+            );
+            await waitFor(() => {
+                expect(screen.queryAllByRole('option').length).toEqual(0);
+            });
+            expect(screen.queryByText('Default')).toBeNull();
+            await screen.findByText('No options');
+        });
+
+        it('should not display the emptyText when isRequired is true', async () => {
+            const emptyText = 'Default';
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 1 }}
+                        >
+                            <AutocompleteInput
+                                emptyText={emptyText}
+                                {...defaultProps}
+                                choices={[]}
+                                isRequired
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            fireEvent.click(
+                await screen.findByLabelText('resources.users.fields.role *')
+            );
+            await waitFor(() => {
+                expect(screen.queryAllByRole('option').length).toEqual(0);
+            });
+            expect(screen.queryByText('Default')).toBeNull();
+            await screen.findByText('No options');
+        });
+
+        it('should not display the emptyText when multiple is true', async () => {
+            const mock = jest
+                .spyOn(console, 'warn')
+                .mockImplementation(() => {});
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm onSubmit={jest.fn()}>
+                            <AutocompleteInput
+                                emptyText="Default"
+                                {...defaultProps}
+                                choices={[{ id: 2, name: 'foo' }]}
+                                multiple
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            fireEvent.click(
+                await screen.findByLabelText('resources.users.fields.role')
+            );
+            await waitFor(() => {
+                expect(screen.queryAllByRole('option').length).toEqual(1);
+            });
+            expect(screen.queryByText('Default')).toBeNull();
+            expect(mock).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    'emptyText and emptyValue are not supported when multiple is true'
+                )
+            );
+            mock.mockRestore();
+        });
+    });
+
+    describe('optionValue', () => {
+        it('should use optionValue as value identifier', async () => {
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 2 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                optionValue="foobar"
+                                choices={[
+                                    { foobar: 2, name: 'foo' },
+                                    { foobar: 3, name: 'bar' },
+                                ]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(screen.queryByDisplayValue('foo')).not.toBeNull();
+            fireEvent.focus(
+                screen.getByLabelText('resources.users.fields.role')
+            );
+            await waitFor(() => {
+                expect(screen.queryByText('bar')).not.toBeNull();
+            });
+        });
+
+        it('should use optionValue including "." as value identifier', async () => {
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 2 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                optionValue="foobar.id"
+                                choices={[
+                                    { foobar: { id: 2 }, name: 'foo' },
+                                    { foobar: { id: 3 }, name: 'bar' },
+                                ]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(screen.queryByDisplayValue('foo')).not.toBeNull();
+            fireEvent.focus(
+                screen.getByLabelText('resources.users.fields.role')
+            );
+            await waitFor(() => {
+                expect(screen.queryByText('bar')).not.toBeNull();
+            });
+        });
+    });
+
+    describe('optionText', () => {
+        it('should use optionText with a string value as text identifier', async () => {
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 2 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                optionText="foobar"
+                                choices={[
+                                    { id: 2, foobar: 'foo' },
+                                    { id: 3, foobar: 'bar' },
+                                ]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(screen.queryByDisplayValue('foo')).not.toBeNull();
+
+            fireEvent.focus(
+                screen.getByLabelText('resources.users.fields.role')
+            );
+            await waitFor(() => {
+                expect(screen.queryByText('bar')).not.toBeNull();
+            });
+        });
+
+        it('should use optionText with a string value including "." as text identifier', async () => {
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 2 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                optionText="foobar.name"
+                                choices={[
+                                    { id: 2, foobar: { name: 'foo' } },
+                                    { id: 3, foobar: { name: 'bar' } },
+                                ]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(screen.queryByDisplayValue('foo')).not.toBeNull();
+            fireEvent.focus(
+                screen.getByLabelText('resources.users.fields.role')
+            );
+            await waitFor(() => {
+                expect(screen.queryByText('bar')).not.toBeNull();
+            });
+        });
+
+        it('should use optionText with a function value as text identifier', async () => {
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 2 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                optionText={choice => choice.foobar}
+                                choices={[
+                                    { id: 2, foobar: 'foo' },
+                                    { id: 3, foobar: 'bar' },
+                                ]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(screen.queryByDisplayValue('foo')).not.toBeNull();
+
+            fireEvent.focus(
+                screen.getByLabelText('resources.users.fields.role')
+            );
+            await waitFor(() => {
+                expect(screen.queryByText('bar')).not.toBeNull();
+            });
+        });
+
+        it('should not use optionText defined with a function value on the "create new item" option', async () => {
+            const choices = [
+                { id: 'ang', fullname: 'Angular' },
+                { id: 'rea', fullname: 'React' },
+            ];
+            const optionText = jest.fn(choice => choice.fullname);
+
+            const handleCreate = filter => ({
+                id: 'newid',
+                fullname: filter,
+            });
+
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm mode="onBlur" onSubmit={jest.fn()}>
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                optionText={optionText}
+                                onCreate={handleCreate}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+
+            const input = screen.getByLabelText(
+                'resources.posts.fields.language'
+            ) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, { target: { value: 'Vue' } });
+            await new Promise(resolve => setTimeout(resolve));
+            expect(screen.getByText('ra.action.create_item')).not.toBeNull();
+        });
+
+        it('should use optionText with an element value', () => {
+            const OptionItem = props => {
+                const record = useRecordContext();
+                return <div {...props} aria-label={record && record.name} />;
+            };
+
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 2 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                optionText={<OptionItem />}
+                                matchSuggestion={() => true}
+                                inputText={record => record?.name}
+                                choices={[
+                                    { id: 1, name: 'bar' },
+                                    { id: 2, name: 'foo' },
+                                ]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+
+            const input = screen.getByLabelText('resources.users.fields.role');
+            fireEvent.focus(input);
+
+            expect(screen.queryByLabelText('bar')).not.toBeNull();
+        });
+
+        it('should throw an error if no inputText was provided when the optionText returns an element', async () => {
+            const mock = jest
+                .spyOn(console, 'error')
+                .mockImplementation(() => {});
+            const SuggestionItem = props => {
+                const record = useRecordContext();
+                return <div {...props} aria-label={record && record.name} />;
+            };
+
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 2 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                optionText={() => <SuggestionItem />}
+                                matchSuggestion={() => true}
+                                choices={[
+                                    { id: 1, name: 'bar' },
+                                    { id: 2, name: 'foo' },
+                                ]}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            await screen.findByText(
+                'When optionText returns a React element, you must also provide the inputText prop'
+            );
+            mock.mockRestore();
+        });
+    });
+
+    describe('matchSuggestion', () => {
+        it('should take over the default matching function when provided', async () => {
+            const choices = [
+                { id: 'ang', name: 'Angular' },
+                { id: 'rea', name: 'React' },
+            ];
+
+            render(
+                <AdminContext>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm mode="onBlur" onSubmit={jest.fn()}>
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                matchSuggestion={(filter, choice) => {
+                                    if (!filter) return true;
+                                    if (
+                                        filter === 'gugu' &&
+                                        choice.name === 'Angular'
+                                    ) {
+                                        return true;
+                                    }
+                                    if (
+                                        filter === 'rere' &&
+                                        choice.name === 'React'
+                                    ) {
+                                        return true;
+                                    }
+                                    return false;
+                                }}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+
+            const input = screen.getByLabelText(
+                'resources.posts.fields.language'
+            ) as HTMLInputElement;
+            input.focus();
+            await screen.findByText('Angular');
+            await screen.findByText('React');
+            fireEvent.change(input, { target: { value: 'Angular' } });
+            // no option match
+            await waitFor(() => {
+                expect(screen.queryByText('Angular')).toBeNull();
+                expect(screen.queryByText('React')).toBeNull();
+            });
+            fireEvent.change(input, { target: { value: 'gugu' } });
+            // only Angular option matches
+            await waitFor(() => {
+                expect(screen.queryByText('React')).toBeNull();
+            });
+            screen.getByText('Angular');
+            // don't forget to close the dropdown, otherwise following tests will fail
+            fireEvent.click(screen.getByText('Angular'));
+        });
+
+        it('should allow matching element optionText', async () => {
+            const choices = [
+                { id: 'ang', name: 'Angular' },
+                { id: 'rea', name: 'React' },
+            ];
+            const OptionText = () => {
+                const record = useRecordContext();
+                return <span>option:{record?.name}</span>;
+            };
+            render(
+                <AdminContext>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm mode="onBlur" onSubmit={jest.fn()}>
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                matchSuggestion={(filter, choice) => {
+                                    if (!filter) return true;
+                                    if (
+                                        filter === 'gugu' &&
+                                        choice.name === 'Angular'
+                                    ) {
+                                        return true;
+                                    }
+                                    if (
+                                        filter === 'rere' &&
+                                        choice.name === 'React'
+                                    ) {
+                                        return true;
+                                    }
+                                    return false;
+                                }}
+                                optionText={<OptionText />}
+                                inputText={option => option.name}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+
+            const input = screen.getByLabelText(
+                'resources.posts.fields.language'
+            ) as HTMLInputElement;
+            input.focus();
+            await screen.findByText('option:Angular');
+            await screen.findByText('option:React');
+            fireEvent.change(input, { target: { value: 'Angular' } });
+            // no option match
+            await waitFor(() => {
+                expect(screen.queryByText('option:Angular')).toBeNull();
+                expect(screen.queryByText('option:React')).toBeNull();
+            });
+            fireEvent.change(input, { target: { value: 'gugu' } });
+            // only Angular option matches
+            await waitFor(() => {
+                expect(screen.queryByText('option:React')).toBeNull();
+            });
+            screen.getByText('option:Angular');
+            // don't forget to close the dropdown, otherwise following tests will fail
+            fireEvent.click(screen.getByText('option:Angular'));
+        });
+    });
+
+    it('should not match selection when selected choice id equals the emptyValue while changing the input', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm>
+                        <AutocompleteInput
+                            {...defaultProps}
+                            choices={[
+                                { id: 2, name: 'foo' },
+                                { id: 3, name: 'bar' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+
+        fireEvent.focus(input);
+
+        userEvent.type(input, 'f');
+        await waitFor(() => {
+            expect(input.value).toEqual('f');
+        });
+
+        userEvent.type(input, '{backspace}');
+        await waitFor(() => {
+            expect(input.value).toEqual('');
+        });
+    });
+
+    describe('translateChoice', () => {
+        it('should translate the choices by default', async () => {
+            render(<TranslateChoice />);
+            const inputElement = (await screen.findByLabelText(
+                'translateChoice default'
+            )) as HTMLInputElement;
+            expect(inputElement.value).toBe('Female');
+        });
+        it('should not translate the choices when translateChoice is false', async () => {
+            render(<TranslateChoice />);
+            const inputElement = (await screen.findByLabelText(
+                'translateChoice false'
+            )) as HTMLInputElement;
+            expect(inputElement.value).toBe('option.female');
+        });
+        it('should not translate the choices when inside ReferenceInput by default', async () => {
+            render(<TranslateChoice />);
+            await waitFor(() => {
+                const inputElement = screen.getByLabelText(
+                    'inside ReferenceInput'
+                ) as HTMLInputElement;
+                expect(inputElement.value).toBe('option.female');
+            });
+        });
+        it('should translate the choices when inside ReferenceInput when translateChoice is true', async () => {
+            render(<TranslateChoice />);
+            await waitFor(() => {
+                const inputElement = screen.getByLabelText(
+                    'inside ReferenceInput forced'
+                ) as HTMLInputElement;
+                expect(inputElement.value).toBe('Female');
+            });
+        });
     });
 
     it('should show the suggestions on focus', async () => {
-        const { getByLabelText, queryByText } = render(
-            <Form
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        choices={[{ id: 2, name: 'foo' }]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: 2 }}
+                    >
+                        <AutocompleteInput
+                            {...defaultProps}
+                            choices={[
+                                { id: 2, name: 'foo' },
+                                { id: 3, name: 'bar' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        const input = getByLabelText('resources.users.fields.role', {
-            selector: 'input',
-        });
-        fireEvent.focus(input);
+        fireEvent.focus(screen.getByLabelText('resources.users.fields.role'));
         await waitFor(() => {
-            expect(queryByText('foo')).not.toBeNull();
+            expect(screen.queryByText('bar')).not.toBeNull();
         });
     });
 
-    it('should respect shouldRenderSuggestions over default if passed in', async () => {
-        const { getByLabelText, queryByText } = render(
-            <Form
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        shouldRenderSuggestions={() => false}
-                        choices={[
-                            { id: 1, name: 'bar' },
-                            { id: 2, name: 'foo' },
-                        ]}
-                    />
-                )}
-            />
+    it('should not open the suggestions popper when shouldRenderSuggestions returns false', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: null }}
+                    >
+                        <AutocompleteInput
+                            {...defaultProps}
+                            shouldRenderSuggestions={(v: string) =>
+                                v.length >= 2
+                            }
+                            noOptionsText="No options"
+                            choices={[
+                                { id: 1, name: 'bar' },
+                                { id: 2, name: 'foo' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        const input = getByLabelText('resources.users.fields.role', {
-            selector: 'input',
-        });
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
         fireEvent.focus(input);
+
+        // popper must NOT open while shouldRenderSuggestions returns false
+        expect(screen.queryByRole('listbox')).toBeNull();
+        expect(screen.queryByText('No options')).toBeNull();
+
+        // typing 2+ chars satisfies the predicate -> popper opens
+        fireEvent.change(input, { target: { value: 'fo' } });
         await waitFor(() => {
-            expect(queryByText('foo')).toBeNull();
+            expect(screen.queryByRole('listbox')).not.toBeNull();
         });
+        expect(screen.queryByText('foo')).not.toBeNull();
     });
 
-    describe('Fix issue #1410', () => {
-        it('should not fail when value is null and new choices are applied', () => {
-            const { getByLabelText, rerender } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: null }}
-                    render={() => (
+    it('should not fail when value is null and new choices are applied', () => {
+        const { rerender } = render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: null }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[{ id: 2, name: 'foo' }]}
                         />
-                    )}
-                />
-            );
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            expect(input.value).toEqual('');
-            // Temporary workaround until we can upgrade testing-library in v4
-            input.focus();
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+        expect(input.value).toEqual('');
+        // Temporary workaround until we can upgrade testing-library in v4
+        input.focus();
 
-            rerender(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: null }}
-                    render={() => (
+        rerender(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: null }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[{ id: 1, name: 'bar' }]}
                         />
-                    )}
-                />
-            );
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
 
-            expect(input.value).toEqual('');
-        });
+        expect(input.value).toEqual('');
+    });
 
-        it('should repopulate the suggestions after the suggestions are dismissed', () => {
-            const { getByLabelText, queryByText } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: null }}
-                    render={() => (
+    it('should repopulate the suggestions after the suggestions are dismissed', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: null }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[{ id: 2, name: 'foo' }]}
                         />
-                    )}
-                />
-            );
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            fireEvent.focus(input);
-            fireEvent.change(input, { target: { value: 'bar' } });
-            expect(queryByText('foo')).toBeNull();
-
-            // Temporary workaround until we can upgrade testing-library in v4
-            input.blur();
-            input.focus();
-            fireEvent.change(input, { target: { value: 'foo' } });
-            expect(queryByText('foo')).not.toBeNull();
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText('resources.users.fields.role');
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: 'bar' } });
+        await waitFor(() => {
+            expect(screen.queryByText('foo')).toBeNull();
         });
 
-        it('should not rerender searchText while having focus and new choices arrive', () => {
-            const { getByLabelText, rerender } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: null }}
-                    render={() => (
+        fireEvent.blur(input);
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: 'foo' } });
+
+        await waitFor(() => {
+            expect(screen.queryByText('foo')).not.toBeNull();
+        });
+    });
+
+    it('should not rerender searchText while having focus and new choices arrive', () => {
+        const { rerender } = render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: null }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[{ id: 2, name: 'foo' }]}
                         />
-                    )}
-                />
-            );
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            fireEvent.change(input, { target: { value: 'foo' } });
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: 'foo' } });
+        expect(input.value).toEqual('foo');
 
-            rerender(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: null }}
-                    render={() => (
+        rerender(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: null }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[{ id: 1, name: 'bar' }]}
                         />
-                    )}
-                />
-            );
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
 
-            expect(input.value).toEqual('foo');
-        });
+        expect(input.value).toEqual('foo');
+    });
 
-        it('should revert the searchText when allowEmpty is false', async () => {
-            const { getByLabelText } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: 2 }}
-                    render={() => (
-                        <AutocompleteInput
-                            {...defaultProps}
-                            choices={[{ id: 2, name: 'foo' }]}
-                        />
-                    )}
-                />
-            );
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            fireEvent.focus(input);
-            fireEvent.change(input, { target: { value: 'bar' } });
-            fireEvent.blur(input);
-            await waitFor(() => {
-                expect(input.value).toEqual('foo');
-            });
-        });
+    it('should show the suggestions when the input value is null and the input is focussed and choices arrived late', () => {
+        const { rerender } = render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: 2 }}
+                    >
+                        <AutocompleteInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
 
-        it('should show the suggestions when the input value is null and the input is focussed and choices arrived late', () => {
-            const { getByLabelText, queryByText, rerender } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    render={() => <AutocompleteInput {...defaultProps} />}
-                />
-            );
+        const input = screen.getByLabelText('resources.users.fields.role');
+        fireEvent.focus(input);
 
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            fireEvent.focus(input);
-
-            rerender(
-                <Form
-                    onSubmit={jest.fn()}
-                    render={() => (
+        rerender(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: 2 }}
+                    >
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[
@@ -386,28 +960,23 @@ describe('<AutocompleteInput />', () => {
                                 { id: 2, name: 'foo' },
                             ]}
                         />
-                    )}
-                />
-            );
-            expect(
-                queryByText('foo', {
-                    selector: '[role="option"] *',
-                })
-            ).not.toBeNull();
-            expect(
-                queryByText('bar', {
-                    selector: '[role="option"] *',
-                })
-            ).not.toBeNull();
-        });
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        expect(
+            screen.queryByText('bar', {
+                selector: '[role="option"]',
+            })
+        ).not.toBeNull();
+    });
 
-        it('should reset filter when input value changed', () => {
-            const setFilter = jest.fn();
-            const { getByLabelText, rerender } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: 2 }}
-                    render={() => (
+    it('should reset filter when input value changed', async () => {
+        const setFilter = jest.fn();
+        const { rerender } = render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()} record={{ role: 2 }}>
                         <AutocompleteInput
                             {...defaultProps}
                             setFilter={setFilter}
@@ -416,21 +985,21 @@ describe('<AutocompleteInput />', () => {
                                 { id: 2, name: 'foo' },
                             ]}
                         />
-                    )}
-                />
-            );
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            fireEvent.change(input, { target: { value: 'bar' } });
-            expect(setFilter).toHaveBeenCalledTimes(3);
-            expect(setFilter).toHaveBeenCalledWith('bar');
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText('resources.users.fields.role');
+        userEvent.type(input, '{selectall}bar');
+        await waitFor(() => {
+            expect(setFilter).toHaveBeenCalledTimes(1);
+        });
+        expect(setFilter).toHaveBeenCalledWith('bar');
 
-            rerender(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: 1 }}
-                    render={() => (
+        rerender(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()} record={{ role: 1 }}>
                         <AutocompleteInput
                             {...defaultProps}
                             setFilter={setFilter}
@@ -439,109 +1008,166 @@ describe('<AutocompleteInput />', () => {
                                 { id: 2, name: 'foo' },
                             ]}
                         />
-                    )}
-                />
-            );
-            expect(setFilter).toHaveBeenCalledTimes(5);
-            expect(setFilter).toHaveBeenCalledWith('');
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        await waitFor(() => {
+            expect(setFilter).toHaveBeenCalledTimes(2);
         });
+        expect(setFilter).toHaveBeenCalledWith('');
+    });
 
-        it('should allow customized rendering of suggesting item', () => {
-            const SuggestionItem = ({ record }: { record?: any }) => (
-                <div aria-label={record && record.name} />
-            );
-
-            const { getByLabelText, queryByLabelText } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    render={() => (
+    it('should reset filter when users selected a value', async () => {
+        const setFilter = jest.fn();
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()}>
                         <AutocompleteInput
                             {...defaultProps}
-                            optionText={<SuggestionItem />}
-                            inputText={record => record && record.name}
-                            matchSuggestion={() => true}
+                            setFilter={setFilter}
                             choices={[
                                 { id: 1, name: 'bar' },
                                 { id: 2, name: 'foo' },
                             ]}
                         />
-                    )}
-                />
-            );
-
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            fireEvent.focus(input);
-            expect(queryByLabelText('bar')).not.toBeNull();
-            expect(queryByLabelText('foo')).not.toBeNull();
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText('resources.users.fields.role');
+        userEvent.type(input, 'ba');
+        await waitFor(() => {
+            expect(setFilter).toHaveBeenCalledTimes(1);
         });
+        await waitFor(() => {
+            expect(setFilter).toHaveBeenCalledWith('ba');
+        });
+        await waitFor(() => {
+            screen.getByText('bar');
+        });
+        fireEvent.click(screen.getByText('bar'));
+        await waitFor(() => {
+            expect(setFilter).toHaveBeenCalledTimes(2);
+        });
+        expect(setFilter).toHaveBeenCalledWith('');
+    });
+
+    it('should display options properly when labels are identical', () => {
+        let errMessage = undefined;
+        jest.spyOn(console, 'error').mockImplementation(
+            message => (errMessage = message)
+        );
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: 2 }}
+                    >
+                        <AutocompleteInput
+                            {...defaultProps}
+                            getOptionLabel={option => option.name}
+                            choices={[
+                                { id: 1, name: 'identical' },
+                                { id: 2, name: 'identical' },
+                                { id: 3, name: 'identical' },
+                                { id: 4, name: 'different' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText('resources.users.fields.role');
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: 'identical' } });
+
+        expect(errMessage).toEqual(undefined);
     });
 
     it('should display helperText if specified', () => {
-        const { queryByText } = render(
-            <Form
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        helperText="Can I help you?"
-                        choices={[{ id: 1, name: 'hello' }]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: 1 }}
+                    >
+                        <AutocompleteInput
+                            {...defaultProps}
+                            helperText="Can I help you?"
+                            choices={[{ id: 1, name: 'hello' }]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('Can I help you?')).not.toBeNull();
+        expect(screen.queryByText('Can I help you?')).not.toBeNull();
     });
 
     describe('error message', () => {
         const failingValidator = () => 'ra.validation.error';
 
         it('should not be displayed if field is pristine', () => {
-            const { queryByText } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    render={() => (
-                        <AutocompleteInput
-                            {...defaultProps}
-                            choices={[{ id: 1, name: 'hello' }]}
-                            validate={failingValidator}
-                        />
-                    )}
-                />
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            defaultValues={{ role: 1 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                choices={[{ id: 1, name: 'hello' }]}
+                                validate={failingValidator}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
             );
-            expect(queryByText('ra.validation.error')).toBeNull();
+            expect(screen.queryByText('ra.validation.error')).toBeNull();
         });
 
-        it('should be displayed if field has been touched and is invalid', () => {
-            const { getByLabelText, queryByText } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    render={() => (
-                        <AutocompleteInput
-                            {...defaultProps}
-                            choices={[{ id: 1, name: 'hello' }]}
-                            validate={failingValidator}
-                        />
-                    )}
-                />
+        it('should be displayed if field has been touched and is invalid', async () => {
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            onSubmit={jest.fn()}
+                            mode="onBlur"
+                            defaultValues={{ role: 1 }}
+                        >
+                            <AutocompleteInput
+                                {...defaultProps}
+                                choices={[{ id: 1, name: 'hello' }]}
+                                validate={failingValidator}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
             );
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-            fireEvent.focus(input);
-            fireEvent.blur(input);
+            fireEvent.click(
+                screen.getByLabelText('ra.action.clear_input_value')
+            );
+            fireEvent.blur(
+                screen.getByLabelText('resources.users.fields.role')
+            );
 
-            expect(queryByText('ra.validation.error')).not.toBeNull();
+            await waitFor(() => {
+                expect(
+                    screen.queryByText('ra.validation.error')
+                ).not.toBeNull();
+            });
         });
     });
 
-    describe('Fix issue #2121', () => {
-        it('updates suggestions when input is blurred and refocused', () => {
-            const { queryAllByRole, getByLabelText } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    render={() => (
+    it('updates suggestions when input is blurred and refocused', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()}>
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[
@@ -550,324 +1176,999 @@ describe('<AutocompleteInput />', () => {
                                 { id: 3, name: '123' },
                             ]}
                         />
-                    )}
-                />
-            );
-            const input = getByLabelText('resources.users.fields.role', {
-                selector: 'input',
-            });
-
-            fireEvent.focus(input);
-            fireEvent.change(input, { target: { value: 'a' } });
-            expect(queryAllByRole('option').length).toEqual(2);
-            fireEvent.blur(input);
-
-            fireEvent.focus(input);
-            fireEvent.change(input, { target: { value: 'a' } });
-            expect(queryAllByRole('option').length).toEqual(2);
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText('resources.users.fields.role');
+        fireEvent.change(input, { target: { value: 'a' } });
+        await waitFor(() => {
+            expect(screen.queryAllByRole('option').length).toEqual(2);
+        });
+        fireEvent.blur(input);
+        fireEvent.focus(input);
+        await waitFor(() => {
+            expect(screen.queryAllByRole('option').length).toEqual(3);
         });
     });
 
     it('does not automatically select a matched choice if there is only one', async () => {
-        const { queryAllByRole, getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        choices={[
-                            { id: 1, name: 'ab' },
-                            { id: 2, name: 'abc' },
-                            { id: 3, name: '123' },
-                        ]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()}>
+                        <AutocompleteInput
+                            {...defaultProps}
+                            choices={[
+                                { id: 1, name: 'ab' },
+                                { id: 2, name: 'abc' },
+                                { id: 3, name: '123' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        const input = getByLabelText('resources.users.fields.role', {
-            selector: 'input',
-        });
-        fireEvent.focus(input);
-        fireEvent.change(input, { target: { value: 'abc' } });
-        await waitFor(() => expect(queryAllByRole('option').length).toEqual(1));
+        const input = screen.getByLabelText('resources.users.fields.role');
+        fireEvent.change(input, { target: { value: 'ab' } });
+        await waitFor(() =>
+            expect(screen.queryAllByRole('option').length).toEqual(2)
+        );
     });
 
-    it('passes options.suggestionsContainerProps to the suggestions container', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn()}
-                initialValues={{ role: 2 }}
-                render={() => (
-                    <AutocompleteInput
-                        {...defaultProps}
-                        options={{
-                            suggestionsContainerProps: {
-                                'aria-label': 'My Suggestions Container',
-                            },
-                        }}
-                        choices={[
-                            { id: 1, name: 'ab' },
-                            { id: 2, name: 'abc' },
-                            { id: 3, name: '123' },
-                        ]}
-                    />
-                )}
-            />
-        );
-
-        const input = getByLabelText('resources.users.fields.role', {
-            selector: 'input',
-        });
-        fireEvent.focus(input);
-
-        expect(getByLabelText('My Suggestions Container')).not.toBeNull();
-    });
-
-    describe('Fix issue #4660', () => {
-        it('should accept 0 as an input value', () => {
-            const { queryByDisplayValue } = render(
-                <Form
-                    onSubmit={jest.fn()}
-                    initialValues={{ role: 0 }}
-                    render={() => (
+    it('should accept 0 as an input value', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()}>
                         <AutocompleteInput
                             {...defaultProps}
                             choices={[{ id: 0, name: 'foo' }]}
                         />
-                    )}
-                />
-            );
-            expect(queryByDisplayValue('foo')).not.toBeNull();
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+        input.focus();
+        fireEvent.change(input, { target: { value: 'foo' } });
+        await waitFor(
+            () => {
+                expect(screen.queryAllByRole('option')).toHaveLength(1);
+            },
+            { timeout: 2000 }
+        );
+        fireEvent.click(screen.getByText('foo'));
+        await waitFor(() => {
+            expect(input.value).toEqual('foo');
         });
     });
 
-    it('should not render a LinearProgress if loading is true and a second has not passed yet', () => {
-        const { queryByRole } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...{
-                            ...defaultProps,
-                            loaded: true,
-                            loading: true,
-                        }}
-                    />
-                )}
-            />
-        );
+    describe('onCreate', () => {
+        it('should keep a clicked choice on blur when autoSelect is enabled', async () => {
+            render(<OnCreateWithAutoSelect />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
 
-        expect(queryByRole('progressbar')).toBeNull();
-    });
+            fireEvent.focus(input);
+            fireEvent.click(await screen.findByText('Victor Hugo'));
+            fireEvent.blur(input);
 
-    it('should render a LinearProgress if loading is true and a second has passed', async () => {
-        const { queryByRole } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        {...{
-                            ...defaultProps,
-                            loaded: true,
-                            loading: true,
-                        }}
-                    />
-                )}
-            />
-        );
+            expect(input.value).toEqual('Victor Hugo');
+        });
+        it("shouldn't include an option with the create label when the input is empty", async () => {
+            render(<OnCreate />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: '' },
+            });
+            expect(screen.queryByText(/Create/)).toBeNull();
+        });
+        it('should include an option with the custom createLabel when the input is empty', async () => {
+            render(<CreateLabel />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: '' },
+            });
+            const customCreateLabel = screen.queryByText(
+                'Start typing to create a new item'
+            );
+            expect(customCreateLabel).not.toBeNull();
+            expect(
+                (customCreateLabel as HTMLElement).getAttribute('aria-disabled')
+            ).toEqual('true');
+            expect(screen.queryByText(/Create/)).toBeNull();
+        });
+        it('should include an option with the custom createItemLabel when the input is not empty', async () => {
+            render(<CreateItemLabel />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: 'foo' },
+            });
+            await screen.findByText('Add a new author: foo');
+            expect(screen.queryByText(/Create/)).toBeNull();
+        });
+        it('should not show the create option when a choice is selected when using a custom createLabel', async () => {
+            render(<CreateLabel />);
 
-        await new Promise(resolve => setTimeout(resolve, 1001));
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
 
-        expect(queryByRole('progressbar')).not.toBeNull();
-    });
+            // First, clear the input
+            fireEvent.change(input, {
+                target: { value: '' },
+            });
+            // We expect only the 'Start typing to create a new item' option
+            await screen.findByText('Victor Hugo');
+            const customCreateLabel = screen.queryByText(
+                'Start typing to create a new item'
+            );
+            expect(customCreateLabel).not.toBeNull();
+            expect(
+                (customCreateLabel as HTMLElement).getAttribute('aria-disabled')
+            ).toEqual('true');
+            expect(screen.queryByText(/Create/)).toBeNull();
 
-    it('should not render a LinearProgress if loading is false', () => {
-        const { queryByRole } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => <AutocompleteInput {...defaultProps} />}
-            />
-        );
+            // Then, change the input to an existing value
+            fireEvent.click(screen.getByText('Leo Tolstoy'));
+            fireEvent.focus(input);
+            // We expect all create labels not to render
+            await screen.findByText('Victor Hugo');
+            expect(
+                screen.queryByText('Start typing to create a new item')
+            ).toBeNull();
+            expect(screen.queryByText(/Create/)).toBeNull();
+        });
+        it('should include an option with the createItemLabel when the input not empty', async () => {
+            render(<OnCreate />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: 'foo' },
+            });
 
-        expect(queryByRole('progressbar')).toBeNull();
-    });
-
-    it('should support creation of a new choice through the onCreate event', async () => {
-        const choices = [
-            { id: 'ang', name: 'Angular' },
-            { id: 'rea', name: 'React' },
-        ];
-        const handleCreate = filter => {
-            const newChoice = {
-                id: 'js_fatigue',
-                name: filter,
-            };
-            choices.push(newChoice);
-            return newChoice;
-        };
-
-        const { getByLabelText, getByText, queryByText, rerender } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        source="language"
-                        resource="posts"
-                        choices={choices}
-                        onCreate={handleCreate}
-                    />
-                )}
-            />
-        );
-
-        const input = getByLabelText('resources.posts.fields.language', {
-            selector: 'input',
-        }) as HTMLInputElement;
-        input.focus();
-        fireEvent.change(input, { target: { value: 'New Kid On The Block' } });
-        fireEvent.click(getByText('ra.action.create_item'));
-        await new Promise(resolve => setImmediate(resolve));
-        rerender(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        source="language"
-                        resource="posts"
-                        resettable
-                        choices={choices}
-                        onCreate={handleCreate}
-                    />
-                )}
-            />
-        );
-        fireEvent.click(getByLabelText('ra.action.clear_input_value'));
-
-        expect(queryByText('New Kid On The Block')).not.toBeNull();
-    });
-
-    it('should support creation of a new choice through the onCreate event with a promise', async () => {
-        const choices = [
-            { id: 'ang', name: 'Angular' },
-            { id: 'rea', name: 'React' },
-        ];
-        const handleCreate = filter => {
-            return new Promise(resolve => {
+            expect(screen.queryByText('Create')).toBeNull();
+            expect(screen.queryByText('Create foo')).not.toBeNull();
+        });
+        it('should not include a create option when the input matches an option', async () => {
+            render(<OnCreate />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: 'Leo Tolstoy' },
+            });
+            expect(screen.queryByText(/Create/)).toBeNull();
+        });
+        it('should allow the creation of a new choice', async () => {
+            const choices = [
+                { id: 'ang', name: 'Angular' },
+                { id: 'rea', name: 'React' },
+            ];
+            const handleCreate = filter => {
                 const newChoice = {
                     id: 'js_fatigue',
                     name: filter,
                 };
                 choices.push(newChoice);
-                setTimeout(() => resolve(newChoice), 100);
+                return newChoice;
+            };
+
+            const { rerender } = render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            mode="onBlur"
+                            onSubmit={jest.fn()}
+                            defaultValues={{ language: 'ang' }}
+                        >
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                onCreate={handleCreate}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+
+            const input = screen.getByLabelText(
+                'resources.posts.fields.language'
+            ) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: 'New Kid On The Block' },
+            });
+            fireEvent.click(screen.getByText('ra.action.create_item'));
+            await new Promise(resolve => setTimeout(resolve));
+            rerender(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            mode="onBlur"
+                            onSubmit={jest.fn()}
+                            defaultValues={{ language: 'ang' }}
+                        >
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                onCreate={handleCreate}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(
+                screen.queryByDisplayValue('New Kid On The Block')
+            ).not.toBeNull();
+            fireEvent.click(
+                screen.getByLabelText('ra.action.clear_input_value')
+            );
+            fireEvent.blur(input);
+            fireEvent.focus(input);
+            expect(screen.queryByText('New Kid On The Block')).not.toBeNull();
+        });
+        it('should allow the creation of a new choice by pressing enter', async () => {
+            render(<OnCreate />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            // Enter an unknown value and submit it with Enter
+            await userEvent.type(input, 'New Value{Enter}');
+            await screen.getByDisplayValue('New Value');
+            // Clear the input, otherwise the new value won't be shown in the dropdown as it is selected
+            fireEvent.change(input, {
+                target: { value: '' },
+            });
+            // Open the dropdown
+            fireEvent.mouseDown(input);
+            // Check the new value is in the dropdown
+            await screen.findByText('New Value');
+        });
+        it('should allow the creation of a new choice with a promise', async () => {
+            const choices = [
+                { id: 'ang', name: 'Angular' },
+                { id: 'rea', name: 'React' },
+            ];
+            const handleCreate = filter => {
+                return new Promise(resolve => {
+                    const newChoice = {
+                        id: 'js_fatigue',
+                        name: filter,
+                    };
+                    choices.push(newChoice);
+                    setTimeout(() => resolve(newChoice), 100);
+                });
+            };
+
+            const { rerender } = render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            mode="onBlur"
+                            onSubmit={jest.fn()}
+                            defaultValues={{ language: 'ang' }}
+                        >
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                onCreate={handleCreate}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+
+            const input = screen.getByLabelText(
+                'resources.posts.fields.language'
+            ) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: 'New Kid On The Block' },
+            });
+            fireEvent.click(screen.getByText('ra.action.create_item'));
+            await new Promise(resolve => setTimeout(resolve, 100));
+            rerender(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            mode="onBlur"
+                            onSubmit={jest.fn()}
+                            defaultValues={{ language: 'ang' }}
+                        >
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                onCreate={handleCreate}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(
+                screen.queryByDisplayValue('New Kid On The Block')
+            ).not.toBeNull();
+            fireEvent.click(
+                screen.getByLabelText('ra.action.clear_input_value')
+            );
+            fireEvent.blur(input);
+            fireEvent.focus(input);
+            expect(screen.queryByText('New Kid On The Block')).not.toBeNull();
+        });
+        it('should not use the createItemLabel as the value of the input', async () => {
+            render(<OnCreateSlow />);
+            await screen.findByText('Book War and Peace', undefined, {
+                timeout: 2000,
+            });
+            const input = screen.getByLabelText('Author') as HTMLInputElement;
+            await waitFor(
+                () => {
+                    expect(input.value).toBe('Leo Tolstoy');
+                },
+                { timeout: 2000 }
+            );
+            fireEvent.focus(input);
+            expect(screen.getAllByRole('option')).toHaveLength(4);
+            fireEvent.change(input, { target: { value: 'x' } });
+            await waitFor(
+                () => {
+                    expect(screen.getAllByRole('option')).toHaveLength(1);
+                },
+                { timeout: 2000 }
+            );
+            fireEvent.click(screen.getByText('Create x'));
+            expect(input.value).not.toBe('Create x');
+            expect(input.value).toBe('x');
+        }, 10000);
+
+        it('should keep the current value when onCreate returns nothing', async () => {
+            const promptSpy = jest
+                .spyOn(window, 'prompt')
+                .mockImplementation(() => null);
+            render(<OnCreatePrompt />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            await waitFor(() => {
+                expect(input.value).toBe('Leo Tolstoy');
+            });
+            fireEvent.focus(input);
+            fireEvent.change(input, { target: { value: 'x' } });
+            fireEvent.click(await screen.findByText('Create x'));
+            await waitFor(() => {
+                expect(promptSpy).toHaveBeenCalled();
+            });
+            await waitFor(() => {
+                expect(screen.queryAllByRole('option')).toHaveLength(0);
+            });
+            expect(input.value).toBe('x');
+            // the field value did not change, so the form is still pristine
+            expect(screen.getByLabelText('Save')).toBeDisabled();
+            promptSpy.mockRestore();
+        });
+
+        it('should include an option with the custom createLabel when the input is empty and optionText is a string', async () => {
+            render(<CreateLabel optionText="full_name" />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: '' },
+            });
+            const customCreateLabel = screen.queryByText(
+                'Start typing to create a new item'
+            );
+            expect(customCreateLabel).not.toBeNull();
+            expect(
+                (customCreateLabel as HTMLElement).getAttribute('aria-disabled')
+            ).toEqual('true');
+            expect(screen.queryByText(/Create/)).toBeNull();
+        });
+
+        it('should include an option with the custom createLabel when the input is empty and optionText is a function', async () => {
+            render(
+                <CreateLabel
+                    optionText={choice =>
+                        `${choice.first_name} ${choice.last_name}`
+                    }
+                />
+            );
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            fireEvent.change(input, {
+                target: { value: '' },
+            });
+            const customCreateLabel = screen.queryByText(
+                'Start typing to create a new item'
+            );
+            expect(customCreateLabel).not.toBeNull();
+            expect(
+                (customCreateLabel as HTMLElement).getAttribute('aria-disabled')
+            ).toEqual('true');
+            expect(screen.queryByText(/Create/)).toBeNull();
+        });
+
+        it('should allow the creation of a new choice when using optionValue', async () => {
+            render(<OnCreate optionValue="_id" />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            // Enter an unknown value and submit it with Enter
+            await userEvent.type(input, 'New Value{Enter}');
+            await screen.getByDisplayValue('New Value');
+            // Clear the input, otherwise the new value won't be shown in the dropdown as it is selected
+            fireEvent.change(input, {
+                target: { value: '' },
+            });
+            // Open the dropdown
+            fireEvent.mouseDown(input);
+            // Check the new value is in the dropdown
+            await screen.findByText('New Value');
+        });
+    });
+    describe('create', () => {
+        it('should allow the creation of a new choice', async () => {
+            const choices = [
+                { id: 'ang', name: 'Angular' },
+                { id: 'rea', name: 'React' },
+            ];
+            const newChoice = {
+                id: 'js_fatigue',
+                name: 'New Kid On The Block',
+            };
+
+            const Create = () => {
+                const context = useCreateSuggestionContext();
+                const handleClick = () => {
+                    choices.push(newChoice);
+                    context.onCreate(newChoice);
+                };
+
+                return <button onClick={handleClick}>Get the kid</button>;
+            };
+
+            const { rerender } = render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            mode="onBlur"
+                            onSubmit={jest.fn()}
+                            defaultValues={{ language: 'ang' }}
+                        >
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                create={<Create />}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+
+            const input = screen.getByLabelText(
+                'resources.posts.fields.language'
+            ) as HTMLInputElement;
+            fireEvent.change(input, {
+                target: { value: 'New Kid On The Block' },
+            });
+            fireEvent.click(screen.getByText('ra.action.create_item'));
+            fireEvent.click(screen.getByText('Get the kid'));
+            await new Promise(resolve => setTimeout(resolve));
+            rerender(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="posts">
+                        <SimpleForm
+                            mode="onBlur"
+                            onSubmit={jest.fn()}
+                            defaultValues={{ language: 'ang' }}
+                        >
+                            <AutocompleteInput
+                                source="language"
+                                resource="posts"
+                                choices={choices}
+                                create={<Create />}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(
+                screen.queryByDisplayValue('New Kid On The Block')
+            ).not.toBeNull();
+            fireEvent.click(
+                screen.getByLabelText('ra.action.clear_input_value')
+            );
+            fireEvent.blur(input);
+            fireEvent.focus(input);
+            expect(screen.queryByText('New Kid On The Block')).not.toBeNull();
+        });
+    });
+
+    it('should return null when no choice is selected', async () => {
+        const onSuccess = jest.fn();
+        render(<Basic onSuccess={onSuccess} />);
+        const clearBtn = await screen.findByLabelText('Clear value');
+        fireEvent.click(clearBtn);
+        screen.getByText('Save').click();
+        await waitFor(() => {
+            expect(onSuccess).toHaveBeenCalledWith(
+                expect.objectContaining({ author: null }),
+                expect.anything(),
+                expect.anything(),
+                expect.anything()
+            );
+        });
+    });
+
+    it('should include full record when calling onChange', async () => {
+        const onChange = jest.fn();
+        render(<OnChange onChange={onChange} />);
+        await waitFor(() => {
+            expect(
+                (screen.getByRole('combobox') as HTMLInputElement).value
+            ).toBe('Leo Tolstoy');
+        });
+        screen.getByRole('combobox').focus();
+        fireEvent.click(await screen.findByText('Victor Hugo'));
+        await waitFor(() => {
+            expect(onChange).toHaveBeenCalledWith(2, {
+                id: 2,
+                name: 'Victor Hugo',
+            });
+        });
+    });
+
+    it('should pass the event object to the onBlur callback', async () => {
+        const onBlur = jest.fn();
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="users">
+                    <SimpleForm onSubmit={jest.fn()}>
+                        <AutocompleteInput
+                            {...defaultProps}
+                            choices={[{ id: 0, name: 'foo' }]}
+                            onBlur={onBlur}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+
+        fireEvent.blur(input);
+
+        expect(onBlur).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'blur' })
+        );
+    });
+
+    describe('getOptionDisabled', () => {
+        it('should disable the choices for which it returns true', async () => {
+            render(<GetOptionDisabled />);
+            (await screen.findByLabelText('Author')).focus();
+            expect(
+                (
+                    await screen.findByRole('option', { name: 'Victor Hugo' })
+                ).getAttribute('aria-disabled')
+            ).toEqual('true');
+            expect(
+                screen
+                    .getByRole('option', { name: 'William Shakespeare' })
+                    .getAttribute('aria-disabled')
+            ).toEqual('false');
+        });
+
+        it('should skip the disabled choices when navigating with the keyboard', async () => {
+            render(<GetOptionDisabled />);
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            input.focus();
+            await screen.findByRole('option', { name: 'Victor Hugo' });
+            fireEvent.keyDown(input, { key: 'ArrowDown' });
+            fireEvent.keyDown(input, { key: 'Enter' });
+            expect(input.value).toEqual('William Shakespeare');
+        });
+    });
+
+    describe('Inside <ReferenceInput>', () => {
+        it('should work inside a ReferenceInput field', async () => {
+            render(<InsideReferenceInput />);
+            await screen.findByDisplayValue('Leo Tolstoy');
+            await waitFor(() => {
+                expect(
+                    (screen.getByRole('combobox') as HTMLInputElement).value
+                ).toBe('Leo Tolstoy');
+            });
+            screen.getByRole('combobox').focus();
+            fireEvent.click(screen.getByLabelText('Clear value'));
+            await waitFor(() => {
+                expect(screen.getByRole('listbox').children).toHaveLength(5);
+            });
+            fireEvent.change(screen.getByRole('combobox'), {
+                target: { value: 'Vic' },
+            });
+            await waitFor(
+                () => {
+                    expect(screen.getByRole('listbox').children).toHaveLength(
+                        1
+                    );
+                },
+                { timeout: 2000 }
+            );
+            expect(screen.queryByText('Leo Tolstoy')).toBeNull();
+        });
+
+        it('should allow to clear the value inside a ReferenceInput field', async () => {
+            render(<InsideReferenceInput />);
+            await screen.findByDisplayValue('Leo Tolstoy');
+            await waitFor(() => {
+                expect(
+                    (screen.getByRole('combobox') as HTMLInputElement).value
+                ).toBe('Leo Tolstoy');
+            });
+            fireEvent.click(screen.getByLabelText('Clear value'));
+            userEvent.tab();
+            // Couldn't reproduce the infinite loop issue without this timeout
+            // See https://github.com/marmelab/react-admin/issues/7482
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await waitFor(() => {
+                expect(
+                    (screen.getByRole('combobox') as HTMLInputElement).value
+                ).toEqual('');
+            });
+            expect(screen.queryByText('Leo Tolstoy')).toBeNull();
+        });
+
+        it('should repopulate the suggestions after the suggestions are dismissed', async () => {
+            render(<InsideReferenceInput />);
+            const input = await screen.findByLabelText('Author');
+            fireEvent.focus(input);
+            await waitFor(() => {
+                expect(screen.queryByText('Victor Hugo')).not.toBeNull();
+            });
+            fireEvent.change(input, { target: { value: 'bar' } });
+            await waitFor(
+                () => {
+                    expect(screen.queryByText('Victor Hugo')).toBeNull();
+                },
+                { timeout: 2000 }
+            );
+            fireEvent.blur(input);
+            fireEvent.focus(input);
+            await waitFor(
+                () => {
+                    expect(screen.queryByText('Victor Hugo')).not.toBeNull();
+                },
+                { timeout: 2000 }
+            );
+        });
+
+        it('should not change an undefined value to empty string', async () => {
+            const onSuccess = jest.fn();
+            render(<InsideReferenceInputDefaultValue onSuccess={onSuccess} />);
+            const input = await screen.findByDisplayValue('War and Peace');
+            fireEvent.change(input, { target: { value: 'War' } });
+            screen.getByText('Save').click();
+            await waitFor(() => {
+                expect(onSuccess).toHaveBeenCalledWith(
+                    expect.objectContaining({ author: undefined }),
+                    expect.anything(),
+                    expect.anything(),
+                    expect.anything()
+                );
+            });
+        });
+
+        it('should not reset the filter when typing when getMany returns a different record shape than getList', async () => {
+            render(<DifferentShapeInGetMany />);
+            await screen.findByDisplayValue('Leo Tolstoy');
+            const input = (await screen.findByLabelText(
+                'Author'
+            )) as HTMLInputElement;
+            expect(input.value).toBe('Leo Tolstoy');
+            fireEvent.mouseDown(input);
+            fireEvent.change(input, { target: { value: 'Leo Tolstoy test' } });
+            // Make sure that 'Leo Tolstoy' did not reappear
+            let testFailed = false;
+            try {
+                await waitFor(() => {
+                    expect(input.value).toBe('Leo Tolstoy');
+                });
+                testFailed = true;
+            } catch {
+                // This is expected, nothing to do
+            }
+            expect(testFailed).toBe(false);
+            expect(input.value).toBe('Leo Tolstoy test');
+        });
+
+        it('should not use getSuggestions to do client-side filtering', async () => {
+            // filtering should be done server-side only, and hence matchSuggestion should never be called
+            const matchSuggestion = jest.fn().mockReturnValue(true);
+            render(
+                <InsideReferenceInputWithCustomizedItemRendering
+                    matchSuggestion={matchSuggestion}
+                />
+            );
+            await waitFor(
+                () => {
+                    expect(
+                        (screen.getByRole('combobox') as HTMLInputElement).value
+                    ).toBe('Leo Tolstoy - Russian');
+                },
+                { timeout: 4000 }
+            );
+            screen.getByRole('combobox').focus();
+            fireEvent.click(screen.getByLabelText('Clear value'));
+            await waitFor(() => {
+                expect(screen.getByRole('listbox').children).toHaveLength(5);
+            });
+            fireEvent.change(screen.getByRole('combobox'), {
+                target: { value: 'French' },
+            });
+            await screen.findByText('No options', undefined, {
+                timeout: 10000,
+            });
+            expect(matchSuggestion).not.toHaveBeenCalled();
+        }, 20000);
+
+        it('should include full record when calling onChange', async () => {
+            const onChange = jest.fn();
+            render(<InsideReferenceInputOnChange onChange={onChange} />);
+            (await screen.findAllByRole('combobox'))[0].focus();
+            fireEvent.click(await screen.findByText('Victor Hugo'));
+            await waitFor(() => {
+                expect(onChange).toHaveBeenCalledWith(2, {
+                    id: 2,
+                    language: 'French',
+                    name: 'Victor Hugo',
+                });
+            });
+            expect(screen.getByDisplayValue('French')).not.toBeNull();
+        });
+    });
+
+    it("should allow to edit the input if it's inside a FormDataConsumer", async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        mode="onBlur"
+                        resource="posts"
+                        onSubmit={jest.fn()}
+                        defaultValues={{ role: 2 }}
+                    >
+                        <FormDataConsumer>
+                            {() => {
+                                return (
+                                    <AutocompleteInput
+                                        label="Id"
+                                        choices={[
+                                            {
+                                                name: 'General Practitioner',
+                                                id: 'GeneralPractitioner',
+                                            },
+                                            {
+                                                name: 'Physiotherapist',
+                                                id: 'Physiotherapist',
+                                            },
+                                            {
+                                                name: 'Clinical Pharmacist',
+                                                id: 'ClinicalPharmacist',
+                                            },
+                                        ]}
+                                        source="id"
+                                    />
+                                );
+                            }}
+                        </FormDataConsumer>
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText('Id', {
+            selector: 'input',
+        }) as HTMLInputElement;
+        fireEvent.focus(input);
+        userEvent.type(input, 'Hello World!');
+        await screen.findByDisplayValue('Hello World!');
+    });
+
+    it('should display "No options" and not throw any error inside a ReferenceArrayInput field when referenced list is empty', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm>
+                        <ReferenceArrayInput
+                            label="Tags"
+                            reference="tags"
+                            source="tags"
+                        >
+                            <AutocompleteArrayInput />
+                        </ReferenceArrayInput>
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        // Give time for the (previously thrown) error to happen
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await waitFor(() => {
+            screen.getByText('resources.posts.fields.tags');
+        });
+        fireEvent.click(screen.getByText('resources.posts.fields.tags'));
+        await waitFor(() => {
+            screen.getByText('No options');
+        });
+    });
+
+    it('should allow a very large number of choices', async () => {
+        render(<VeryLargeOptionsNumber />);
+        await screen.findByRole('combobox');
+
+        screen.getByRole('combobox').click();
+        userEvent.type(screen.getByRole('combobox'), '1050');
+        await waitFor(() => {
+            screen.getByText(/Dalmatian #1050/);
+        });
+    });
+
+    it('should clear the input when its blurred, having an unmatching selection and clearOnBlur prop is true', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()}>
+                        <AutocompleteInput
+                            {...defaultProps}
+                            clearOnBlur
+                            choices={[
+                                { id: 1, name: 'ab' },
+                                { id: 2, name: 'abc' },
+                                { id: 3, name: '123' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+        fireEvent.change(input, { target: { value: 'no match' } });
+        fireEvent.blur(input);
+        await waitFor(() => {
+            expect(input.value).toEqual('');
+        });
+    });
+
+    it('should clear the input mutiple tiles with on create set', async () => {
+        render(<OnCreate />);
+
+        const input = (await screen.findByLabelText(
+            'Author'
+        )) as HTMLInputElement;
+        userEvent.type(input, 'New choice');
+        const clear = screen.getByLabelText('Clear value');
+        fireEvent.click(clear);
+        expect(input.value).toEqual('');
+        userEvent.type(input, 'New choice');
+        fireEvent.click(clear);
+        expect(input.value).toEqual('');
+    });
+
+    it('should handle nullish values', async () => {
+        render(<NullishValuesSupport />);
+
+        const checkInputValue = async (label: string, expected: any) => {
+            const input = (await screen.findByLabelText(
+                label
+            )) as HTMLInputElement;
+            await waitFor(() => {
+                expect(input.value).toStrictEqual(expected);
             });
         };
 
-        const { getByLabelText, getByText, queryByText, rerender } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        source="language"
-                        resource="posts"
-                        choices={choices}
-                        onCreate={handleCreate}
-                        resettable
-                    />
-                )}
-            />
-        );
-
-        const input = getByLabelText('resources.posts.fields.language', {
-            selector: 'input',
-        }) as HTMLInputElement;
-        input.focus();
-        fireEvent.change(input, { target: { value: 'New Kid On The Block' } });
-        fireEvent.click(getByText('ra.action.create_item'));
-        await new Promise(resolve => setImmediate(resolve));
-        rerender(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        source="language"
-                        resource="posts"
-                        resettable
-                        choices={choices}
-                        onCreate={handleCreate}
-                    />
-                )}
-            />
-        );
-        fireEvent.click(getByLabelText('ra.action.clear_input_value'));
-
-        expect(queryByText('New Kid On The Block')).not.toBeNull();
+        await checkInputValue('prefers_empty-string', '');
+        await checkInputValue('prefers_null', '');
+        await checkInputValue('prefers_undefined', '');
+        await checkInputValue('prefers_zero-string', '0');
+        await checkInputValue('prefers_zero-number', '0');
+        await checkInputValue('prefers_valid-value', '1');
     });
 
-    it('should support creation of a new choice through the create element', async () => {
-        const choices = [
-            { id: 'ang', name: 'Angular' },
-            { id: 'rea', name: 'React' },
-        ];
-        const newChoice = { id: 'js_fatigue', name: 'New Kid On The Block' };
+    it('should call the onInputChange callback', async () => {
+        const onInputChange = jest.fn();
 
-        const Create = () => {
-            const context = useCreateSuggestionContext();
-            const handleClick = () => {
-                choices.push(newChoice);
-                context.onCreate(newChoice);
-            };
-
-            return <button onClick={handleClick}>Get the kid</button>;
-        };
-
-        const { getByLabelText, rerender, getByText, queryByText } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        source="language"
-                        resource="posts"
-                        choices={choices}
-                        create={<Create />}
-                        resettable
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn()}>
+                        <AutocompleteInput
+                            {...defaultProps}
+                            onInputChange={onInputChange}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-
-        const input = getByLabelText('resources.posts.fields.language', {
-            selector: 'input',
-        }) as HTMLInputElement;
-        input.focus();
-        fireEvent.change(input, { target: { value: 'New Kid On The Block' } });
-        fireEvent.click(getByText('ra.action.create_item'));
-        fireEvent.click(getByText('Get the kid'));
-        await new Promise(resolve => setImmediate(resolve));
-        rerender(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <AutocompleteInput
-                        source="language"
-                        resource="posts"
-                        resettable
-                        choices={choices}
-                        create={<Create />}
-                    />
-                )}
-            />
-        );
-        fireEvent.click(getByLabelText('ra.action.clear_input_value'));
-
-        expect(queryByText('New Kid On The Block')).not.toBeNull();
+        const input = screen.getByLabelText(
+            'resources.users.fields.role'
+        ) as HTMLInputElement;
+        fireEvent.change(input, { target: { value: 'newValue' } });
+        await waitFor(() => expect(onInputChange).toHaveBeenCalled());
     });
+
+    describe('InputProps', () => {
+        it('should pass InputProps to the input', async () => {
+            render(<WithInputProps />);
+            const input = await screen.findByRole('combobox');
+            screen.getByTestId('AttributionIcon');
+            screen.getByTestId('ExpandCircleDownIcon');
+            fireEvent.click(input);
+            screen.getByText('Victor Hugo');
+        });
+    });
+
+    it('should allow to pass rendered createLabel and createItemLabel', async () => {
+        render(<CreateItemLabelRendered />);
+
+        const input = await screen.findByRole('combobox');
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: '' } });
+
+        expect((await screen.findByTestId('new-choice-hint')).textContent).toBe(
+            'Start typing to create a new author'
+        );
+
+        fireEvent.change(input, { target: { value: 'Gustave Flaubert' } });
+
+        expect((await screen.findByTestId('new-choice-chip')).textContent).toBe(
+            'Gustave Flaubert'
+        );
+    });
+    it('should not use the rendered createItemLabel as the value of the input', async () => {
+        render(<CreateItemLabelRendered delay={1500} />);
+        const input = (await screen.findByLabelText('Author', undefined, {
+            timeout: 2000,
+        })) as HTMLInputElement;
+        await waitFor(() => {
+            expect(input.value).toBe('Leo Tolstoy');
+        });
+        fireEvent.focus(input);
+        expect(screen.getAllByRole('option')).toHaveLength(4);
+        fireEvent.change(input, { target: { value: 'x' } });
+        await waitFor(() => {
+            expect(screen.getAllByRole('option')).toHaveLength(1);
+        });
+        fireEvent.click(screen.getByText('Create'));
+        expect(input.value).not.toBe('Create x');
+        expect(input.value).toBe('');
+    }, 10000);
 });

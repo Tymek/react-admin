@@ -1,18 +1,14 @@
 import * as React from 'react';
-import { FC, memo } from 'react';
-import PropTypes from 'prop-types';
-import get from 'lodash/get';
-import Typography, { TypographyProps } from '@material-ui/core/Typography';
-import { useRecordContext } from 'ra-core';
+import Typography, { TypographyProps } from '@mui/material/Typography';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { useFieldValue, useTranslate, genericMemo } from 'ra-core';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
-
-const hasNumberFormat = !!(
-    typeof Intl === 'object' &&
-    Intl &&
-    typeof Intl.NumberFormat === 'function'
-);
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import { FieldProps } from './types';
 
 /**
  * Display a numeric value as a locale string.
@@ -42,75 +38,107 @@ const hasNumberFormat = !!(
  * // renders the record { id: 1234, price: 25.99 } as
  * <span>25,99 $US</span>
  */
-export const NumberField: FC<NumberFieldProps> = memo<NumberFieldProps>(
-    props => {
-        const {
-            className,
-            emptyText,
-            source,
-            locales,
-            options,
-            textAlign,
-            ...rest
-        } = props;
-        const record = useRecordContext(props);
-        if (!record) {
-            return null;
-        }
-        const value = get(record, source);
-        if (value == null) {
-            return emptyText ? (
-                <Typography
-                    component="span"
-                    variant="body2"
-                    className={className}
-                    {...sanitizeFieldRestProps(rest)}
-                >
-                    {emptyText}
-                </Typography>
-            ) : null;
-        }
+const NumberFieldImpl = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: NumberFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
 
-        return (
+    const {
+        className,
+        emptyText,
+        source,
+        locales,
+        options,
+        textAlign,
+        transform = defaultTransform,
+        ...rest
+    } = props;
+    const translate = useTranslate();
+    let value = useFieldValue(props);
+
+    if (value == null) {
+        return emptyText ? (
             <Typography
-                variant="body2"
                 component="span"
+                variant="body2"
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {hasNumberFormat
-                    ? value.toLocaleString(locales, options)
-                    : value}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
-        );
+        ) : null;
     }
-);
+
+    if (transform) {
+        value = transform(value);
+    }
+
+    return (
+        <StyledTypography
+            variant="body2"
+            component="span"
+            className={className}
+            {...sanitizeFieldRestProps(rest)}
+        >
+            {hasNumberFormat && typeof value === 'number'
+                ? value.toLocaleString(locales, options)
+                : value}
+        </StyledTypography>
+    );
+};
+
+const defaultTransform = value =>
+    value && typeof value === 'string' && !isNaN(value as any) ? +value : value;
 
 // what? TypeScript loses the displayName if we don't set it explicitly
-NumberField.displayName = 'NumberField';
+NumberFieldImpl.displayName = 'NumberFieldImpl';
 
-NumberField.defaultProps = {
-    addLabel: true,
-    textAlign: 'right',
-};
+export const NumberField = genericMemo(NumberFieldImpl);
+// @ts-expect-error This is a hack that replaces react support for defaultProps. We currently need this for the Datagrid.
+NumberField.textAlign = 'right';
 
-NumberField.propTypes = {
-    // @ts-ignore
-    ...Typography.propTypes,
-    ...fieldPropTypes,
-    locales: PropTypes.oneOfType([
-        PropTypes.string,
-        PropTypes.arrayOf(PropTypes.string),
-    ]),
-    options: PropTypes.object,
-};
-
-export interface NumberFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps,
-        TypographyProps {
+export interface NumberFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType>,
+        Omit<TypographyProps, 'textAlign'> {
     locales?: string | string[];
     options?: object;
+    transform?: (value: any) => number;
 }
 
-export default NumberField;
+const hasNumberFormat = !!(
+    typeof Intl === 'object' &&
+    Intl &&
+    typeof Intl.NumberFormat === 'function'
+);
+
+const PREFIX = 'RaNumberField';
+
+const StyledTypography = styled(Typography, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<NumberFieldProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

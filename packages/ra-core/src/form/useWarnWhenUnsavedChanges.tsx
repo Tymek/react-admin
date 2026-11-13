@@ -1,84 +1,98 @@
-import { useEffect, useRef } from 'react';
-import { useForm } from 'react-final-form';
-import { useHistory } from 'react-router-dom';
-import get from 'lodash/get';
-
+import { useEffect, useState } from 'react';
+import { Control, useFormState } from 'react-hook-form';
 import { useTranslate } from '../i18n';
+import { useBlocker } from '../routing/useBlocker';
 
 /**
  * Display a confirmation dialog if the form has unsaved changes.
  * - If the user confirms, the navigation continues and the changes are lost.
- * - If the user cancels, the navigation is reverted and the changes are kept.
- *
- * We can't use history.block() here because forms have routes, too (for
- * instance TabbedForm), and the confirm dialog would show up when navigating
- * inside the form. So instead of relying on route change detection, we rely
- * on unmount detection. The resulting UI isn't perfect, because when they
- * click the cancel button, users briefly see the page they asked before
- * seeing the form page again. But that's the best we can do.
- *
- * @see history.block()
+ * - If the user cancels, the navigation is cancelled and the changes are kept.
  */
-const useWarnWhenUnsavedChanges = (enable: boolean) => {
-    const form = useForm();
-    const history = useHistory();
+export const useWarnWhenUnsavedChanges = (
+    enable: boolean,
+    formRootPathname?: string,
+    control?: Control
+) => {
     const translate = useTranslate();
+    const { isSubmitSuccessful, dirtyFields } = useFormState(
+        control ? { control } : undefined
+    );
+    const isDirty = Object.keys(dirtyFields).length > 0;
+    const [shouldNotify, setShouldNotify] = useState(false);
 
-    // Keep track of the current location inside the form (e.g. active tab)
-    const formLocation = useRef(history.location);
-    useEffect(() => {
-        formLocation.current = history.location;
-    }, [history.location]);
+    const shouldNotBlock = !enable || !isDirty || isSubmitSuccessful;
+
+    const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+        if (shouldNotBlock) return false;
+
+        // Also check if the new location is inside the form
+        const initialLocation = formRootPathname || currentLocation.pathname;
+        const newLocationIsInsideCurrentLocation =
+            nextLocation.pathname.startsWith(initialLocation);
+        const newLocationIsShowView = nextLocation.pathname.startsWith(
+            `${initialLocation}/show`
+        );
+        const newLocationIsInsideForm =
+            newLocationIsInsideCurrentLocation && !newLocationIsShowView;
+        if (newLocationIsInsideForm) return false;
+
+        return true;
+    });
 
     useEffect(() => {
-        if (!enable) {
-            window.sessionStorage.removeItem('unsavedChanges');
+        if (blocker.state !== 'blocked') return;
+
+        // Proceed automatically when the form becomes safe to leave while the
+        // navigation is blocked. This covers two cases where the redirect and
+        // the form reset happen during the same tick (and the reset may only be
+        // reflected one tick after the block):
+        // - a successful save resets the form;
+        // - a successful delete resets the form (the record no longer exists,
+        //   so the unsaved changes are moot).
+        if (shouldNotBlock) {
+            blocker.proceed && blocker.proceed();
             return;
         }
 
-        // on mount: apply unsaved changes
-        const unsavedChanges = JSON.parse(
-            window.sessionStorage.getItem('unsavedChanges')
-        );
+        setShouldNotify(true);
+        // Can't use blocker in the dependency array because it is not stable across rerenders
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [blocker.state, shouldNotBlock]);
 
-        if (unsavedChanges) {
-            Object.keys(unsavedChanges).forEach(key =>
-                form.change(key, unsavedChanges[key])
+    useEffect(() => {
+        if (shouldNotify) {
+            const shouldProceed = window.confirm(
+                translate('ra.message.unsaved_changes')
             );
-            window.sessionStorage.removeItem('unsavedChanges');
+            if (shouldProceed) {
+                blocker.proceed && blocker.proceed();
+            } else {
+                blocker.reset && blocker.reset();
+            }
+        }
+        setShouldNotify(false);
+        // Can't use blocker in the dependency array because it is not stable across rerenders
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shouldNotify, translate]);
+
+    // This effect handles document navigation, e.g. closing the tab
+    useEffect(() => {
+        const beforeunload = (e: BeforeUnloadEvent) => {
+            // Invoking event.preventDefault() will trigger a warning dialog when the user closes or navigates the tab
+            // https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event#examples
+            e.preventDefault();
+            // Included for legacy support, e.g. Chrome/Edge < 119
+            e.returnValue = true;
+        };
+
+        if (shouldNotBlock) {
+            return;
         }
 
-        // on unmount : check and save unsaved changes, then cancel navigation
-        return () => {
-            const formState = form.getState();
-            if (
-                formState.dirty &&
-                (!formState.submitSucceeded ||
-                    (formState.submitSucceeded &&
-                        formState.dirtySinceLastSubmit))
-            ) {
-                if (!window.confirm(translate('ra.message.unsaved_changes'))) {
-                    const dirtyFields = formState.submitSucceeded
-                        ? formState.dirtySinceLastSubmit
-                        : formState.dirtyFields;
-                    const dirtyFieldValues = Object.keys(dirtyFields).reduce(
-                        (acc, key) => {
-                            acc[key] = get(formState.values, key);
-                            return acc;
-                        },
-                        {}
-                    );
-                    window.sessionStorage.setItem(
-                        'unsavedChanges',
-                        JSON.stringify(dirtyFieldValues)
-                    );
-                    history.push(formLocation.current);
-                }
-            } else {
-                window.sessionStorage.removeItem('unsavedChanges');
-            }
-        };
-    }, [translate]); // eslint-disable-line react-hooks/exhaustive-deps
-};
+        window.addEventListener('beforeunload', beforeunload);
 
-export default useWarnWhenUnsavedChanges;
+        return () => {
+            window.removeEventListener('beforeunload', beforeunload);
+        };
+    }, [shouldNotBlock]);
+};

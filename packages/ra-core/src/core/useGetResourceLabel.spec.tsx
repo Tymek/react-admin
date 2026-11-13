@@ -1,13 +1,14 @@
 import * as React from 'react';
-import { renderWithRedux } from 'ra-test';
+import { screen, render } from '@testing-library/react';
 import { useGetResourceLabel } from './useGetResourceLabel';
+
 import { TestTranslationProvider } from '../i18n';
 
-describe('useResourceLabel', () => {
+describe('useGetResourceLabel', () => {
     test.each([
         [2, 'Posts'],
         [1, 'Post'],
-        [0, 'Post'],
+        [0, 'Posts'],
     ])(
         'should infer the %s and %s version of the resource name',
         (count, expected) => {
@@ -18,24 +19,13 @@ describe('useResourceLabel', () => {
                 return <p>{label}</p>;
             };
 
-            const { queryByText } = renderWithRedux(
+            render(
                 <TestTranslationProvider messages={{}}>
                     <Component />
-                </TestTranslationProvider>,
-                {
-                    admin: {
-                        resources: {
-                            posts: {
-                                props: {
-                                    name: 'posts',
-                                },
-                            },
-                        },
-                    },
-                }
+                </TestTranslationProvider>
             );
 
-            expect(queryByText(expected)).not.toBeNull();
+            expect(screen.queryByText(expected)).not.toBeNull();
         }
     );
 });

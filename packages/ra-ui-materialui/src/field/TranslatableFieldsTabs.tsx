@@ -1,29 +1,33 @@
 import * as React from 'react';
-import { ReactElement } from 'react';
-import AppBar from '@material-ui/core/AppBar';
-import { makeStyles } from '@material-ui/core/styles';
-import Tabs, { TabsProps } from '@material-ui/core/Tabs';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { AppBar, type AppBarProps, Tabs, type TabsProps } from '@mui/material';
 import { useTranslatableContext } from 'ra-core';
 import { TranslatableFieldsTab } from './TranslatableFieldsTab';
-import { AppBarProps } from '../layout';
 
 /**
  * Default locale selector for the TranslatableFields component. Generates a tab for each specified locale.
  * @see TranslatableFields
  */
 export const TranslatableFieldsTabs = (
-    props: TranslatableFieldsTabsProps & AppBarProps
-): ReactElement => {
-    const { groupKey, TabsProps: tabsProps } = props;
+    inProps: TranslatableFieldsTabsProps & AppBarProps
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { groupKey, TabsProps: tabsProps, className } = props;
     const { locales, selectLocale, selectedLocale } = useTranslatableContext();
-    const classes = useStyles(props);
 
     const handleChange = (event, newLocale): void => {
         selectLocale(newLocale);
     };
 
     return (
-        <AppBar color="default" position="static" className={classes.root}>
+        <StyledAppBar color="default" position="static" className={className}>
             <Tabs
                 value={selectedLocale}
                 onChange={handleChange}
@@ -40,7 +44,7 @@ export const TranslatableFieldsTabs = (
                     />
                 ))}
             </Tabs>
-        </AppBar>
+        </StyledAppBar>
     );
 };
 
@@ -49,15 +53,34 @@ export interface TranslatableFieldsTabsProps {
     groupKey?: string;
 }
 
-const useStyles = makeStyles(
-    theme => ({
-        root: {
-            boxShadow: 'none',
-            borderRadius: 0,
-            borderTopLeftRadius: theme.shape.borderRadius,
-            borderTopRightRadius: theme.shape.borderRadius,
-            border: `1px solid ${theme.palette.divider}`,
-        },
-    }),
-    { name: 'RaTranslatableFieldsTabs' }
-);
+const PREFIX = 'RaTranslatableFieldsTabs';
+
+const StyledAppBar = styled(AppBar, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    boxShadow: 'none',
+    borderRadius: 0,
+    borderTopLeftRadius: theme.shape.borderRadius,
+    borderTopRightRadius: theme.shape.borderRadius,
+    border: `1px solid ${(theme.vars || theme).palette.divider}`,
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaTranslatableFieldsTabs: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaTranslatableFieldsTabs: Partial<TranslatableFieldsTabsProps>;
+    }
+
+    interface Components {
+        RaTranslatableFieldsTabs?: {
+            defaultProps?: ComponentsPropsList['RaTranslatableFieldsTabs'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaTranslatableFieldsTabs'];
+        };
+    }
+}

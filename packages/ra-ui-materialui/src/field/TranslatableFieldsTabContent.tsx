@@ -1,103 +1,149 @@
 import * as React from 'react';
+import { Children, isValidElement, type ReactNode, useMemo } from 'react';
 import {
-    Children,
-    cloneElement,
-    isValidElement,
-    ReactElement,
-    ReactNode,
-} from 'react';
-import { useTranslatableContext, Record } from 'ra-core';
-import { makeStyles } from '@material-ui/core/styles';
-import { ClassesOverride } from '../types';
-import { Labeled } from '../input';
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import {
+    useTranslatableContext,
+    type RaRecord,
+    RecordContextProvider,
+    useOptionalSourceContext,
+    SourceContextProvider,
+    getResourceFieldLabelKey,
+    useResourceContext,
+} from 'ra-core';
+import { Labeled } from '../Labeled';
 
 /**
  * Default container for a group of translatable fields inside a TranslatableFields components.
  * @see TranslatableFields
  */
 export const TranslatableFieldsTabContent = (
-    props: TranslatableFieldsTabContentProps
-): ReactElement => {
+    inProps: TranslatableFieldsTabContentProps
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
-        basePath,
         children,
         groupKey = '',
         locale,
         record,
-        resource,
+        resource: resourceProp,
+        className,
         ...other
     } = props;
-    const { selectedLocale, getLabel, getSource } = useTranslatableContext();
-    const classes = useStyles(props);
+    const { selectedLocale, getRecordForLocale } = useTranslatableContext();
+    const addLabel = Children.count(children) > 1;
+
+    const parentSourceContext = useOptionalSourceContext();
+    const resource = useResourceContext(props);
+    if (!resource) {
+        throw new Error(
+            `<TranslatableFieldsTabContent> was called outside of a ResourceContext and without a record prop. You must set the resource prop.`
+        );
+    }
+    const sourceContext = useMemo(
+        () => ({
+            getSource: (source: string) =>
+                parentSourceContext
+                    ? parentSourceContext.getSource(`${source}.${locale}`)
+                    : `${source}.${locale}`,
+            getLabel: (source: string) =>
+                parentSourceContext
+                    ? parentSourceContext.getLabel(source)
+                    : getResourceFieldLabelKey(resource, source),
+        }),
+        [locale, parentSourceContext, resource]
+    );
+    // As fields rely on the RecordContext to get their values and have no knowledge of the locale,
+    // we need to create a new record with the values for the current locale only
+    // Given the record { title: { en: 'title_en', fr: 'title_fr' } } and the locale 'fr',
+    // the record for the locale 'fr' will be { title: 'title_fr' }
+    const recordForLocale = useMemo(
+        () => getRecordForLocale(record, locale),
+        [getRecordForLocale, record, locale]
+    );
 
     return (
-        <div
+        <Root
             role="tabpanel"
             hidden={selectedLocale !== locale}
             id={`translatable-content-${groupKey}${locale}`}
             aria-labelledby={`translatable-header-${groupKey}${locale}`}
-            className={classes.root}
+            className={className}
             {...other}
         >
-            {Children.map(children, field =>
-                field && isValidElement<any>(field) ? (
-                    <div key={field.props.source}>
-                        {field.props.addLabel ? (
-                            <Labeled
-                                record={record}
-                                resource={resource}
-                                basePath={basePath}
-                                label={field.props.label}
-                                source={field.props.source}
-                                disabled={false}
-                            >
-                                {cloneElement(field, {
-                                    ...field.props,
-                                    label: getLabel(field.props.source),
-                                    source: getSource(
-                                        field.props.source,
-                                        locale
-                                    ),
-                                })}
-                            </Labeled>
-                        ) : typeof field === 'string' ? (
-                            field
-                        ) : (
-                            cloneElement(field, {
-                                ...field.props,
-                                label: getLabel(field.props.source),
-                                source: getSource(field.props.source, locale),
-                            })
-                        )}
-                    </div>
-                ) : null
-            )}
-        </div>
+            <RecordContextProvider value={recordForLocale}>
+                <SourceContextProvider value={sourceContext}>
+                    {Children.map(children, field =>
+                        field && isValidElement<any>(field) ? (
+                            <div>
+                                {addLabel ? (
+                                    <Labeled
+                                        // Only pass the resource if it was overridden through props to avoid
+                                        // the default inference to potentially override label set by SourceContext
+                                        resource={resourceProp}
+                                        label={field.props.label}
+                                        source={field.props.source}
+                                    >
+                                        {field}
+                                    </Labeled>
+                                ) : (
+                                    field
+                                )}
+                            </div>
+                        ) : null
+                    )}
+                </SourceContextProvider>
+            </RecordContextProvider>
+        </Root>
     );
 };
 
 export type TranslatableFieldsTabContentProps = {
-    basePath: string;
     children: ReactNode;
-    classes?: ClassesOverride<typeof useStyles>;
+    className?: string;
     formGroupKeyPrefix?: string;
     groupKey: string;
     locale: string;
-    record: Record;
-    resource: string;
+    record: RaRecord;
+    resource?: string;
 };
 
-const useStyles = makeStyles(
-    theme => ({
-        root: {
-            flexGrow: 1,
-            padding: theme.spacing(2),
-            borderRadius: 0,
-            borderBottomLeftRadius: theme.shape.borderRadius,
-            borderBottomRightRadius: theme.shape.borderRadius,
-            border: `1px solid ${theme.palette.divider}`,
-            borderTop: 0,
-        },
-    }),
-    { name: 'RaTranslatableFieldsTabContent' }
-);
+const PREFIX = 'RaTranslatableFieldsTabContent';
+
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    flexGrow: 1,
+    padding: theme.spacing(2),
+    borderRadius: 0,
+    borderBottomLeftRadius: theme.shape.borderRadius,
+    borderBottomRightRadius: theme.shape.borderRadius,
+    border: `1px solid ${(theme.vars || theme).palette.divider}`,
+    borderTop: 0,
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaTranslatableFieldsTabContent: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaTranslatableFieldsTabContent: Partial<TranslatableFieldsTabContentProps>;
+    }
+
+    interface Components {
+        RaTranslatableFieldsTabContent?: {
+            defaultProps?: ComponentsPropsList['RaTranslatableFieldsTabContent'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaTranslatableFieldsTabContent'];
+        };
+    }
+}

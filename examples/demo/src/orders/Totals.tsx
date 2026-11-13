@@ -1,77 +1,64 @@
 import * as React from 'react';
-import { FC } from 'react';
-import classnames from 'classnames';
-import { Table, TableBody, TableCell, TableRow } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import { FieldProps, useTranslate } from 'react-admin';
+import { Table, TableBody, TableCell, TableRow } from '@mui/material';
+import { useRecordContext, useTranslate } from 'react-admin';
 
 import { Order } from '../types';
+import { TableCellRight } from './TableCellRight';
 
-const useStyles = makeStyles({
-    container: { minWidth: '35em' },
-    rightAlignedCell: { textAlign: 'right' },
-    boldCell: { fontWeight: 'bold' },
-});
-
-const Totals: FC<FieldProps<Order>> = ({ record }: { record?: Order }) => {
-    const classes = useStyles();
+const Totals = () => {
+    const record = useRecordContext<Order>();
     const translate = useTranslate();
 
     return (
-        <Table className={classes.container}>
+        <Table sx={{ minWidth: '35em' }}>
             <TableBody>
                 <TableRow>
                     <TableCell>
-                        {translate('resources.commands.fields.basket.sum')}
+                        {translate('resources.orders.fields.basket.sum')}
                     </TableCell>
-                    <TableCell className={classes.rightAlignedCell}>
+                    <TableCellRight>
                         {record?.total_ex_taxes.toLocaleString(undefined, {
                             style: 'currency',
                             currency: 'USD',
                         })}
-                    </TableCell>
+                    </TableCellRight>
                 </TableRow>
                 <TableRow>
                     <TableCell>
-                        {translate('resources.commands.fields.basket.delivery')}
+                        {translate('resources.orders.fields.basket.delivery')}
                     </TableCell>
-                    <TableCell className={classes.rightAlignedCell}>
+                    <TableCellRight>
                         {record?.delivery_fees.toLocaleString(undefined, {
                             style: 'currency',
                             currency: 'USD',
                         })}
-                    </TableCell>
+                    </TableCellRight>
                 </TableRow>
                 <TableRow>
                     <TableCell>
-                        {translate('resources.commands.fields.basket.taxes')} (
+                        {translate('resources.orders.fields.basket.taxes')} (
                         {record?.tax_rate.toLocaleString(undefined, {
                             style: 'percent',
                         })}
                         )
                     </TableCell>
-                    <TableCell className={classes.rightAlignedCell}>
+                    <TableCellRight>
                         {record?.taxes.toLocaleString(undefined, {
                             style: 'currency',
                             currency: 'USD',
                         })}
-                    </TableCell>
+                    </TableCellRight>
                 </TableRow>
                 <TableRow>
-                    <TableCell className={classes.boldCell}>
-                        {translate('resources.commands.fields.basket.total')}
+                    <TableCell sx={{ fontWeight: 'bold' }}>
+                        {translate('resources.orders.fields.basket.total')}
                     </TableCell>
-                    <TableCell
-                        className={classnames(
-                            classes.boldCell,
-                            classes.rightAlignedCell
-                        )}
-                    >
+                    <TableCellRight sx={{ fontWeight: 'bold' }}>
                         {record?.total.toLocaleString(undefined, {
                             style: 'currency',
                             currency: 'USD',
                         })}
-                    </TableCell>
+                    </TableCellRight>
                 </TableRow>
             </TableBody>
         </Table>

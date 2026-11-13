@@ -1,130 +1,25 @@
 ---
 layout: default
-title: "Data Providers"
+title: "Data Provider Setup"
 ---
 
-# Data Providers
+# Data Provider Setup
 
-Whenever react-admin needs to communicate with the API, it calls methods on the Data Provider object.
+The Data Provider is the interface between react-admin and your API. It's where you write the API calls to fetch and save data.
 
-```js
-dataProvider
-    .getOne('posts', { id: 123 })
-    .then(response => {
-        console.log(response.data); // { id: 123, title: "hello, world" }
-    });
-```
+## `<Admin dataProvider>`
 
-It's the Data Provider's job to turn these method calls into HTTP requests, and transform the HTTP responses to the data format expected by react-admin. In technical terms, a Data Provider is an *adapter* for an API. 
+The first step to using a Data Provider is to pass it to [the `<Admin>` component](./Admin.md) via the `dataProvider` prop.
 
-And to inject a Data Provider in a react-admin application, pass it as the `dataProvider` prop of the `<Admin>` component, as follows:
+For example, let's use [the Simple REST data provider](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-simple-rest). This provider is suitable for REST APIs using simple GET parameters for filters and sorting.
 
-```jsx
-import { Admin, Resource } from 'react-admin';
-import dataProvider from '../myDataProvider';
-
-const App = () => (
-    <Admin dataProvider={dataProvider}>
-        // ...
-    </Admin>
-)
-```
-
-Thanks to this adapter injection system, react-admin can communicate with any API, whether it uses REST, GraphQL, RPC, or even SOAP, regardless of the dialect it uses. The Data Provider is also the ideal place to add custom HTTP headers, authentication, etc.
-
-![Data Provider architecture](./img/data-provider.png)
-
-A Data Provider must have the following methods:
-
-```jsx
-const dataProvider = {
-    getList:    (resource, params) => Promise,
-    getOne:     (resource, params) => Promise,
-    getMany:    (resource, params) => Promise,
-    getManyReference: (resource, params) => Promise,
-    create:     (resource, params) => Promise,
-    update:     (resource, params) => Promise,
-    updateMany: (resource, params) => Promise,
-    delete:     (resource, params) => Promise,
-    deleteMany: (resource, params) => Promise,
-}
-```
-
-You can find an example Data Provider implementation at the end of this chapter.
-
-**Tip**: A Data Provider can have more methods than the 9 methods listed above. For instance, you create a dataProvider with custom methods for calling non-REST API endpoints, manipulating tree structures, subscribing to real time updates, etc.
-
-**Tip**: In react-admin v2, Data Providers used to be functions, not objects. React-admin v3 can detect a legacy Data Provider and wrap an object around it. So Data Providers developed for react-admin v2 still work with react-admin v3.
-
-## Available Providers
-
-The react-admin project includes 5 Data Providers:
-
-* Simple REST: [marmelab/ra-data-simple-rest](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-simple-rest) ([read more below](#usage)). It serves mostly as an example. Incidentally, it is compatible with the [FakeRest](https://github.com/marmelab/FakeRest) API.
-* **[JSON server](https://github.com/typicode/json-server)**: [marmelab/ra-data-json-server](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-json-server). Great for prototyping an admin over a yet-to-be-developed REST API.
-* [Simple GraphQL](https://graphql.org/): [marmelab/ra-data-graphql-simple](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-graphql-simple). A GraphQL provider built with Apollo and tailored to target a simple GraphQL implementation.
-* Local JSON: [marmelab/ra-data-fakerest](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-fakerest). Based on a local object, it doesn't even use HTTP. Use it for testing purposes.
-* Local Storage: [marmelab/ra-data-localstorage](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-localstorage). User editions are persisted across refreshes and between sessions. This allows local-first apps, and can be useful in tests.
-
-Developers from the react-admin community have open-sourced Data Providers for many more backends:
-
-* **[AWS Amplify](https://docs.amplify.aws)**: [MrHertal/react-admin-amplify](https://github.com/MrHertal/react-admin-amplify)
-* **[Configurable Identity Property REST Client](https://github.com/zachrybaker/ra-data-rest-client)**: [zachrybaker/ra-data-rest-client](https://github.com/zachrybaker/ra-data-rest-client)
-* **[coreBOS](https://corebos.com/)**: [React-Admin coreBOS Integration](https://github.com/coreBOS/reactadminportal)
-* **[Django Rest Framework](https://www.django-rest-framework.org/)**: [synaptic-cl/ra-data-drf](https://github.com/synaptic-cl/ra-data-drf)
-* **[Express & Sequelize](https://github.com/lalalilo/express-sequelize-crud)**: [express-sequelize-crud](https://github.com/lalalilo/express-sequelize-crud)
-* **[Feathersjs](https://www.feathersjs.com/)**: [josx/ra-data-feathers](https://github.com/josx/ra-data-feathers)
-* **[Firebase Firestore](https://firebase.google.com/docs/firestore)**: [benwinding/react-admin-firebase](https://github.com/benwinding/react-admin-firebase).
-* **[Firebase Realtime Database](https://firebase.google.com/docs/database)**: [aymendhaya/ra-data-firebase-client](https://github.com/aymendhaya/ra-data-firebase-client).
-* **[Google Sheets](https://www.google.com/sheets/about/)**: [marmelab/ra-data-google-sheets](https://github.com/marmelab/ra-data-google-sheets)
-* **[GraphQL](https://graphql.org/)**: [marmelab/ra-data-graphql](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-graphql) (uses [Apollo](https://www.apollodata.com/))
-* **[HAL](http://stateless.co/hal_specification.html)**: [b-social/ra-data-hal](https://github.com/b-social/ra-data-hal)
-* **[Hasura](https://github.com/hasura/graphql-engine)**: [hasura/ra-data-hasura](https://github.com/hasura/ra-data-hasura), auto generates valid GraphQL queries based on the properties exposed by the Hasura API.
-* **[Hydra](https://www.hydra-cg.com/) / [JSON-LD](https://json-ld.org/)**: [api-platform/admin/hydra](https://github.com/api-platform/admin/blob/master/src/hydra/dataProvider.js)
-* **[IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API)**: [tykoth/ra-data-dexie](https://github.com/tykoth/ra-data-dexie)
-* **[JSON API](https://jsonapi.org/)**: [henvo/ra-jsonapi-client](https://github.com/henvo/ra-jsonapi-client)
-* **[JSON HAL](https://tools.ietf.org/html/draft-kelly-json-hal-08)**: [ra-data-json-hal](https://www.npmjs.com/package/ra-data-json-hal)
-* **[JSON server](https://github.com/typicode/json-server)**: [marmelab/ra-data-json-server](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-json-server).
-* **[LocalStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)**: [marmelab/ra-data-localstorage](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-localstorage)
-* **[Loopback3](https://loopback.io/lb3)**: [darthwesker/react-admin-loopback](https://github.com/darthwesker/react-admin-loopback)
-* **[Loopback4](https://loopback.io/)**: [elmaistrenko/react-admin-lb4](https://github.com/elmaistrenko/react-admin-lb4)
-* **[Loopback4 CRUD](https://github.com/loopback4/loopback-component-crud)**: [loopback4/ra-data-lb4](https://github.com/loopback4/ra-data-lb4)
-* **[Mixer](https://github.com/ckoliber/ra-data-mixer)**: [ckoliber/ra-data-mixer](https://github.com/ckoliber/ra-data-mixer)
-* **[Moleculer Microservices](https://github.com/RancaguaInnova/moleculer-data-provider)**: [RancaguaInnova/moleculer-data-provider](https://github.com/RancaguaInnova/moleculer-data-provider)
-* **[NestJS CRUD](https://github.com/nestjsx/crud)**: [rayman1104/ra-data-nestjsx-crud](https://github.com/rayman1104/ra-data-nestjsx-crud)
-* **[Parse](https://parseplatform.org/)**: [almahdi/ra-data-parse](https://github.com/almahdi/ra-data-parse)
-* **[PostGraphile](https://www.graphile.org/postgraphile/)**: [bowlingx/ra-postgraphile](https://github.com/BowlingX/ra-postgraphile)
-* **[PostgREST](https://postgrest.org/)**: [raphiniert-com/ra-data-postgrest](https://github.com/raphiniert-com/ra-data-postgrest)
-* **[Prisma](https://github.com/weakky/ra-data-prisma)**: [weakky/ra-data-prisma](https://github.com/weakky/ra-data-prisma)
-* **[Prisma Version 2](https://www.prisma.io/)**: [panter/ra-data-prisma](https://github.com/panter/ra-data-prisma)
-* **[ProcessMaker3](https://www.processmaker.com/)**: [ckoliber/ra-data-processmaker3](https://github.com/ckoliber/ra-data-processmaker3)
-* **[OData](https://www.odata.org/)**: [Groopit/ra-data-odata-server](https://github.com/Groopit/ra-data-odata-server)
-* **[OpenCRUD](https://www.opencrud.org/)**: [weakky/ra-data-opencrud](https://github.com/Weakky/ra-data-opencrud)
-* **[REST-HAPI](https://github.com/JKHeadley/rest-hapi)**: [ra-data-rest-hapi](https://github.com/mkg20001/ra-data-rest-hapi)
-* **[Sails.js](https://sailsjs.com/)**: [mpampin/ra-data-json-sails](https://github.com/mpampin/ra-data-json-sails)
-* **[Spring Boot](https://spring.io/projects/spring-boot)**: [vishpat/ra-data-springboot-rest](https://github.com/vishpat/ra-data-springboot-rest) 
-* **[Strapi](https://strapi.io/)**: [nazirov91/ra-strapi-rest](https://github.com/nazirov91/ra-strapi-rest)
-
-If you've written a Data Provider for another backend, and open-sourced it, please help complete this list with your package.
-
-**Tip**: In version 1, react-admin was called [admin-on-rest](https://github.com/marmelab/admin-on-rest) (AOR), and developers shared Data Providers for even more backends. Due to breaking changes in v2, these providers are no longer working. Fortunately, Data Providers aren't complex pieces of code, and using legacy Data Provider with a recent react-admin version requires minimal changes. If you are a maintainer of one of these projects, we would warmly welcome an upgrade.
-
-* **[DynamoDb](https://github.com/abiglobalhealth/aor-dynamodb-client)**: [abiglobalhealth/aor-dynamodb-client](https://github.com/abiglobalhealth/aor-dynamodb-client)
-* **[Epilogue](https://github.com/dchester/epilogue)**: [dunghuynh/aor-epilogue-client](https://github.com/dunghuynh/aor-epilogue-client)
-* **[Parse Server](https://github.com/ParsePlatform/parse-server)**: [leperone/aor-parseserver-client](https://github.com/leperone/aor-parseserver-client)
-* **[Xmysql](https://github.com/o1lab/xmysql)**: [soaserele/aor-xmysql](https://github.com/soaserele/aor-xmysql)
-
-## Usage
-
-As an example, let's focus on the Simple REST data provider. It fits REST APIs using simple GET parameters for filters and sorting.
-
-Install the `ra-data-simple-rest` package to use this provider.
+First, install the `ra-data-simple-rest` package:
 
 ```sh
 yarn add ra-data-simple-rest
 ```
 
-Then, initialize the provider with the REST backend URL, and pass the result to the `dataProvider` prop of the `<Admin>` component:
+Then, initialize the provider with the REST backend URL, and pass it as the `<Admin dataProvider>`:
 
 ```jsx
 // in src/App.js
@@ -134,8 +29,10 @@ import simpleRestProvider from 'ra-data-simple-rest';
 
 import { PostList } from './posts';
 
+const dataProvider = simpleRestProvider('http://path.to.my.api/');
+
 const App = () => (
-    <Admin dataProvider={simpleRestProvider('http://path.to.my.api/')}>
+    <Admin dataProvider={dataProvider}>
         <Resource name="posts" list={PostList} />
     </Admin>
 );
@@ -143,37 +40,241 @@ const App = () => (
 export default App;
 ```
 
-Here is how this Data Provider maps react-admin calls to API calls:
+That's all it takes to make all react-admin components work with your API. They will call the data provider methods, which will in turn call the API. Here's how the Simple REST data provider maps react-admin calls to API calls:
 
 | Method name        | API call                                                                                |
 | ------------------ | --------------------------------------------------------------------------------------- |
 | `getList`          | `GET http://my.api.url/posts?sort=["title","ASC"]&range=[0, 24]&filter={"title":"bar"}` |
 | `getOne`           | `GET http://my.api.url/posts/123`                                                       |
-| `getMany`          | `GET http://my.api.url/posts?filter={"id":[123,456,789]}`                               |
+| `getMany`          | `GET http://my.api.url/posts?filter={"ids":[123,456,789]}`                              |
 | `getManyReference` | `GET http://my.api.url/posts?filter={"author_id":345}`                                  |
-| `create`           | `POST http://my.api.url/posts`                                                      |
+| `create`           | `POST http://my.api.url/posts`                                                          |
 | `update`           | `PUT http://my.api.url/posts/123`                                                       |
 | `updateMany`       | Multiple calls to `PUT http://my.api.url/posts/123`                                     |
 | `delete`           | `DELETE http://my.api.url/posts/123`                                                    |
 | `deleteMany`       | Multiple calls to `DELETE http://my.api.url/posts/123`                                  |
 
-**Note**: The simple REST client expects the API to include a `Content-Range` header in the response to `getList` calls. The value must be the total number of resources in the collection. This allows react-admin to know how many pages of resources there are in total, and build the pagination controls.
+For your own API, look for a compatible data provider in the list of [supported API backends](./DataProviderList.md) or [write your own](./DataProviderWriting.md).
+
+## React-Query Options
+
+React-admin uses [React Query](https://tanstack.com/query/v5/) to fetch, cache, and update data. Internally, the `<Admin>` component creates a react-query [`QueryClient`](https://tanstack.com/query/v5/docs/react/reference/QueryClient) on mount, using [react-query's "aggressive but sane" defaults](https://tanstack.com/query/v5/docs/react/guides/important-defaults):
+
+* Queries consider cached data as stale
+* Stale queries are refetched automatically in the background when:
+  * New instances of the query mount
+  * The window is refocused
+  * The network is reconnected
+  * The query is optionally configured with a refetch interval
+* Query results that are no longer used in the current page are labeled as "inactive" and remain in the cache in case they are used again later.
+* By default, "inactive" queries are garbage collected after 5 minutes.
+* Queries that fail are silently retried 3 times, with exponential backoff delay before capturing and displaying an error notification to the UI.
+* Query results by default are structurally shared to detect if data has actually changed, and if not, the data reference remains unchanged to better help with value stabilization in regard to `useMemo` and `useCallback`.
+
+If you want to override the react-query default query and mutation options, or use a specific client or mutation cache, you can create your own `QueryClient` instance and pass it to the `<Admin queryClient>` prop:
+
+```jsx
+import { Admin } from 'react-admin';
+import { QueryClient } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            retry: false,
+            structuralSharing: false,
+        },
+        mutations: {
+            retryDelay: 10000,
+        },
+    },
+});
+
+const App = () => (
+    <Admin queryClient={queryClient} dataProvider={...}>
+        ...
+    </Admin>
+);
+```
+
+To know which options you can pass to the `QueryClient` constructor, check the [react-query documentation](https://tanstack.com/query/v5/docs/react/reference/QueryClient) and the [query options](https://tanstack.com/query/v5/docs/react/reference/useQuery) and [mutation options](https://tanstack.com/query/v5/docs/react/reference/useMutation) sections.
+
+The settings that react-admin developers often overwrite are:
+
+```jsx
+import { QueryClient } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            /**
+             * The time in milliseconds after data is considered stale.
+             * If set to `Infinity`, the data will never be considered stale.
+             */
+            staleTime: 10000,
+            /**
+             * If `false`, failed queries will not retry by default.
+             * If `true`, failed queries will retry infinitely., failureCount: num
+             * If set to an integer number, e.g., 3, failed queries will retry until the failed query count meets that number.
+             * If set to a function `(failureCount, error) => boolean`, failed queries will retry until the function returns false.
+             */
+            retry: false,
+            /**
+             * If set to `true`, the query will refetch on window focus if the data is stale.
+             * If set to `false`, the query will not refetch on window focus.
+             * If set to `'always'`, the query will always refetch on window focus.
+             * If set to a function, the function will be executed with the latest data and query to compute the value.
+             * Defaults to `true`.
+             */
+            refetchOnWindowFocus: false,
+        },
+    },
+});
+```
+
+You can also set custom options on a per-query basis. All data provider hooks accept a react-query options parameter. For instance, to disable retries for a specific update mutation:
+
+```jsx
+const [update] = useUpdate(
+    'posts',
+    { id: 123, is_published: true },
+    { retry: false }
+);
+```
+
+Refer to the documentation of each data provider hook for more details on the options you can pass.
+
+React-admin components using the data provider also accept a `queryOptions` prop to pass options to the underlying react-query hooks. For instance, specify a custom `staleTime` for a `<List>` component:
+
+{% raw %}
+
+```jsx
+import { List } from 'react-admin';
+
+const PostList = () => (
+    <List queryOptions={{ staleTime: 60000 }}>
+        ...
+    </List>
+);
+```
+
+{% endraw %}
+
+Look for the `queryOptions` and `mutationOptions` props in the documentation of each react-admin component to know which options you can pass.
+
+## Enabling Query Logs
+
+React-admin uses `react-query` to call the Data Provider. You can view all `react-query` calls in the browser using the [react-query devtools](https://tanstack.com/query/v5/docs/react/devtools).
+
+![React-Query DevTools](./img/react-query-devtools.png)
+
+To enable these devtools, install `@tanstack/react-query-devtools` and add the `<ReactQueryDevtools>` component to a custom layout:
+
+```jsx
+import { Layout } from 'react-admin';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+
+export const MyLayout = ({ children }) => (
+    <Layout>
+        {children}
+        <ReactQueryDevtools initialIsOpen={false} />
+    </Layout>
+);
+```
+
+Then use this layout in `<Admin>`:
+
+```jsx
+import { Admin, Resource } from 'react-admin';
+
+import { dataProvider } from './dataProvider';
+import { MyLayout } from './MyLayout';
+
+export const App = () => (
+    <Admin dataProvider={dataProvider} layout={MyLayout}>
+        <Resource name="posts" list={PostList} />
+    </Admin>
+);
+```
+
+**Tip**: By default, React Query Devtools are only included in development bundles (`process.env.NODE_ENV === 'development'`), so they won't be part of production builds.
+
+**Tip**: Some Data Providers have their own logging system. For example, [the `ra-data-fakerest` package](https://github.com/marmelab/react-admin/tree/master/packages/ra-data-fakerest) logs all REST API calls to the browser console when `true` is passed as a second argument:
+
+```jsx
+// in src/App.js
+import * as React from "react";
+import { Admin, Resource } from 'react-admin';
+import fakeDataProvider from 'ra-data-fakerest';
+
+const dataProvider = fakeDataProvider({ /* data here */ }, true);
+
+const App = () => (
+    <Admin dataProvider={dataProvider}>
+        // ...
+    </Admin>
+);
+```
+
+## Handling Authentication
+
+React-admin uses the `dataProvider` to fetch data and the [`authProvider`](./Authentication.md) to handle authentication. The `authProvider` typically stores an authentication token, shares it with the `dataProvider` (often via `localStorage`), which then adds it to HTTP headers for API requests.
+
+For example, here's how to use a token returned during the login process to authenticate all requests to the API via a Bearer token, using the Simple REST data provider:
+
+```js
+// in authProvider.js
+const authProvider = {
+    async login({ username, password })  {
+        const request = new Request('https://mydomain.com/authenticate', {
+            method: 'POST',
+            body: JSON.stringify({ username, password }),
+            headers: new Headers({ 'Content-Type': 'application/json' }),
+        });
+        let response;
+        try {
+            response = await fetch(request);
+        } catch (_error) {
+            throw new Error('Network error');
+        }
+        if (response.status < 200 || response.status >= 300) {
+            throw new Error(response.statusText);
+        }
+        const { token } = await response.json();
+        localStorage.setItem('token', token);
+    },
+    // ...
+};
+
+// in dataProvider.js
+import { fetchUtils } from 'react-admin';
+import simpleRestProvider from 'ra-data-simple-rest';
+
+const fetchJson = (url, options = {}) => {
+    options.user = {
+        authenticated: true,
+        // use the token from local storage
+        token: localStorage.getItem('token')
+    };
+    return fetchUtils.fetchJson(url, options);
+};
+const dataProvider = simpleRestProvider('http://path.to.my.api/', fetchJson);
+```
+
+Now all requests to the REST API will include following header:
 
 ```
-Content-Range: posts 0-24/319
+Authorization: Bearer YOUR_TOKEN_HERE
 ```
 
-If your API is on another domain as the JS code, you'll need to whitelist this header with an `Access-Control-Expose-Headers` [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS) header.
-
-```
-Access-Control-Expose-Headers: Content-Range
-```
+In this example, the `simpleRestProvider` accepts a second parameter to set authentication. Each Data Provider has its own way of accepting credentials. Refer to the documentation of your Data Provider for details.
 
 ## Adding Custom Headers
 
-The `simpleRestProvider` function accepts an HTTP client function as second argument. By default, it uses react-admin's `fetchUtils.fetchJson()` function as HTTP client. It's similar to HTML5 `fetch()`, except it handles JSON decoding and HTTP error codes automatically.
+The `dataProvider` doesn't "speak" HTTP, so it doesn't have the concept of HTTP headers. If you need to pass custom headers to the API, the syntax depends on the Data Provider you use.
 
-That means that if you need to add custom headers to your requests, you can just *wrap* the `fetchJson()` call inside your own function:
+For instance, the `simpleRestProvider` function accepts an HTTP client function as its second argument. By default, it uses react-admin's [`fetchUtils.fetchJson()`](./fetchJson.md) function as the HTTP client. It's similar to the HTML5 `fetch()`, except it handles JSON decoding and HTTP error codes automatically.
+
+To add custom headers to your requests, you can *wrap* the `fetchJson()` call inside your own function:
 
 ```jsx
 import { fetchUtils, Admin, Resource } from 'react-admin';
@@ -196,612 +297,724 @@ const App = () => (
 );
 ```
 
-Now all the requests to the REST API will contain the `X-Custom-Header: foobar` header.
+**Tip**: For TypeScript users, here is a typed version of the `fetchJson` function:
 
-**Tip**: The most common usage of custom headers is for authentication. `fetchJson` has built-on support for the `Authorization` token header:
+```ts
+import { fetchUtils } from "react-admin";
 
-```js
-const fetchJson = (url, options = {}) => {
-    options.user = {
-        authenticated: true,
-        token: 'SRTRDFVESGNJYTUKTYTHRG'
-    };
+const fetchJson = (url: string, options: fetchUtils.Options = {}) => {
+    const customHeaders = (options.headers ||
+        new Headers({
+            Accept: 'application/json',
+        })) as Headers;
+    // add your own headers here
+    customHeaders.set('X-Custom-Header', 'foobar');
+    options.headers = customHeaders;
     return fetchUtils.fetchJson(url, options);
-};
-const dataProvider = simpleRestProvider('http://path.to.my.api/', fetchJson);
+}
 ```
 
-Now all the requests to the REST API will contain the `Authorization: SRTRDFVESGNJYTUKTYTHRG` header.
+Now all the requests to the REST API will contain the `X-Custom-Header: foobar` header.
 
-## Extending a Data Provider (Example of File Upload)
+**Tip:** Have a look at the [`fetchJson` documentation](./fetchJson.md) to learn more about its features.
 
-As Data Providers are just objects, you can extend them with custom logic for a given method, or a given resource. 
+**Warning**: If your API is on a different domain than your JS code, you'll need to expose this header using the `Access-Control-Expose-Headers` [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS) header:
 
-For instance, the following Data Provider extends the `ra-data-simple-rest` provider, and adds image upload support for the `update('posts')` call (react-admin offers an `<ImageInput />` component that allows image upload).
+```
+Access-Control-Expose-Headers: X-Custom-Header
+```
 
-```js
-import simpleRestProvider from 'ra-data-simple-rest';
+This must be done on the server side.
 
-const dataProvider = simpleRestProvider('http://path.to.my.api/');
+## Embedding Relationships
 
-const myDataProvider = {
-    ...dataProvider,
-    update: (resource, params) => {
-        if (resource !== 'posts' || !params.data.pictures) {
-            // fallback to the default implementation
-            return dataProvider.update(resource, params);
+Some API backends with knowledge of the relationships between resources can embed related records in the response.
+
+For instance, JSON Server can return a post and its author in a single response:
+
+```txt
+GET /posts/123?embed=author
+```
+
+```json
+{
+    "id": 123,
+    "title": "Hello, world",
+    "author_id": 456,
+    "author": {
+        "id": 456,
+        "name": "John Doe"
+    }
+}
+```
+
+Data providers implementing this feature often use the `meta` key in the query parameters to pass the embed parameter to the API.
+
+```jsx
+const { data } = useGetOne('posts', { id: 123, meta: { embed: ['author'] } });
+```
+
+Leveraging embeds can reduce the number of requests made by react-admin to the API, and thus improve the app's performance.
+
+For example, this allows you to display data from a related resource without making an additional request (and without using a `<ReferenceField>`).
+
+{% raw %}
+
+```diff
+const PostList = () => (
+-   <List>
++   <List queryOptions={{ meta: { embed: ["author"] } }}>
+        <DataTable>
+            <DataTable.Col source="title" />
+-           <DataTable.Col source="author_id">
+-               <ReferenceField source="author_id" reference="authors>
+-                   <TextField source="name" />
+-               </ReferenceField>
+-           </DataTable.Col>
++           <DataTable.Col source="author.name" />
+        </DataTable>
+    </List>
+);
+```
+
+{% endraw %}
+
+Refer to your data provider's documentation to verify if it supports this feature. If you're writing your own data provider, check the [Writing a Data Provider](./DataProviderWriting.md#embedded-data) documentation for more details.
+
+**Note**: Embeds are a double-edged sword. They can make the response larger and break the sharing of data between pages. Measure the performance of your app before and after using embeds to ensure they are beneficial.
+
+## Prefetching Relationships
+
+Some API backends can return related records in the same response as the main record. For instance, an API may return a post and its author in a single response:
+
+```jsx
+const { data, meta } = useGetOne('posts', { id: 123, meta: { prefetch: ['author']} });
+```
+
+```json
+{
+    "data": {
+        "id": 123,
+        "title": "Hello, world",
+        "author_id": 456,
+    },
+    "meta": {
+        "prefetched": {
+            "authors": [{ "id": 456, "name": "John Doe" }]
         }
-        /**
-         * For posts update only, convert uploaded image in base 64 and attach it to
-         * the `picture` sent property, with `src` and `title` attributes.
-         */
-        
-        // Freshly dropped pictures are File objects and must be converted to base64 strings
-        const newPictures = params.data.pictures.filter(
-            p => p.rawFile instanceof File
-        );
-        const formerPictures = params.data.pictures.filter(
-            p => !(p.rawFile instanceof File)
-        );
+    }
+}
+```
 
-        return Promise.all(newPictures.map(convertFileToBase64))
-            .then(base64Pictures =>
-                base64Pictures.map(picture64 => ({
-                    src: picture64,
-                    title: `${params.data.title}`,
-                }))
-            )
-            .then(transformedNewPictures =>
-                dataProvider.update(resource, {
-                    ...params,
-                    data: {
-                        ...params.data,
-                        pictures: [
-                            ...transformedNewPictures,
-                            ...formerPictures,
-                        ],
-                    },
-                })
-            );
+This is called *prefetching* or *preloading*.
+
+React-admin can use this feature to populate its cache with related records, and avoid subsequent requests to the API. The prefetched records must be returned in the `meta.prefetched` key of the data provider response.
+
+For example, you can use prefetching to display the author's name in a post list without making an additional request:
+
+{% raw %}
+
+```jsx
+const PostList = () => (
+    <List queryOptions={{ meta: { prefetch: ['author'] }}}>
+        <DataTable>
+            <DataTable.Col source="title" />
+            <DataTable.Col source="author_id">
+                {/** renders without an additional request */}
+                <ReferenceField source="author_id" reference="authors" />
+            </DataTable.Col>
+        </DataTable>
+    </List>
+);
+```
+
+{% endraw %}
+
+The way to *ask* for embedded resources isn't normalized and depends on the API. The above example uses the `meta.prefetch` query parameter. Some APIs may use [the `embed` query parameter](#embedding-relationships) to indicate prefetching.
+
+ Refer to your data provider's documentation to verify if it supports prefetching. If you're writing your own data provider, check the [Writing a Data Provider](./DataProviderWriting.md#embedded-data) documentation for more details.
+
+## Query Cancellation
+
+React-admin supports [Query Cancellation](https://tanstack.com/query/latest/docs/framework/react/guides/query-cancellation). When a component unmounts, any pending query is canceled, preventing outdated side effects and unnecessary network requests.
+
+To enable this feature, set the `supportAbortSignal` property to `true` on your data provider:
+
+```tsx
+const dataProvider = simpleRestProvider('https://myapi.com');
+dataProvider.supportAbortSignal = true;
+```
+
+Each data provider call will receive an additional `signal` parameter, an [AbortSignal](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal). Pass this signal to your fetch calls:
+
+```tsx
+const dataProvider = {
+    getOne: async (resource, params) => {
+        const url = `${API_URL}/${resource}/${params.id}`;
+        const options = { signal: params.signal };
+        const res = await fetch(url, options);
+        if (!res.ok) {
+            throw new HttpError(res.statusText);
+        }
+        return res.json();
     },
 };
+```
+
+Some data providers, like `ra-data-simple-rest`, already support query cancellation. Check their documentation for details.
+
+**Note**: If your app uses [`<React.StrictMode>`](https://react.dev/reference/react/StrictMode), query cancellation may duplicate API queries in development, but this won't happen in production.
+
+## Adding Lifecycle Callbacks
+
+<iframe src="https://www.youtube-nocookie.com/embed/o8U-wjfUwGk" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="aspect-ratio: 16 / 9;width:100%;margin-bottom:1em;" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+
+It often happens that you need specific data logic to be executed before or after a dataProvider call. For instance, you may want to delete the comments related to a post before deleting the post itself. The general advice is to **put that code on the server-side**. If you can't, the next best place to put this logic is the `dataProvider`.
+
+You can, of course, use `if` statements in the `dataProvider` methods to execute the logic only for the resources that need it, like so:
+
+```jsx
+const dataProvider = {
+    // ...
+    delete: async (resource, params) => {
+        if (resource === 'posts') {
+            // delete all comments related to the post
+            // first, fetch the comments
+            const { data: comments } = await httpClient(`${apiUrl}/comments?post_id=${params.id}`);
+            // then, delete them
+            await Promise.all(comments.map(comment => httpClient(`${apiUrl}/comments/${comment.id}`, {
+                method: 'DELETE',
+            })));
+        }
+        // fallback to the default implementation
+        const { data } = await httpClient(`${apiUrl}/${resource}/${params.id}`, {
+            method: 'DELETE',
+        });
+
+        return { data };
+    },
+    // ...
+}
+```
+
+But the `dataProvider` code quickly becomes hard to read and maintain. React-admin provides a helper function to make it easier to add lifecycle callbacks to the dataProvider: `withLifecycleCallbacks`:
+
+```jsx
+import { withLifecycleCallbacks } from 'react-admin';
+
+const dataProvider = withLifecycleCallbacks(baseDataProvider, [
+    {
+        resource: 'posts',
+        beforeDelete: async (params, dataProvider) => {
+            // delete all comments related to the post
+            // first, fetch the comments
+            const { data: comments } = await dataProvider.getList('comments', {
+                filter: { post_id: params.id },
+                pagination: { page: 1, perPage: 1000 },
+                sort: { field: 'id', order: 'DESC' },
+            });
+            // then, delete them
+            await dataProvider.deleteMany('comments', { ids: comments.map(comment => comment.id) });
+
+            return params;
+        },
+    },
+]);
+```
+
+Check the [withLifecycleCallbacks](./withLifecycleCallbacks.md) documentation for more details.
+
+## Combining Data Providers
+
+If you need to build an app relying on more than one API, you may face a problem: the `<Admin>` component accepts only one `dataProvider` prop. You can combine multiple data providers into one using the `combineDataProviders` helper. It expects a function as a parameter accepting a resource name and returning a data provider for that resource.
+
+<iframe src="https://www.youtube-nocookie.com/embed/x9EZk0i6VHw" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="aspect-ratio: 16 / 9;width:100%;margin-bottom:1em;" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+
+For instance, the following app uses `ra-data-simple-rest` for the `posts` and `comments` resources, and `ra-data-local-storage` for the `user` resource:
+
+```jsx
+import buildRestProvider from 'ra-data-simple-rest';
+import buildStorageProvider from 'ra-data-local-storage';
+import { Admin, Resource, combineDataProviders } from 'react-admin';
+
+const dataProvider1 = buildRestProvider('http://path.to.my.api/');
+const dataProvider2 = buildStorageProvider();
+
+const dataProvider = combineDataProviders((resource) => {
+    switch (resource) {
+        case 'posts':
+        case 'comments':
+            return dataProvider1;
+        case 'users':
+            return dataProvider2;
+        default:
+            throw new Error(`Unknown resource: ${resource}`);
+    }
+});
+
+export const App = () => (
+    <Admin dataProvider={dataProvider}>
+        <Resource name="posts" list={PostList} />
+        <Resource name="comments" list={CommentList} />
+        <Resource name="users" list={UserList} />
+    </Admin>
+);
+```
+
+If the choice of dataProvider doesn't only rely on the resource name, or if you want to manipulate the resource name, combine Data Providers manually using a JavaScript `Proxy` object.
+
+For instance, you can prefix your resource names to facilitate the API selection:
+
+```jsx
+import buildRestProvider from 'ra-data-simple-rest';
+import buildStorageProvider from 'ra-data-local-storage';
+import { Admin, Resource, defaultDataProvider } from 'react-admin';
+
+const dataProvider1 = buildRestProvider('http://path.to.my.api/');
+const dataProvider2 = buildStorageProvider();
+
+const dataProvider = new Proxy(defaultDataProvider, {
+    get: (target, name) => {
+        return (resource, params) => {
+            if (typeof name === 'symbol' || name === 'then') {
+                return;
+            }
+            if (resource.startsWith('api1/')) {
+                return dataProvider1[name](resource.substring(5), params);
+            }
+            if (resource.startsWith('api2/')) {
+                return dataProvider2[name](resource.substring(5), params);
+            }
+        }
+    },
+});
+
+export const App = () => (
+    <Admin dataProvider={dataProvider}>
+        <Resource name="api1/posts" list={PostList} />
+        <Resource name="api1/comments" list={CommentList} />
+        <Resource name="api2/users" list={UserList} />
+    </Admin>
+);
+```
+
+## Handling File Uploads
+
+When a user submits a form with a file input, the `dataProvider` method (`create` or `update`) receives a [File object](https://developer.mozilla.org/en-US/docs/Web/API/File). You can handle this file in various ways depending on your server:
+
+* [Send files as Base64 strings](#sending-files-in-base64) using the [`FileReader`](https://developer.mozilla.org/en-US/docs/Web/API/FileReader) API.
+* [Send files using `multipart/form-data`](#sending-files-in-multipartform-data) to include the record data and files in one query.
+* [Upload files to a third-party service](#sending-files-to-a-third-party-service) like a CDN.
+
+### Sending Files in Base64
+
+This `dataProvider` extends an existing provider to convert images passed to `dataProvider.update('posts')` into Base64 strings. It uses [`withLifecycleCallbacks`](#adding-lifecycle-callbacks) to modify the `dataProvider.update()` method for the `posts` resource only.
+
+```tsx
+import { withLifecycleCallbacks, DataProvider } from 'react-admin';
+import simpleRestProvider from 'ra-data-simple-rest';
+
+const dataProvider = withLifecycleCallbacks(simpleRestProvider('http://path.to.my.api/'), [
+    {
+        /**
+         * For posts update only, convert uploaded images to base 64 and attach them to
+         * the `picture` sent property, with `src` and `title` attributes.
+         */
+        resource: 'posts',
+        beforeUpdate: async (params: any, dataProvider: DataProvider) => {
+            // Freshly dropped pictures are File objects and must be converted to base64 strings
+            const newPictures = params.data.pictures.filter(
+                p => p.rawFile instanceof File
+            );
+            const formerPictures = params.data.pictures.filter(
+                p => !(p.rawFile instanceof File)
+            );
+
+            const base64Pictures = await Promise.all(
+                newPictures.map(convertFileToBase64)
+            )
+            
+            const pictures = [
+                ...base64Pictures.map((dataUrl, index) => ({
+                    src: dataUrl,
+                    title: newPictures[index].title,
+                })),
+                ...formerPictures,
+            ];
+
+            return {
+                ...params,
+                data: {
+                    ...params.data,
+                    pictures,
+                }
+            };
+        }
+    }
+]);
 
 /**
  * Convert a `File` object returned by the upload input into a base 64 string.
  * That's not the most optimized way to store images in production, but it's
- * enough to illustrate the idea of data provider decoration.
+ * enough to illustrate the idea of dataprovider decoration.
  */
 const convertFileToBase64 = file =>
     new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
-
         reader.readAsDataURL(file.rawFile);
     });
 
 export default myDataProvider;
 ```
 
-Using this technique, you can also combine two Data Providers for two backends into a single object, or use a Proxy to transform responses for all methods.
+**Tip**: Use `beforeSave` instead of `beforeUpdate` to apply the same logic for both create and update calls.
 
-## Writing Your Own Data Provider
+### Sending Files in `multipart/form-data`
 
-APIs are so diverse that quite often, none of the available Data Providers suit you API. In such cases, you'll have to write your own Data Provider. Don't worry, it usually takes only a couple of hours. 
+Another alternative is to upload files using the [FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) API. This format is similar to how HTML forms handle file uploads.
 
-The methods of a Data Provider receive a request, and return a promise for a response. Both the request and the response format are standardized.
+The `dataProvider` example below extends an existing provider and tweaks the `create` and `update` methods for the `posts` resource only:
 
-**Caution**: A Data Provider should return the same shape in `getList` and `getOne` for a given resource. This is because react-admin uses "optimistic rendering", and renders the Edit and Show view *before* calling `dataProvider.getOne()` by reusing the response from `dataProvider.getList()` if the user has displayed the List view before. If your API has different shapes for a query for a unique record and for a query for a list of records, your Data Provider should make these records consistent in shape before returning them to react-admin.
+* Checks if the resource is `posts`.
+* Creates a new `FormData` object with the `post` data and the file.
+* Sends this `FormData` to the API using [`fetchUtils.fetchJson()`](./fetchJson.md).
 
-For instance, the following Data Provider returns more details in `getOne` than in `getList`:
-
-```jsx
-const { data } = await dataProvider.getList('posts', {
-    pagination: { page: 1, perPage: 5 },
-    sort: { field: 'title', order: 'ASC' },
-    filter: { author_id: 12 },
-})
-// [
-//   { id: 123, title: "hello, world", author_id: 12 },
-//   { id: 125, title: "howdy partner", author_id: 12 },
-//  ],
-
-const { data } = dataProvider.getOne('posts', { id: 123 })
-// {
-//     data: { id: 123, title: "hello, world", author_id: 12, body: 'Lorem Ipsum Sic Dolor Amet' }
-// }
-```
-
-This will cause the Edit view to blink on load. If you have this problem, modify your Data Provider to return the same shape for all methods. 
-
-## Request Format
-
-Data queries require a *method* (e.g. `getOne`), a *resource* (e.g. 'posts') and a set of *parameters*.
-
-**Tip**: In comparison, HTTP requests require a *verb* (e.g. 'GET'), an *url* (e.g. 'http://myapi.com/posts'), a list of *headers* (like `Content-Type`) and a *body*.
-
-Standard methods are:
-
-| Method             | Usage                                           | Parameters format                                                                                                                               |
-| ------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getList`          | Search for resources                            | `{ pagination: { page: {int} , perPage: {int} }, sort: { field: {string}, order: {string} }, filter: {Object} }`                                |
-| `getOne`           | Read a single resource, by id                   | `{ id: {mixed} }`                                                                                                                               |
-| `getMany`          | Read a list of resource, by ids                 | `{ ids: {mixed[]} }`                                                                                                                            |
-| `getManyReference` | Read a list of resources related to another one | `{ target: {string}, id: {mixed}, pagination: { page: {int} , perPage: {int} }, sort: { field: {string}, order: {string} }, filter: {Object} }` |
-| `create`           | Create a single resource                        | `{ data: {Object} }`                                                                                                                            |
-| `update`           | Update a single resource                        | `{ id: {mixed}, data: {Object}, previousData: {Object} }`                                                                                       |
-| `updateMany`       | Update multiple resources                       | `{ ids: {mixed[]}, data: {Object} }`                                                                                                            |
-| `delete`           | Delete a single resource                        | `{ id: {mixed}, previousData: {Object} }`                                                                                                       |
-| `deleteMany`       | Delete multiple resources                       | `{ ids: {mixed[]} }`                                                                                                                            |
-
-Here are several examples of how react-admin can call the Data Provider:
-
-```js
-dataProvider.getList('posts', {
-    pagination: { page: 1, perPage: 5 },
-    sort: { field: 'title', order: 'ASC' },
-    filter: { author_id: 12 },
-});
-dataProvider.getOne('posts', { id: 123 });
-dataProvider.getMany('posts', { ids: [123, 124, 125] });
-dataProvider.getManyReference('comments', {
-    target: 'post_id',
-    id: 123,
-    sort: { field: 'created_at', order: 'DESC' }
-});
-dataProvider.update('posts', {
-    id: 123,
-    data: { title: "hello, world!" },
-    previousData: { title: "previous title" }
-});
-dataProvider.updateMany('posts', {
-    ids: [123, 234],
-    data: { views: 0 },
-});
-dataProvider.create('posts', { data: { title: "hello, world" } });
-dataProvider.delete('posts', {
-    id: 123,
-    previousData: { title: "hello, world" }
-});
-dataProvider.deleteMany('posts', { ids: [123, 234] });
-```
-
-**Tip**: If your API supports more request types, you can add more methods to the Data Provider (for instance to support upserts, aggregations, or Remote Procedure Call). React-admin won't call these methods directly, but you can call them in your own component thanks to the `useDataProvider` hook described in the [Querying the API](./Actions.md) documentation.
-
-## Response Format
-
-Data Providers methods must return a Promise for an object with a `data` property.
-
-| Method             | Response format                                                 |
-| ------------------ | --------------------------------------------------------------- |
-| `getList`          | `{ data: {Record[]}, total: {int}, validUntil?: {Date} }`       |
-| `getOne`           | `{ data: {Record}, validUntil?: {Date} }`                       |
-| `getMany`          | `{ data: {Record[]}, validUntil?: {Date} }`                     |
-| `getManyReference` | `{ data: {Record[]}, total: {int} }`                            |
-| `create`           | `{ data: {Record} }`                                            |
-| `update`           | `{ data: {Record} }`                                            |
-| `updateMany`       | `{ data: {mixed[]} }` The ids which have been updated           |
-| `delete`           | `{ data: {Record} }` The record that has been deleted           |
-| `deleteMany`       | `{ data: {mixed[]} }` The ids of the deleted records (optional) |
-
-A `{Record}` is an object literal with at least an `id` property, e.g. `{ id: 123, title: "hello, world" }`.
-
-Building up on the previous example, here are example responses matching the format expected by react-admin:
-
-```js
-dataProvider.getList('posts', {
-    pagination: { page: 1, perPage: 5 },
-    sort: { field: 'title', order: 'ASC' },
-    filter: { author_id: 12 },
-})
-.then(response => console.log(response));
-// {
-//     data: [
-//         { id: 126, title: "allo?", author_id: 12 },
-//         { id: 127, title: "bien le bonjour", author_id: 12 },
-//         { id: 124, title: "good day sunshine", author_id: 12 },
-//         { id: 123, title: "hello, world", author_id: 12 },
-//         { id: 125, title: "howdy partner", author_id: 12 },
-//     ],
-//     total: 27
-// }
-
-dataProvider.getOne('posts', { id: 123 })
-.then(response => console.log(response));
-// {
-//     data: { id: 123, title: "hello, world" }
-// }
-
-dataProvider.getMany('posts', { ids: [123, 124, 125] })
-.then(response => console.log(response));
-// {
-//     data: [
-//         { id: 123, title: "hello, world" },
-//         { id: 124, title: "good day sunshise" },
-//         { id: 125, title: "howdy partner" },
-//     ]
-// }
-
-dataProvider.getManyReference('comments', {
-    target: 'post_id',
-    id: 123,
-    sort: { field: 'created_at', order: 'DESC' }
-})
-.then(response => console.log(response));
-
-// {
-//     data: [
-//         { id: 667, title: "I agree", post_id: 123 },
-//         { id: 895, title: "I don't agree", post_id: 123 },
-//     ],
-//     total: 2,
-// }
-
-dataProvider.create('posts', { data: { title: "hello, world" } })
-.then(response => console.log(response));
-// {
-//     data: { id: 450, title: "hello, world" }
-// }
-
-dataProvider.update('posts', {
-    id: 123,
-    data: { title: "hello, world!" },
-    previousData: { title: "previous title" }
-})
-.then(response => console.log(response));
-// {
-//     data: { id: 123, title: "hello, world!" }
-// }
-
-dataProvider.updateMany('posts', {
-    ids: [123, 234],
-    data: { views: 0 },
-})
-.then(response => console.log(response));
-// {
-//     data: [123, 234]
-// }
-
-dataProvider.delete('posts', {
-    id: 123,
-    previousData: { title: "hello, world!" }
-})
-.then(response => console.log(response));
-// {
-//     data: { id: 123, title: "hello, world" }
-// }
-
-dataProvider.deleteMany('posts', { ids: [123, 234] })
-.then(response => console.log(response));
-// {
-//     data: [123, 234]
-// }
-```
-
-**Tip**: The `validUntil` field in the response is optional. It enables the Application cache, a client-side optimization to speed up rendering and reduce network traffic. Check [the Caching documentation](./Caching.md#application-cache) for more details.
-
-## Error Format
-
-When the API backend returns an error, the Data Provider should return a rejected Promise containing an `Error` object. This object should contain a `status` property with the HTTP response code (404, 500, etc.). React-admin inspects this error code, and uses it for [authentication](./Authentication.md) (in case of 401 or 403 errors). Besides, react-admin displays the error `message` on screen in a temporary notification.
-
-If you use `fetchJson`, you don't need to do anything: HTTP errors are automatically decorated as expected by react-admin.
-
-If you use another HTTP client, make sure you return a rejected Promise. You can use the `HttpError` class to throw an error with status in one line:
-
-```js
-import { HttpError } from 'react-admin';
-
-export default {
-    getList: (resource, params) => {
-        return new Promise((resolve, reject) => {
-            myApiClient(url, { ...options, headers: requestHeaders })
-                .then(response =>
-                    response.text().then(text => ({
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: response.headers,
-                        body: text,
-                    }))
-                )
-                .then(({ status, statusText, headers, body }) => {
-                    let json;
-                    try {
-                        json = JSON.parse(body);
-                    } catch (e) {
-                        // not json, no big deal
-                    }
-                    if (status < 200 || status >= 300) {
-                        return reject(
-                            new HttpError(
-                                (json && json.message) || statusText,
-                                status,
-                                json
-                            )
-                        );
-                    }
-                    return resolve({ status, headers, body, json });
-                });
-        });
-    },
-    // ...
-};
-```
-
-## Example Implementation
-
-Let's say that you want to map the react-admin requests to a REST backend exposing the following API:
-
-
-### getList
-
-```
-GET http://path.to.my.api/posts?sort=["title","ASC"]&range=[0, 4]&filter={"author_id":12}
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Range: posts 0-4/27
-[
-    { "id": 126, "title": "allo?", "author_id": 12 },
-    { "id": 127, "title": "bien le bonjour", "author_id": 12 },
-    { "id": 124, "title": "good day sunshine", "author_id": 12 },
-    { "id": 123, "title": "hello, world", "author_id": 12 },
-    { "id": 125, "title": "howdy partner", "author_id": 12 }
-]
-```
-
-### getOne
-
-```
-GET http://path.to.my.api/posts/123
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-{ "id": 123, "title": "hello, world", "author_id": 12 }
-```
-
-### getMany
-
-```
-GET http://path.to.my.api/posts?filter={"id":[123,124,125]}
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-[
-    { "id": 123, "title": "hello, world", "author_id": 12 },
-    { "id": 124, "title": "good day sunshine", "author_id": 12 },
-    { "id": 125, "title": "howdy partner", "author_id": 12 }
-]
-```
-
-### getManyReference
-
-```
-GET http://path.to.my.api/comments?sort=["created_at","DESC"]&range=[0, 24]&filter={"post_id":123}
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Range: comments 0-1/2
-[
-    { "id": 667, "title": "I agree", "post_id": 123 },
-    { "id": 895, "title": "I don't agree", "post_id": 123 }
-]
-```
-
-### create
-
-```
-POST http://path.to.my.api/posts
-{ "title": "hello, world", "author_id": 12 }
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-{ "id": 123, "title": "hello, world", "author_id": 12 }
-```
-
-### update
-
-```
-PUT http://path.to.my.api/posts/123
-{ "title": "hello, world!" }
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-{ "id": 123, "title": "hello, world!", "author_id": 12 }
-```
-
-### updateMany
-
-```
-PUT http://path.to.my.api/posts?filter={"id":[123,124,125]}
-{ "title": "hello, world!" }
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-[123, 124, 125]
-```
-
-### delete
-
-```
-DELETE http://path.to.my.api/posts/123
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-{ "id": 123, "title": "hello, world", "author_id": 12 }
-```
-
-### deleteMany
-
-```
-DELETE http://path.to.my.api/posts?filter={"id":[123,124,125]}
-
-HTTP/1.1 200 OK
-Content-Type: application/json
-[123, 124, 125]
-```
-
-Here is an example implementation, that you can use as a base for your own Data Providers:
-
-```js
-import { fetchUtils } from 'react-admin';
-import { stringify } from 'query-string';
-
-const apiUrl = 'https://my.api.com/';
-const httpClient = fetchUtils.fetchJson;
-
-export default {
-    getList: (resource, params) => {
-        const { page, perPage } = params.pagination;
-        const { field, order } = params.sort;
-        const query = {
-            sort: JSON.stringify([field, order]),
-            range: JSON.stringify([(page - 1) * perPage, page * perPage - 1]),
-            filter: JSON.stringify(params.filter),
-        };
-        const url = `${apiUrl}/${resource}?${stringify(query)}`;
-
-        return httpClient(url).then(({ headers, json }) => ({
-            data: json,
-            total: parseInt(headers.get('content-range').split('/').pop(), 10),
-        }));
-    },
-
-    getOne: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}/${params.id}`).then(({ json }) => ({
-            data: json,
-        })),
-
-    getMany: (resource, params) => {
-        const query = {
-            filter: JSON.stringify({ id: params.ids }),
-        };
-        const url = `${apiUrl}/${resource}?${stringify(query)}`;
-        return httpClient(url).then(({ json }) => ({ data: json }));
-    },
-
-    getManyReference: (resource, params) => {
-        const { page, perPage } = params.pagination;
-        const { field, order } = params.sort;
-        const query = {
-            sort: JSON.stringify([field, order]),
-            range: JSON.stringify([(page - 1) * perPage, page * perPage - 1]),
-            filter: JSON.stringify({
-                ...params.filter,
-                [params.target]: params.id,
-            }),
-        };
-        const url = `${apiUrl}/${resource}?${stringify(query)}`;
-
-        return httpClient(url).then(({ headers, json }) => ({
-            data: json,
-            total: parseInt(headers.get('content-range').split('/').pop(), 10),
-        }));
-    },
-
-    update: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}/${params.id}`, {
-            method: 'PUT',
-            body: JSON.stringify(params.data),
-        }).then(({ json }) => ({ data: json })),
-
-    updateMany: (resource, params) => {
-        const query = {
-            filter: JSON.stringify({ id: params.ids}),
-        };
-        return httpClient(`${apiUrl}/${resource}?${stringify(query)}`, {
-            method: 'PUT',
-            body: JSON.stringify(params.data),
-        }).then(({ json }) => ({ data: json }));
-    },
-
-    create: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}`, {
-            method: 'POST',
-            body: JSON.stringify(params.data),
-        }).then(({ json }) => ({
-            data: { ...params.data, id: json.id },
-        })),
-
-    delete: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}/${params.id}`, {
-            method: 'DELETE',
-        }).then(({ json }) => ({ data: json })),
-
-    deleteMany: (resource, params) => {
-        const query = {
-            filter: JSON.stringify({ id: params.ids}),
-        };
-        return httpClient(`${apiUrl}/${resource}?${stringify(query)}`, {
-            method: 'DELETE',
-            body: JSON.stringify(params.data),
-        }).then(({ json }) => ({ data: json }));
-    },
-};
-```
-
-## Using The Data Provider In Components
-
-React-admin stores the Data Provider passed to `<Admin>` in a React context, so you can access it from anywhere in your code. To facilitate usage, react-admin provides many data provider hooks:
-
-* `useDataProvider`
-* `useQuery`
-* `useQueryWithStore`
-* `useMutation`
-* `useGetList`
-* `useGetOne`
-* `useGetMany`
-* `useGetManyReference`
-* `useCreate`
-* `useUpdate`
-* `useUpdateMany`
-* `useDelete`
-* `useDeleteMany`
-
-Here is a glimpse of the `useGetOne` hook usage:
-
-```jsx
-import { useGetOne } from 'react-admin';
-
-const UserProfile = ({ record }) => {
-    const { data, loading, error } = useGetOne('users', record.id);
-    if (loading) { return <Loading />; }
-    if (error) { return <p>ERROR</p>; }
-    return <div>User {data.username}</div>;
-};
-```
-
-You will find complete usage documentation for the data provider hooks in the [Querying the API](./Actions.md) documentation chapter.
-
-## Real-Time Updates And Locks
-
-Teams where several people work in parallel on a common task need to allow live updates, real-time notifications, and prevent data loss when two editors work on the same resource concurrently. 
-
-[`ra-realtime`](https://marmelab.com/ra-enterprise/modules/ra-realtime) (an [Enterprise Edition <img class="icon" src="./img/premium.svg" />](https://marmelab.com/ra-enterprise) module) provides hooks and UI components to lock records, and update views when the underlying data changes. It's based on the Publish / Subscribe (PubSub) pattern, and requires a backend supporting this pattern (like GraphQL, Mercure). 
-
-For instance, here is how to enable live updates on a List view:
-
-```diff
+```tsx
+import simpleRestDataProvider from "ra-data-simple-rest";
 import {
--   List,
-    Datagrid,
-    TextField,
-    NumberField,
-    Datefield,
-} from 'react-admin';
-+import { RealTimeList } from '@react-admin/ra-realtime';
+  CreateParams,
+  UpdateParams,
+  DataProvider,
+  fetchUtils,
+} from "react-admin";
 
-const PostList = props => (
--   <List {...props}>
-+   <RealTimeList {...props}>
-        <Datagrid>
-            <TextField source="title" />
-            <NumberField source="views" />
-            <DateField source="published_at" />
-        </Datagrid>
--   </List>
-+   </RealTimeList>
+const endpoint = "http://path.to.my.api";
+const baseDataProvider = simpleRestDataProvider(endpoint);
+
+type PostParams = {
+  id: string;
+  title: string;
+  content: string;
+  picture: {
+    rawFile: File;
+    src?: string;
+    title?: string;
+  };
+};
+
+const createPostFormData = (
+  params: CreateParams<PostParams> | UpdateParams<PostParams>
+) => {
+  const formData = new FormData();
+  params.data.picture?.rawFile && formData.append("file", params.data.picture.rawFile);
+  params.data.title && formData.append("title", params.data.title);
+  params.data.content && formData.append("content", params.data.content);
+
+  return formData;
+};
+
+export const dataProvider: DataProvider = {
+  ...baseDataProvider,
+  create: (resource, params) => {
+    if (resource === "posts") {
+      const formData = createPostFormData(params);
+      return fetchUtils
+        .fetchJson(`${endpoint}/${resource}`, {
+          method: "POST",
+          body: formData,
+        })
+        .then(({ json }) => ({ data: json }));
+    }
+    return baseDataProvider.create(resource, params);
+  },
+  update: (resource, params) => {
+    if (resource === "posts") {
+      const formData = createPostFormData(params);
+      formData.append("id", params.id);
+      return fetchUtils
+        .fetchJson(`${endpoint}/${resource}`, {
+          method: "PUT",
+          body: formData,
+        })
+        .then(({ json }) => ({ data: json }));
+    }
+    return baseDataProvider.update(resource, params);
+  },
+};
+```
+
+### Sending Files to a Third-Party Service
+
+A common approach for handling file uploads in SPAs is to upload the file to a CDN (e.g., [Cloudinary](https://cloudinary.com/), [CloudImage](https://www.cloudimage.io/en/home)), then use the file URL in the record.
+
+Here is an example of uploading files to Cloudinary by adapting the `dataProvider` to use their [authenticated requests](https://cloudinary.com/documentation/upload_images#authenticated_requests).
+
+The signature required by Cloudinary can be generated using the [`cloudinary` package](https://cloudinary.com/documentation/node_integration#installation_and_setup). Below is a simplified Remix loader that provides this signature:
+
+```ts
+import { LoaderFunctionArgs, json } from "@remix-run/node";
+import cloudinary from "cloudinary";
+
+export const loader = ({ request }: LoaderFunctionArgs) => {
+  cloudinary.v2.config({
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    secure: false,
+  });
+
+  const timestamp = Math.round(new Date().getTime() / 1000);
+  const signature = cloudinary.v2.utils.api_sign_request(
+    { timestamp },
+    process.env.CLOUDINARY_API_SECRET as string
+  );
+
+  return json({
+    timestamp,
+    signature,
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+  });
+};
+```
+
+The `dataProvider` example below modifies the `create` and `update` methods for the `posts` resource:
+
+* Retrieves a Cloudinary signature.
+* Creates a `FormData` object with the file.
+* Sends the file to Cloudinary.
+* Updates `params.picture` with the Cloudinary URL.
+
+```ts
+// dataProvider.ts
+import { DataProvider, withLifecycleCallbacks } from "react-admin";
+import simpleRestProvider from "ra-data-simple-rest";
+
+type CloudinaryFile = {
+  asset_id: string;
+  secure_url: string;
+};
+
+type SignData = {
+  api_key: string;
+  timestamp: string;
+  signature: string;
+  cloud_name: string;
+};
+
+const endpoint = "http://path.to.my.api";
+
+const dataProvider = withLifecycleCallbacks(
+  simpleRestProvider(endpoint),
+  [
+    {
+      resource: "posts",
+      beforeSave: async (params: any, dataProvider: DataProvider) => {
+        const response = await fetch(
+          `${endpoint}/get-cloudinary-signature`,
+          { method: "GET" }
+          // should send headers with correct authentications
+        );
+
+        const signData: SignData = await response.json();
+
+        const url = `https://api.cloudinary.com/v1_1/${signData.cloud_name}/auto/upload`;
+
+        const formData = new FormData();
+        formData.append("file", params.picture.rawFile);
+        formData.append("api_key", signData.api_key);
+        formData.append("timestamp", signData.timestamp);
+        formData.append("signature", signData.signature);
+
+        const imageResponse = await fetch(url, {
+          method: "POST",
+          body: formData,
+        });
+
+        const image: CloudinaryFile = await imageResponse.json();
+
+        return {
+          ...params,
+          picture: {
+            src: image.secure_url,
+            title: image.asset_id,
+          },
+        };
+      },
+    },
+  ]
 );
 ```
 
-Check [the `ra-realtime` documentation](https://marmelab.com/ra-enterprise/modules/ra-realtime) for more details.
+Refer to the [Cloudinary Get Started doc](https://cloudinary.com/documentation/programmable_media_overview) for more details.
 
+## Async Initialization
+
+Some Data Providers need an asynchronous initialization phase (e.g., to connect to the API). To use such Data Providers, initialize them *before* rendering react-admin resources, leveraging React's `useState` and `useEffect`.
+
+For instance, the `ra-data-hasura` data provider needs to be initialized:
+
+```jsx
+import React, { useState, useEffect } from 'react';
+import buildHasuraProvider from 'ra-data-hasura';
+import { Admin, Resource } from 'react-admin';
+
+import { PostCreate, PostEdit, PostList } from './posts';
+
+const App = () => {
+    // start with an empty data provider
+    const [dataProvider, setDataProvider] = useState(null);
+
+    // initialize on mount
+    useEffect(() => {
+        buildHasuraProvider({
+            clientOptions: { uri: 'http://localhost:8080/v1/graphql' }
+        }).then(provider => setDataProvider(() => provider));
+    }, []);
+
+    // hide the admin until the data provider is ready
+    if (!dataProvider) return <p>Loading...</p>;
+
+    return (
+        <Admin dataProvider={dataProvider}>
+            <Resource name="Post" list={PostList} edit={PostEdit} create={PostCreate} />
+        </Admin>
+    );
+};
+
+export default App;
+```
+
+**Tip**: This example uses the function version of `setState` (`setDataProvider(() => dataProvider)`) instead of the more classic version (`setDataProvider(dataProvider)`). This is because some legacy Data Providers are actually functions, and `setState` would call them immediately on mount.
+
+## Offline Support
+
+React-admin supports offline/local-first applications. To enable this feature, install the following react-query packages:
+
+```sh
+yarn add @tanstack/react-query-persist-client @tanstack/query-async-storage-persister
+```
+
+Then, register default functions for react-admin mutations on the `QueryClient` to enable resumable mutations (mutations triggered while offline). React-admin provides the `addOfflineSupportToQueryClient` function for this:
+
+```ts
+// in src/queryClient.ts
+import { addOfflineSupportToQueryClient } from 'react-admin';
+import { QueryClient } from '@tanstack/react-query';
+import { dataProvider } from './dataProvider';
+
+const baseQueryClient = new QueryClient();
+
+export const queryClient = addOfflineSupportToQueryClient({
+    queryClient: baseQueryClient,
+    dataProvider,
+    resources: ['posts', 'comments'],
+});
+```
+
+Finally, wrap your `<Admin>` inside a [`<PersistQueryClientProvider>`](https://tanstack.com/query/latest/docs/framework/react/plugins/persistQueryClient#persistqueryclientprovider):
+
+{% raw %}
+```tsx
+// in src/App.tsx
+import { Admin, Resource } from 'react-admin';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { queryClient } from './queryClient';
+import { dataProvider } from './dataProvider';
+import { posts } from './posts';
+import { comments } from './comments';
+
+const localStoragePersister = createAsyncStoragePersister({
+    storage: window.localStorage,
+});
+
+export const App = () => (
+    <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: localStoragePersister }}
+        onSuccess={() => {
+            // resume mutations after initial restore from localStorage is successful
+            queryClient.resumePausedMutations();
+        }}
+    >
+        <Admin queryClient={queryClient} dataProvider={dataProvider}>
+            <Resource name="posts" {...posts} />
+            <Resource name="comments" {...comments} />
+        </Admin>
+    </PersistQueryClientProvider>
+)
+```
+{% endraw %}
+
+This is enough to make all the standard react-admin features support offline scenarios.
+
+## Adding Offline Support To Custom Mutations
+
+If you have [custom mutations](./Actions.md#calling-custom-methods) on your dataProvider, you can enable offline support for them too. For instance, if your `dataProvider` exposes a `banUser()` method:
+
+```ts
+const dataProvider = {
+    getList: /* ... */,
+    getOne: /* ... */,
+    getMany: /* ... */,
+    getManyReference: /* ... */,
+    create: /* ... */,
+    update: /* ... */,
+    updateMany: /* ... */,
+    delete: /* ... */,
+    deleteMany: /* ... */,
+    banUser: (userId: string) => {
+        return fetch(`/api/user/${userId}/ban`, { method: 'POST' })
+            .then(response => response.json());
+    },
+}
+
+export type MyDataProvider = DataProvider & {
+    banUser: (userId: string) => Promise<{ data: RaRecord }>
+}
+```
+
+First, you must set a `mutationKey` for this mutation:
+
+{% raw %}
+```tsx
+const BanUserButton = ({ userId }: { userId: string }) => {
+    const dataProvider = useDataProvider();
+    const { mutate, isPending } = useMutation({
+        mutationKey: ['banUser'],
+        mutationFn: (userId) => dataProvider.banUser(userId)
+    });
+    return <Button label="Ban" onClick={() => mutate(userId)} disabled={isPending} />;
+};
+```
+{% endraw %}
+
+**Tip**: Note that unlike the [_Calling Custom Methods_ example](./Actions.md#calling-custom-methods), we passed `userId` to the `mutate` function. This is necessary so that React Query passes it too to the default function when resuming the mutation.
+
+Then, register a default function for it:
+
+```ts
+// in src/queryClient.ts
+import { addOfflineSupportToQueryClient } from 'react-admin';
+import { QueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { dataProvider } from './dataProvider';
+
+const baseQueryClient = new QueryClient();
+
+export const queryClient = addOfflineSupportToQueryClient({
+    queryClient: baseQueryClient,
+    dataProvider,
+    resources: ['posts', 'comments'],
+});
+
+queryClient.setMutationDefaults('banUser', {
+    mutationFn: async (userId) => {
+        return dataProvider.banUser(userId);
+    },
+});
+```

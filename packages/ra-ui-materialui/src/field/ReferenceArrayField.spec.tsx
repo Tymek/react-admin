@@ -1,208 +1,289 @@
 import * as React from 'react';
 import expect from 'expect';
-import { render, act } from '@testing-library/react';
-import { renderWithRedux } from 'ra-test';
-import { MemoryRouter } from 'react-router-dom';
-import { ListContextProvider, DataProviderContext } from 'ra-core';
+import {
+    render,
+    screen,
+    act,
+    waitFor,
+    fireEvent,
+} from '@testing-library/react';
+import {
+    ListContextProvider,
+    CoreAdminContext,
+    RecordContextProvider,
+    useRecordContext,
+    useListContext,
+    TestMemoryRouter,
+    testDataProvider,
+} from 'ra-core';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 
-import ReferenceArrayField, {
+import {
+    ReferenceArrayField,
     ReferenceArrayFieldView,
 } from './ReferenceArrayField';
-import TextField from './TextField';
-import SingleFieldList from '../list/SingleFieldList';
+import { TextField } from './TextField';
+import { SingleFieldList } from '../list';
+import { AdminContext } from '../AdminContext';
+import {
+    DifferentIdTypes,
+    Offline,
+    WithPagination,
+    WithRenderProp,
+} from './ReferenceArrayField.stories';
+import { onlineManager } from '@tanstack/react-query';
+
+const theme = createTheme({});
 
 describe('<ReferenceArrayField />', () => {
-    it('should render a loading indicator when related records are not yet fetched and a second has passed', async () => {
-        const { queryAllByRole } = render(
-            <ListContextProvider
-                value={{
-                    resource: 'foo',
-                    basePath: '',
-                    data: null,
-                    ids: [1, 2],
-                    loaded: false,
-                    loading: true,
-                }}
-            >
-                <ReferenceArrayFieldView
-                    source="barIds"
-                    reference="bar"
-                    record={{ id: 123, barIds: [1, 2] }}
-                >
-                    <SingleFieldList>
-                        <TextField source="title" />
-                    </SingleFieldList>
-                </ReferenceArrayFieldView>
-            </ListContextProvider>
-        );
-
-        await new Promise(resolve => setTimeout(resolve, 1001));
-        expect(queryAllByRole('progressbar')).toHaveLength(1);
+    beforeEach(() => {
+        onlineManager.setOnline(true);
     });
-
-    it('should render a list of the child component', () => {
-        const data = {
-            1: { id: 1, title: 'hello' },
-            2: { id: 2, title: 'world' },
-        };
-        const { queryAllByRole, container, getByText } = render(
-            <MemoryRouter>
+    it('should render a loading indicator when related records are not yet fetched and a second has passed', async () => {
+        render(
+            <ThemeProvider theme={theme}>
                 <ListContextProvider
-                    value={{
-                        resource: 'foo',
-                        basePath: '',
-                        data,
-                        ids: [1, 2],
-                        loaded: true,
-                        loading: false,
-                    }}
+                    value={
+                        {
+                            resource: 'foo',
+                            data: null,
+                            isPending: true,
+                        } as any
+                    }
                 >
                     <ReferenceArrayFieldView
                         source="barIds"
-                        record={{ id: 123, barIds: [1, 2] }}
                         reference="bar"
+                        record={{ id: 123, barIds: [1, 2] }}
                     >
                         <SingleFieldList>
                             <TextField source="title" />
                         </SingleFieldList>
                     </ReferenceArrayFieldView>
                 </ListContextProvider>
-            </MemoryRouter>
+            </ThemeProvider>
+        );
+
+        await new Promise(resolve => setTimeout(resolve, 1001));
+        await screen.findByRole('progressbar');
+    });
+
+    it('should render a list of the child component', () => {
+        const data = [
+            { id: 1, title: 'hello' },
+            { id: 2, title: 'world' },
+        ];
+        const { queryAllByRole, container, getByText } = render(
+            <TestMemoryRouter>
+                <ThemeProvider theme={theme}>
+                    <ListContextProvider
+                        value={
+                            {
+                                resource: 'foo',
+                                data,
+                                isLoading: false,
+                            } as any
+                        }
+                    >
+                        <ReferenceArrayFieldView
+                            source="barIds"
+                            record={{ id: 123, barIds: [1, 2] }}
+                            reference="bar"
+                        >
+                            <SingleFieldList linkType={false}>
+                                <TextField source="title" />
+                            </SingleFieldList>
+                        </ReferenceArrayFieldView>
+                    </ListContextProvider>
+                </ThemeProvider>
+            </TestMemoryRouter>
         );
         expect(queryAllByRole('progressbar')).toHaveLength(0);
-        expect(container.firstChild.textContent).not.toBeUndefined();
+        expect(container.firstChild?.textContent).not.toBeUndefined();
         expect(getByText('hello')).not.toBeNull();
         expect(getByText('world')).not.toBeNull();
     });
 
     it('should render nothing when there are no related records', () => {
         const { queryAllByRole, container } = render(
-            <ListContextProvider
-                value={{
-                    resource: 'foo',
-                    basePath: '',
-                    data: {},
-                    ids: [],
-                    loaded: true,
-                    loading: false,
-                }}
-            >
-                <ReferenceArrayFieldView
-                    source="barIds"
-                    record={{ id: 123, barIds: [1, 2] }}
-                    reference="bar"
-                >
-                    <SingleFieldList>
-                        <TextField source="title" />
-                    </SingleFieldList>
-                </ReferenceArrayFieldView>
-            </ListContextProvider>
-        );
-        expect(queryAllByRole('progressbar')).toHaveLength(0);
-        expect(container.firstChild.textContent).toBe('');
-    });
-
-    it('should support record with string identifier', () => {
-        const data = {
-            'abc-1': { id: 'abc-1', title: 'hello' },
-            'abc-2': { id: 'abc-2', title: 'world' },
-        };
-        const { queryAllByRole, container, getByText } = render(
-            <MemoryRouter>
+            <ThemeProvider theme={theme}>
                 <ListContextProvider
-                    value={{
-                        resource: 'foo',
-                        basePath: '',
-                        data,
-                        ids: ['abc-1', 'abc-2'],
-                        loaded: true,
-                        loading: false,
-                    }}
+                    value={
+                        {
+                            resource: 'foo',
+                            data: [],
+                            isLoading: false,
+                        } as any
+                    }
                 >
                     <ReferenceArrayFieldView
-                        record={{ id: 123, barIds: ['abc-1', 'abc-2'] }}
-                        reference="bar"
                         source="barIds"
+                        record={{ id: 123, barIds: [1, 2] }}
+                        reference="bar"
                     >
-                        <SingleFieldList>
+                        <SingleFieldList linkType={false}>
                             <TextField source="title" />
                         </SingleFieldList>
                     </ReferenceArrayFieldView>
                 </ListContextProvider>
-            </MemoryRouter>
+            </ThemeProvider>
         );
         expect(queryAllByRole('progressbar')).toHaveLength(0);
-        expect(container.firstChild.textContent).not.toBeUndefined();
+        expect(container.firstChild?.textContent).toBe('');
+    });
+
+    it('should expose getData with the full list', async () => {
+        const data = [
+            { id: 1, title: 'hello' },
+            { id: 2, title: 'world' },
+        ];
+        const dataProvider = testDataProvider({
+            getMany: jest.fn((_resource, params) =>
+                Promise.resolve<any>({
+                    data: data.filter(record =>
+                        (params.ids as any[]).includes(record.id)
+                    ),
+                })
+            ),
+        });
+
+        const ListContextWatcher = () => {
+            const { getData } = useListContext();
+            const [count, setCount] = React.useState<number | null>(null);
+
+            React.useEffect(() => {
+                if (!getData) return;
+                getData().then(records => setCount(records.length));
+            }, [getData]);
+
+            return count !== null ? <span>count:{count}</span> : null;
+        };
+
+        render(
+            <AdminContext dataProvider={dataProvider}>
+                <ThemeProvider theme={theme}>
+                    <ReferenceArrayField
+                        source="tag_ids"
+                        reference="tags"
+                        perPage={1}
+                        record={{ id: 123, tag_ids: [1, 2] }}
+                    >
+                        <SingleFieldList>
+                            <TextField source="title" />
+                        </SingleFieldList>
+                        <ListContextWatcher />
+                    </ReferenceArrayField>
+                </ThemeProvider>
+            </AdminContext>
+        );
+
+        await screen.findByText('count:2');
+    });
+
+    it('should support record with string identifier', () => {
+        const data = [
+            { id: 'abc-1', title: 'hello' },
+            { id: 'abc-2', title: 'world' },
+        ];
+        const { queryAllByRole, container, getByText } = render(
+            <TestMemoryRouter>
+                <ThemeProvider theme={theme}>
+                    <ListContextProvider
+                        value={
+                            {
+                                resource: 'foo',
+                                data,
+                                isLoading: false,
+                            } as any
+                        }
+                    >
+                        <ReferenceArrayFieldView
+                            record={{ id: 123, barIds: ['abc-1', 'abc-2'] }}
+                            reference="bar"
+                            source="barIds"
+                        >
+                            <SingleFieldList linkType={false}>
+                                <TextField source="title" />
+                            </SingleFieldList>
+                        </ReferenceArrayFieldView>
+                    </ListContextProvider>
+                </ThemeProvider>
+            </TestMemoryRouter>
+        );
+        expect(queryAllByRole('progressbar')).toHaveLength(0);
+        expect(container.firstChild?.textContent).not.toBeUndefined();
         expect(getByText('hello')).not.toBeNull();
         expect(getByText('world')).not.toBeNull();
     });
 
     it('should support record with number identifier', () => {
-        const data = {
-            1: { id: 1, title: 'hello' },
-            2: { id: 2, title: 'world' },
-        };
+        const data = [
+            { id: 1, title: 'hello' },
+            { id: 2, title: 'world' },
+        ];
         const { queryAllByRole, container, getByText } = render(
-            <MemoryRouter>
-                <ListContextProvider
-                    value={{
-                        resource: 'foo',
-                        basePath: '',
-                        data,
-                        ids: [1, 2],
-                        loaded: true,
-                        loading: false,
-                    }}
-                >
-                    <ReferenceArrayFieldView
-                        record={{ id: 123, barIds: [1, 2] }}
-                        resource="foo"
-                        reference="bar"
-                        source="barIds"
+            <TestMemoryRouter>
+                <ThemeProvider theme={theme}>
+                    <ListContextProvider
+                        value={
+                            {
+                                resource: 'foo',
+                                data,
+                                isLoading: false,
+                            } as any
+                        }
                     >
-                        <SingleFieldList>
-                            <TextField source="title" />
-                        </SingleFieldList>
-                    </ReferenceArrayFieldView>
-                </ListContextProvider>
-            </MemoryRouter>
+                        <ReferenceArrayFieldView
+                            record={{ id: 123, barIds: [1, 2] }}
+                            resource="foo"
+                            reference="bar"
+                            source="barIds"
+                        >
+                            <SingleFieldList linkType={false}>
+                                <TextField source="title" />
+                            </SingleFieldList>
+                        </ReferenceArrayFieldView>
+                    </ListContextProvider>
+                </ThemeProvider>
+            </TestMemoryRouter>
         );
         expect(queryAllByRole('progressbar')).toHaveLength(0);
-        expect(container.firstChild.textContent).not.toBeUndefined();
+        expect(container.firstChild?.textContent).not.toBeUndefined();
         expect(getByText('hello')).not.toBeNull();
         expect(getByText('world')).not.toBeNull();
     });
 
     it('should use custom className', () => {
-        const data = {
-            1: { id: 1, title: 'hello' },
-            2: { id: 2, title: 'world' },
-        };
+        const data = [
+            { id: 1, title: 'hello' },
+            { id: 2, title: 'world' },
+        ];
         const { container } = render(
-            <MemoryRouter>
-                <ListContextProvider
-                    value={{
-                        resource: 'foo',
-                        basePath: '',
-                        data,
-                        ids: [1, 2],
-                        loaded: true,
-                        loading: false,
-                    }}
-                >
-                    <ReferenceArrayFieldView
-                        record={{ id: 123, barIds: [1, 2] }}
-                        className="myClass"
-                        resource="foo"
-                        reference="bar"
-                        source="barIds"
+            <TestMemoryRouter>
+                <ThemeProvider theme={theme}>
+                    <ListContextProvider
+                        value={
+                            {
+                                resource: 'foo',
+                                data,
+                                isLoading: false,
+                            } as any
+                        }
                     >
-                        <SingleFieldList>
-                            <TextField source="title" />
-                        </SingleFieldList>
-                    </ReferenceArrayFieldView>
-                </ListContextProvider>
-            </MemoryRouter>
+                        <ReferenceArrayFieldView
+                            record={{ id: 123, barIds: [1, 2] }}
+                            className="myClass"
+                            resource="foo"
+                            reference="bar"
+                            source="barIds"
+                        >
+                            <SingleFieldList linkType={false}>
+                                <TextField source="title" />
+                            </SingleFieldList>
+                        </ReferenceArrayFieldView>
+                    </ListContextProvider>
+                </ThemeProvider>
+            </TestMemoryRouter>
         );
         expect(container.getElementsByClassName('myClass')).toHaveLength(1);
     });
@@ -212,7 +293,10 @@ describe('<ReferenceArrayField />', () => {
         const promise = new Promise<any>(res => {
             resolve = res;
         });
-        const WeakField = ({ record }: any) => <div>{record.title}</div>;
+        const WeakField = () => {
+            const record = useRecordContext();
+            return <div>{record?.title}</div>;
+        };
         const dataProvider = {
             getMany: () =>
                 promise.then(() => ({
@@ -222,26 +306,166 @@ describe('<ReferenceArrayField />', () => {
                     ],
                 })),
         };
-        const { queryByText } = renderWithRedux(
-            <DataProviderContext.Provider value={dataProvider}>
-                <ReferenceArrayField
-                    record={{ id: 123, barIds: [1, 2] }}
-                    className="myClass"
-                    resource="foos"
-                    reference="bars"
-                    source="barIds"
-                    basePath="/foos"
-                >
-                    <SingleFieldList linkType={false}>
-                        <WeakField />
-                    </SingleFieldList>
-                </ReferenceArrayField>
-            </DataProviderContext.Provider>,
-            { admin: { resources: { bars: { data: {} } } } }
+        render(
+            <CoreAdminContext dataProvider={dataProvider as any}>
+                <ThemeProvider theme={theme}>
+                    <ReferenceArrayField
+                        record={{ id: 123, barIds: [1, 2] }}
+                        className="myClass"
+                        resource="foos"
+                        reference="bars"
+                        source="barIds"
+                    >
+                        <SingleFieldList linkType={false}>
+                            <WeakField />
+                        </SingleFieldList>
+                    </ReferenceArrayField>
+                </ThemeProvider>
+            </CoreAdminContext>
         );
-        expect(queryByText('bar1')).toBeNull();
+        expect(screen.queryByText('bar1')).toBeNull();
         act(() => resolve());
-        await new Promise(resolve => setTimeout(resolve)); // wait for loaded to be true
-        expect(queryByText('bar1')).not.toBeNull();
+        await waitFor(() => {
+            expect(screen.queryByText('bar1')).not.toBeNull();
+        });
+    });
+
+    it('should accept more than one child', async () => {
+        const dataProvider = testDataProvider({
+            getMany: () =>
+                Promise.resolve<any>({
+                    data: [
+                        { id: 4, title: 'programming' },
+                        { id: 8, title: 'management' },
+                        { id: 12, title: 'design' },
+                    ],
+                }),
+        });
+        const ListContextWatcher = () => {
+            const { data } = useListContext();
+            if (!data) return null;
+            return (
+                <ul>
+                    {data.map(record => (
+                        <li key={record.id}>tag:{record.title}</li>
+                    ))}
+                </ul>
+            );
+        };
+
+        render(
+            <AdminContext dataProvider={dataProvider}>
+                <RecordContextProvider
+                    value={{
+                        id: 123,
+                        title: 'hello, world',
+                        tag_ids: [4, 8, 12],
+                    }}
+                >
+                    <ReferenceArrayField source="tag_ids" reference="tags">
+                        <SingleFieldList>
+                            <TextField source="title" />
+                        </SingleFieldList>
+                        <ListContextWatcher />
+                    </ReferenceArrayField>
+                </RecordContextProvider>
+            </AdminContext>
+        );
+        await screen.findByText('programming');
+        await screen.findByText('management');
+        await screen.findByText('design');
+        await screen.findByText('tag:programming');
+        await screen.findByText('tag:management');
+        await screen.findByText('tag:design');
+    });
+
+    it('should handle IDs of different types', async () => {
+        render(<DifferentIdTypes />);
+
+        expect(await screen.findByText('artist_1')).not.toBeNull();
+        expect(await screen.findByText('artist_2')).not.toBeNull();
+        expect(await screen.findByText('artist_3')).not.toBeNull();
+    });
+
+    it('should support renderProp', async () => {
+        render(<WithRenderProp />);
+        await waitFor(() => {
+            expect(screen.queryByText('John Lennon')).not.toBeNull();
+            expect(screen.queryByText('Paul McCartney')).not.toBeNull();
+            expect(screen.queryByText('Ringo Star')).not.toBeNull();
+            expect(screen.queryByText('George Harrison')).not.toBeNull();
+            expect(screen.queryByText('Mick Jagger')).not.toBeNull();
+            expect(screen.queryByText('Keith Richards')).not.toBeNull();
+            expect(screen.queryByText('Ronnie Wood')).not.toBeNull();
+            expect(screen.queryByText('Charlie Watts')).not.toBeNull();
+        });
+    });
+
+    describe('"Select all" button', () => {
+        it('should be displayed if an item is selected', async () => {
+            render(<WithPagination />);
+            await waitFor(() => {
+                expect(screen.queryAllByRole('checkbox')).toHaveLength(6);
+            });
+            fireEvent.click(screen.getAllByRole('checkbox')[0]);
+            expect(
+                await screen.findByRole('button', { name: 'Select all' })
+            ).toBeDefined();
+        });
+        it('should not be displayed if all item are manyally selected', async () => {
+            render(<WithPagination />);
+            await waitFor(() => {
+                expect(screen.queryAllByRole('checkbox')).toHaveLength(6);
+            });
+            fireEvent.click(screen.getAllByRole('checkbox')[0]);
+            await screen.findByText('5 items selected');
+            fireEvent.click(
+                screen.getByRole('button', { name: 'Go to next page' })
+            );
+            await waitFor(() => {
+                expect(screen.queryAllByRole('checkbox')).toHaveLength(4);
+            });
+            fireEvent.click(screen.getAllByRole('checkbox')[0]);
+            await screen.findByText('8 items selected');
+            expect(
+                screen.queryByRole('button', { name: 'Select all' })
+            ).toBeNull();
+        });
+        it('should not be displayed if all item are selected with the "Select all" button', async () => {
+            render(<WithPagination />);
+            await waitFor(() => {
+                expect(screen.queryAllByRole('checkbox')).toHaveLength(6);
+            });
+            fireEvent.click(screen.getAllByRole('checkbox')[0]);
+            await screen.findByText('5 items selected');
+            fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+            await screen.findByText('8 items selected');
+            expect(
+                screen.queryByRole('button', { name: 'Select all' })
+            ).toBeNull();
+        });
+        it('should select all items', async () => {
+            render(<WithPagination />);
+            await waitFor(() => {
+                expect(screen.queryAllByRole('checkbox')).toHaveLength(6);
+            });
+            fireEvent.click(screen.getAllByRole('checkbox')[0]);
+            await screen.findByText('5 items selected');
+            fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+            await screen.findByText('8 items selected');
+        });
+    });
+    it('should render the offline prop node when offline', async () => {
+        render(<Offline />);
+        await screen.findByText('The Beatles');
+        fireEvent.click(await screen.findByText('Simulate offline'));
+        fireEvent.click(await screen.findByText('Toggle Child'));
+        await screen.findByText('No connectivity. Could not fetch data.');
+        fireEvent.click(await screen.findByText('Simulate online'));
+        await screen.findByText('John Lennon');
+        // Ensure the data is still displayed when going offline after it was loaded
+        fireEvent.click(await screen.findByText('Simulate offline'));
+        await screen.findByText('You are offline, the data may be outdated');
+        await screen.findByText('John Lennon');
     });
 });

@@ -1,17 +1,14 @@
-import React, { FC, cloneElement, Children, ReactElement } from 'react';
-import PropTypes from 'prop-types';
+import React from 'react';
 import {
-    FilterPayload,
-    SortPayload,
-    useReferenceManyFieldController,
-    ListContextProvider,
-    ListControllerProps,
-    ResourceContextProvider,
-    useRecordContext,
+    ReferenceManyFieldBase,
+    useTranslate,
+    type ReferenceManyFieldBaseProps,
+    type RaRecord,
 } from 'ra-core';
 
-import { PublicFieldProps, fieldPropTypes, InjectedFieldProps } from './types';
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
+import { Typography } from '@mui/material';
+import type { FieldProps } from './types';
+import { Offline } from '../Offline';
 
 /**
  * Render related records to the current one.
@@ -59,130 +56,63 @@ import sanitizeFieldRestProps from './sanitizeFieldRestProps';
  *    ...
  * </ReferenceManyField>
  */
-export const ReferenceManyField: FC<ReferenceManyFieldProps> = props => {
+export const ReferenceManyField = <
+    RecordType extends RaRecord = RaRecord,
+    ReferenceRecordType extends RaRecord = RaRecord,
+>(
+    props: ReferenceManyFieldProps<RecordType, ReferenceRecordType>
+) => {
+    const translate = useTranslate();
     const {
-        basePath,
         children,
-        filter,
-        page = 1,
-        perPage,
-        reference,
-        resource,
-        sort,
-        source,
-        target,
+        pagination,
+        empty,
+        offline = defaultOffline,
+        render,
+        ...controllerProps
     } = props;
-    const record = useRecordContext(props);
-
-    if (React.Children.count(children) !== 1) {
-        throw new Error(
-            '<ReferenceManyField> only accepts a single child (like <Datagrid>)'
-        );
-    }
-
-    const controllerProps = useReferenceManyFieldController({
-        basePath,
-        filter,
-        page,
-        perPage,
-        record,
-        reference,
-        resource,
-        sort,
-        source,
-        target,
-    });
 
     return (
-        <ResourceContextProvider value={reference}>
-            <ListContextProvider value={controllerProps}>
-                <ReferenceManyFieldView {...props} {...controllerProps} />
-            </ListContextProvider>
-        </ResourceContextProvider>
+        <ReferenceManyFieldBase<RecordType, ReferenceRecordType>
+            {...controllerProps}
+            empty={
+                typeof empty === 'string' ? (
+                    <Typography component="span" variant="body2">
+                        {translate(empty, { _: empty })}
+                    </Typography>
+                ) : (
+                    empty
+                )
+            }
+            render={props => {
+                const { isPaused, isPending, isPlaceholderData } = props;
+                const shouldRenderOffline =
+                    isPaused &&
+                    (isPending || isPlaceholderData) &&
+                    offline !== undefined &&
+                    offline !== false;
+
+                return (
+                    <>
+                        {shouldRenderOffline
+                            ? offline
+                            : render
+                              ? render(props)
+                              : children}
+                        {pagination}
+                    </>
+                );
+            }}
+        />
     );
 };
 
-export interface ReferenceManyFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps {
-    children: ReactElement;
-    filter?: FilterPayload;
-    page?: number;
-    pagination?: ReactElement;
-    perPage?: number;
-    reference: string;
-    sort?: SortPayload;
-    target: string;
+const defaultOffline = <Offline variant="inline" />;
+
+export interface ReferenceManyFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+    ReferenceRecordType extends RaRecord = RaRecord,
+> extends Omit<FieldProps<RecordType>, 'source'>,
+        ReferenceManyFieldBaseProps<RecordType, ReferenceRecordType> {
+    pagination?: React.ReactNode;
 }
-
-ReferenceManyField.propTypes = {
-    addLabel: PropTypes.bool,
-    basePath: PropTypes.string,
-    children: PropTypes.element.isRequired,
-    className: PropTypes.string,
-    filter: PropTypes.object,
-    label: PropTypes.string,
-    perPage: PropTypes.number,
-    record: PropTypes.any,
-    reference: PropTypes.string.isRequired,
-    resource: PropTypes.string,
-    sortBy: PropTypes.string,
-    sortByOrder: fieldPropTypes.sortByOrder,
-    source: PropTypes.string.isRequired,
-    sort: PropTypes.exact({
-        field: PropTypes.string,
-        order: PropTypes.string,
-    }),
-    target: PropTypes.string.isRequired,
-};
-
-ReferenceManyField.defaultProps = {
-    filter: {},
-    perPage: 25,
-    sort: { field: 'id', order: 'DESC' },
-    source: 'id',
-    addLabel: true,
-};
-
-export const ReferenceManyFieldView: FC<ReferenceManyFieldViewProps> = props => {
-    const { basePath, children, pagination, reference, ...rest } = props;
-    return (
-        <>
-            {cloneElement(Children.only(children), {
-                ...sanitizeFieldRestProps(rest),
-                basePath,
-                resource: reference,
-            })}
-            {pagination &&
-                props.total !== undefined &&
-                cloneElement(pagination)}
-        </>
-    );
-};
-
-export interface ReferenceManyFieldViewProps
-    extends Omit<
-            ReferenceManyFieldProps,
-            'basePath' | 'resource' | 'page' | 'perPage'
-        >,
-        ListControllerProps {
-    children: ReactElement;
-}
-
-ReferenceManyFieldView.propTypes = {
-    basePath: PropTypes.string.isRequired,
-    children: PropTypes.element,
-    className: PropTypes.string,
-    currentSort: PropTypes.exact({
-        field: PropTypes.string,
-        order: PropTypes.string,
-    }),
-    data: PropTypes.any,
-    ids: PropTypes.array,
-    loaded: PropTypes.bool,
-    pagination: PropTypes.element,
-    reference: PropTypes.string,
-    setSort: PropTypes.func,
-};
-
-export default ReferenceManyField;

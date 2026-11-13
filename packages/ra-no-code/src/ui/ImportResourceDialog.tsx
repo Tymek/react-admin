@@ -7,20 +7,21 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
-    RootRef,
     TextField,
-} from '@material-ui/core';
+} from '@mui/material';
 import { useDropzone } from 'react-dropzone';
+import { useQueryClient } from '@tanstack/react-query';
 
-import { useRefresh } from 'ra-core';
-import { useHistory } from 'react-router-dom';
+import { useNotify } from 'react-admin';
+import { useNavigate } from 'react-router-dom';
 import { useImportResourceFromCsv } from './useImportResourceFromCsv';
 
 export const ImportResourceDialog = (props: ImportResourceDialogProps) => {
     const [file, setFile] = useState<File>();
     const [resource, setResource] = useState<string>('');
-    const history = useHistory();
-    const refresh = useRefresh();
+    const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const notify = useNotify();
 
     const handleClose = () => {
         if (props.onClose) {
@@ -28,20 +29,7 @@ export const ImportResourceDialog = (props: ImportResourceDialogProps) => {
         }
     };
 
-    const handleImportCompleted = ({ resourceAlreadyExists }) => {
-        handleClose();
-        history.push(`/${resource}`);
-
-        if (resourceAlreadyExists) {
-            // If we imported more records for an existing resource,
-            // we must refresh the list
-            refresh();
-        }
-    };
-
-    const [parsing, importResource] = useImportResourceFromCsv(
-        handleImportCompleted
-    );
+    const [parsing, importResource] = useImportResourceFromCsv();
 
     const onDrop = (acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
@@ -57,12 +45,29 @@ export const ImportResourceDialog = (props: ImportResourceDialogProps) => {
         event.preventDefault();
 
         if (resource && file) {
-            importResource(resource, file);
+            importResource(resource, file)
+                .then(({ resource, resourceAlreadyExists }) => {
+                    handleClose();
+                    navigate(`/${resource}`);
+
+                    if (resourceAlreadyExists) {
+                        // If we imported more records for an existing resource,
+                        // we must refresh the list
+                        queryClient.refetchQueries({
+                            queryKey: [resource, 'getList'],
+                        });
+                    }
+                })
+                .catch(() => {
+                    notify('An error occured while handling this CSV file');
+                });
         }
     };
 
     const { getRootProps, getInputProps } = useDropzone({
-        accept: 'text/csv',
+        accept: {
+            'text/csv': ['.csv'],
+        },
         onDrop,
     });
     const { ref, ...rootProps } = getRootProps();
@@ -86,7 +91,7 @@ export const ImportResourceDialog = (props: ImportResourceDialogProps) => {
                     </DialogContent>
                 ) : (
                     <>
-                        <RootRef rootRef={ref}>
+                        <>
                             <DialogContent {...rootProps}>
                                 <input
                                     aria-label="CSV File"
@@ -101,7 +106,7 @@ export const ImportResourceDialog = (props: ImportResourceDialogProps) => {
                                     a local file.
                                 </DialogContentText>
                             </DialogContent>
-                        </RootRef>
+                        </>
                         {!!file && (
                             <DialogContent>
                                 <TextField

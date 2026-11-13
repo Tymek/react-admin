@@ -1,51 +1,60 @@
-import * as React from 'react';
 import {
-    List,
-    ListProps,
     TopToolbar,
     ExportButton,
     CreateButton,
     Pagination,
     useGetIdentity,
+    ListBase,
+    Title,
+    ListToolbar,
+    useListContext,
+    SortButton,
 } from 'react-admin';
-import { makeStyles } from '@material-ui/core/styles';
 
-import { GridList } from './GridList';
+import { ImageList } from './GridList';
 import { CompanyListFilter } from './CompanyListFilter';
+import { Stack } from '@mui/material';
+import { CompanyEmpty } from './CompanyEmpty';
 
-export const CompanyList = (props: ListProps) => {
+export const CompanyList = () => {
     const { identity } = useGetIdentity();
-    return identity ? (
-        <List
-            {...props}
-            actions={<CompanyListActions />}
-            aside={<CompanyListFilter />}
-            filterDefaultValues={{ sales_id: identity?.id }}
-            pagination={<Pagination rowsPerPageOptions={[15, 25, 50, 100]} />}
-            perPage={25}
-            sort={{ field: 'name', order: 'ASC' }}
-            component="div"
-        >
-            <GridList />
-        </List>
-    ) : null;
+    if (!identity) return null;
+    return (
+        <ListBase perPage={25} sort={{ field: 'name', order: 'ASC' }}>
+            <CompanyListLayout />
+        </ListBase>
+    );
 };
 
-const useActionStyles = makeStyles(theme => ({
-    createButton: {
-        marginLeft: theme.spacing(2),
-    },
-}));
-const CompanyListActions = (props: any) => {
-    const classes = useActionStyles();
+const CompanyListLayout = () => {
+    const { data, isPending, filterValues } = useListContext();
+    const hasFilters = filterValues && Object.keys(filterValues).length > 0;
+
+    if (isPending) return null;
+    if (!data?.length && !hasFilters) return <CompanyEmpty />;
+
+    return (
+        <Stack direction="row" component="div">
+            <CompanyListFilter />
+            <Stack sx={{ width: '100%' }}>
+                <Title title={'Companies'} />
+                <ListToolbar actions={<CompanyListActions />} />
+                <ImageList />
+                <Pagination rowsPerPageOptions={[10, 25, 50, 100]} />
+            </Stack>
+        </Stack>
+    );
+};
+
+const CompanyListActions = () => {
     return (
         <TopToolbar>
+            <SortButton fields={['name', 'created_at', 'nb_contacts']} />
             <ExportButton />
             <CreateButton
-                basePath="/companies"
                 variant="contained"
                 label="New Company"
-                className={classes.createButton}
+                sx={{ marginLeft: 2 }}
             />
         </TopToolbar>
     );

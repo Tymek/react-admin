@@ -1,118 +1,377 @@
-import { useCallback } from 'react';
-import { Identifier, Record } from '../types';
-import useMutation, { MutationOptions, Mutation } from './useMutation';
+import {
+    useQueryClient,
+    type UseMutationResult,
+    type MutateOptions,
+    type UseInfiniteQueryResult,
+    type InfiniteData,
+    UseMutationOptions,
+} from '@tanstack/react-query';
+
+import { useDataProvider } from './useDataProvider';
+import type {
+    RaRecord,
+    UpdateParams,
+    MutationMode,
+    GetListResult as OriginalGetListResult,
+    GetInfiniteListResult,
+    DataProvider,
+    UpdateResult,
+} from '../types';
+import { useMutationWithMutationMode } from './useMutationWithMutationMode';
+import { useEvent } from '../util';
 
 /**
  * Get a callback to call the dataProvider.update() method, the result and the loading state.
  *
+ * @param {string} resource
+ * @param {Params} params The update parameters { id, data, previousData, meta }
+ * @param {Object} options Options object to pass to the queryClient.
+ * May include side effects to be executed upon success or failure, e.g. { onSuccess: () => { refresh(); } }
+ * May include a mutation mode (optimistic/pessimistic/undoable), e.g. { mutationMode: 'undoable' }
+ *
+ * @typedef Params
+ * @prop params.id The resource identifier, e.g. 123
+ * @prop params.data The updates to merge into the record, e.g. { views: 10 }
+ * @prop params.previousData The record before the update is applied
+ * @prop params.meta Optional meta data
+ *
+ * @returns The current mutation state. Destructure as [update, { data, error, isPending }].
+ *
  * The return value updates according to the request state:
  *
- * - initial: [update, { loading: false, loaded: false }]
- * - start:   [update, { loading: true, loaded: false }]
- * - success: [update, { data: [data from response], loading: false, loaded: true }]
- * - error:   [update, { error: [error from response], loading: false, loaded: false }]
+ * - initial: [update, { isPending: false, isIdle: true }]
+ * - start:   [update, { isPending: true }]
+ * - success: [update, { data: [data from response], isPending: false, isSuccess: true }]
+ * - error:   [update, { error: [error from response], isPending: false, isError: true }]
  *
- * @param resource The resource name, e.g. 'posts'
- * @param id The resource identifier, e.g. 123
- * @param data The updates to merge into the record, e.g. { views: 10 }
- * @param previousData The record before the update is applied
- * @param options Options object to pass to the dataProvider. May include side effects to be executed upon success or failure, e.g. { onSuccess: { refresh: true } }
+ * The update() function must be called with a resource and a parameter object: update(resource, { id, data, previousData }, options)
  *
- * @returns The current request state. Destructure as [update, { data, error, loading, loaded }].
+ * This hook uses react-query useMutation under the hood.
+ * This means the state object contains mutate, isIdle, reset and other react-query methods.
  *
- * The update() function can be called in 3 different ways:
- *  - with the same parameters as the useUpdate() hook: update(resource, id, data, previousData, options)
- *  - with the same syntax as useMutation: update({ resource, payload: { id, data, previousData } }, options)
- *  - with no parameter (if they were already passed to useUpdate()): update()
+ * @see https://react-query-v3.tanstack.com/reference/useMutation
  *
  * @example // set params when calling the update callback
  *
- * import { useUpdate } from 'react-admin';
+ * import { useUpdate, useRecordContext } from 'react-admin';
  *
- * const IncreaseLikeButton = ({ record }) => {
+ * const IncreaseLikeButton = () => {
+ *     const record = useRecordContext();
  *     const diff = { likes: record.likes + 1 };
- *     const [update, { loading, error }] = useUpdate();
+ *     const [update, { isPending, error }] = useUpdate();
  *     const handleClick = () => {
- *         update('likes', record.id, diff, record)
+ *         update('likes', { id: record.id, data: diff, previousData: record })
  *     }
  *     if (error) { return <p>ERROR</p>; }
- *     return <button disabled={loading} onClick={handleClick}>Like</div>;
+ *     return <button disabled={isPending} onClick={handleClick}>Like</div>;
  * };
  *
  * @example // set params when calling the hook
  *
- * import { useUpdate } from 'react-admin';
+ * import { useUpdate, useRecordContext } from 'react-admin';
  *
- * const IncreaseLikeButton = ({ record }) => {
+ * const IncreaseLikeButton = () => {
+ *     const record = useRecordContext();
  *     const diff = { likes: record.likes + 1 };
- *     const [update, { loading, error }] = useUpdate('likes', record.id, diff, record);
+ *     const [update, { isPending, error }] = useUpdate('likes', { id: record.id, data: diff, previousData: record });
  *     if (error) { return <p>ERROR</p>; }
- *     return <button disabled={loading} onClick={update}>Like</button>;
+ *     return <button disabled={isPending} onClick={() => update()}>Like</button>;
  * };
  *
  * @example // TypeScript
- * const [update, { data }] = useUpdate<Product>('products', id, changes, product);
+ * const [update, { data }] = useUpdate<Product>('products', { id, data: diff, previousData: product });
  *                    \-- data is Product
  */
-const useUpdate = <RecordType extends Record = Record>(
+export const useUpdate = <RecordType extends RaRecord = any, ErrorType = Error>(
     resource?: string,
-    id?: Identifier,
-    data?: Partial<RecordType>,
-    previousData?: any,
-    options?: MutationOptions
-): UseUpdateHookValue<RecordType> => {
-    const [mutate, state] = useMutation(
-        { type: 'update', resource, payload: { id, data, previousData } },
-        options
-    );
+    params: Partial<UpdateParams<RecordType>> = {},
+    options: UseUpdateOptions<RecordType, ErrorType> = {}
+): UseUpdateResult<RecordType, boolean, ErrorType> => {
+    const dataProvider = useDataProvider();
+    const queryClient = useQueryClient();
+    const {
+        mutationMode = 'pessimistic',
+        getMutateWithMiddlewares,
+        mutationFn: customMutationFn,
+        ...mutationOptions
+    } = options;
 
-    const update = useCallback(
-        (
-            resource?: string | Partial<Mutation> | Event,
-            id?: Identifier | Partial<MutationOptions>,
-            data?: Partial<RecordType>,
-            previousData?: any,
-            options?: MutationOptions
-        ) => {
-            if (typeof resource === 'string') {
-                const query = {
-                    type: 'update',
-                    resource,
-                    payload: {
-                        id: id as Identifier,
-                        data,
-                        previousData,
-                    },
-                };
-                return mutate(query, options);
-            } else {
-                return mutate(
-                    resource as Mutation | Event,
-                    id as MutationOptions
+    const dataProviderUpdate = useEvent(
+        (resource: string, params: UpdateParams<RecordType>) =>
+            dataProvider.update<RecordType>(resource, params)
+    );
+    const customMutationFnWithDataProviderResult = async (
+        resource: string | undefined,
+        params: Omit<UseUpdateMutateParams<RecordType>, 'resource'>
+    ) => {
+        if (resource == null) {
+            throw new Error('useUpdate mutation requires a resource');
+        }
+        if (params.id == null) {
+            throw new Error('useUpdate mutation requires a non-empty id');
+        }
+        if (!params.data) {
+            throw new Error(
+                'useUpdate mutation requires a non-empty data object'
+            );
+        }
+        if (customMutationFn == null) {
+            return dataProviderUpdate(
+                resource,
+                params as UpdateParams<RecordType>
+            );
+        }
+
+        return {
+            data: await customMutationFn({ resource, ...params }),
+        };
+    };
+
+    const [mutate, mutationResult] = useMutationWithMutationMode<
+        ErrorType,
+        UpdateResult<RecordType>,
+        UseUpdateMutateParams<RecordType>
+    >(
+        { resource, ...params },
+        {
+            ...mutationOptions,
+            mutationKey: [resource, 'update', params],
+            mutationMode,
+            mutationFn: ({ resource, ...params }) =>
+                customMutationFnWithDataProviderResult(resource, params),
+            updateCache: (
+                { resource, ...params },
+                { mutationMode },
+                result
+            ) => {
+                // hack: only way to tell react-query not to fetch this query for the next 5 seconds
+                // because setQueryData doesn't accept a stale time option
+                const now = Date.now();
+                const updatedAt =
+                    mutationMode === 'undoable' ? now + 5 * 1000 : now;
+                // Stringify and parse the data to remove undefined values.
+                // If we don't do this, an update with { id: undefined } as payload
+                // would remove the id from the record, which no real data provider does.
+                const clonedData = JSON.parse(
+                    JSON.stringify(
+                        mutationMode === 'pessimistic' ? result : params?.data
+                    )
                 );
-            }
-        },
-        [mutate] // eslint-disable-line react-hooks/exhaustive-deps
+
+                const updateColl = (old: RecordType[]) => {
+                    if (!old) return old;
+                    const index = old.findIndex(
+                        // eslint-disable-next-line eqeqeq
+                        record => record.id == params?.id
+                    );
+                    if (index === -1) {
+                        return old;
+                    }
+                    return [
+                        ...old.slice(0, index),
+                        { ...old[index], ...clonedData } as RecordType,
+                        ...old.slice(index + 1),
+                    ];
+                };
+
+                type GetListResult = Omit<OriginalGetListResult, 'data'> & {
+                    data?: RecordType[];
+                };
+
+                const previousRecord = queryClient.getQueryData<RecordType>([
+                    resource,
+                    'getOne',
+                    { id: String(params?.id), meta: params?.meta },
+                ]);
+
+                queryClient.setQueryData(
+                    [
+                        resource,
+                        'getOne',
+                        { id: String(params?.id), meta: params?.meta },
+                    ],
+                    (record: RecordType) => ({
+                        ...record,
+                        ...clonedData,
+                    }),
+                    { updatedAt }
+                );
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getList'] },
+                    (res: GetListResult) =>
+                        res && res.data
+                            ? { ...res, data: updateColl(res.data) }
+                            : res,
+                    { updatedAt }
+                );
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getInfiniteList'] },
+                    (
+                        res: UseInfiniteQueryResult<
+                            InfiniteData<GetInfiniteListResult>
+                        >['data']
+                    ) =>
+                        res && res.pages
+                            ? {
+                                  ...res,
+                                  pages: res.pages.map(page => ({
+                                      ...page,
+                                      data: updateColl(page.data),
+                                  })),
+                              }
+                            : res,
+                    { updatedAt }
+                );
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getMany'] },
+                    (coll: RecordType[]) =>
+                        coll && coll.length > 0 ? updateColl(coll) : coll,
+                    { updatedAt }
+                );
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getManyReference'] },
+                    (res: GetListResult) =>
+                        res && res.data
+                            ? { ...res, data: updateColl(res.data) }
+                            : res,
+                    { updatedAt }
+                );
+
+                const optimisticResult = {
+                    ...previousRecord,
+                    ...clonedData,
+                };
+                return optimisticResult;
+            },
+            getQueryKeys: ({ resource, ...params }) => {
+                const queryKeys = [
+                    [
+                        resource,
+                        'getOne',
+                        { id: String(params?.id), meta: params?.meta },
+                    ],
+                    [resource, 'getList'],
+                    [resource, 'getInfiniteList'],
+                    [resource, 'getMany'],
+                    [resource, 'getManyReference'],
+                ];
+                return queryKeys;
+            },
+            getMutateWithMiddlewares: mutateWithMutationMode => {
+                if (getMutateWithMiddlewares) {
+                    // Immediately get the function with middlewares applied so that even if the middlewares gets unregistered (because of a redirect for instance),
+                    // we still have them applied when users have called the mutate function.
+                    const mutateWithMiddlewares = getMutateWithMiddlewares(
+                        customMutationFn
+                            ? (resource, params) =>
+                                  customMutationFnWithDataProviderResult(
+                                      resource,
+                                      params as Omit<
+                                          UseUpdateMutateParams<RecordType>,
+                                          'resource'
+                                      >
+                                  )
+                            : dataProviderUpdate.bind(dataProvider)
+                    );
+                    return args => {
+                        // This is necessary to avoid breaking changes in useUpdate:
+                        // The mutation function must have the same signature as before (resource, params) and not ({ resource, params })
+                        const { resource, ...params } = args;
+                        return mutateWithMiddlewares(resource, params);
+                    };
+                }
+
+                return args => mutateWithMutationMode(args);
+            },
+        }
     );
 
-    return [update, state];
+    const update = useEvent(
+        (
+            callTimeResource: string | undefined = resource,
+            callTimeParams: Partial<UpdateParams<RecordType>> = {},
+            callTimeOptions: MutateOptions<
+                RecordType,
+                ErrorType,
+                Partial<UseUpdateMutateParams<RecordType>>,
+                unknown
+            > & {
+                mutationMode?: MutationMode;
+                returnPromise?: boolean;
+            } = {}
+        ) => {
+            return mutate(
+                {
+                    resource: callTimeResource,
+                    ...callTimeParams,
+                },
+                callTimeOptions
+            );
+        }
+    );
+
+    return [update, mutationResult];
 };
 
-type UseUpdateHookValue<RecordType extends Record = Record> = [
-    (
-        resource?: string | Partial<Mutation> | Event,
-        id?: Identifier | Partial<MutationOptions>,
-        data?: Partial<RecordType>,
-        previousData?: any,
-        options?: MutationOptions
-    ) => void | Promise<any>,
-    {
-        data?: RecordType;
-        total?: number;
-        error?: any;
-        loading: boolean;
-        loaded: boolean;
-    }
-];
+export interface UseUpdateMutateParams<RecordType extends RaRecord = any> {
+    resource?: string;
+    id?: RecordType['id'];
+    data?: Partial<RecordType>;
+    previousData?: any;
+    meta?: any;
+}
 
-export default useUpdate;
+export type UseUpdateOptions<
+    RecordType extends RaRecord = any,
+    ErrorType = Error,
+> = Omit<
+    UseMutationOptions<
+        RecordType,
+        ErrorType,
+        Partial<UseUpdateMutateParams<RecordType>>
+    >,
+    'mutationFn'
+> & {
+    mutationFn?: (
+        params: Partial<UseUpdateMutateParams<RecordType>>
+    ) => Promise<RecordType>;
+    mutationMode?: MutationMode;
+    returnPromise?: boolean;
+    getMutateWithMiddlewares?: <
+        UpdateFunctionType extends
+            DataProvider['update'] = DataProvider['update'],
+    >(
+        mutate: UpdateFunctionType
+    ) => (
+        ...Params: Parameters<UpdateFunctionType>
+    ) => ReturnType<UpdateFunctionType>;
+};
+
+export type UpdateMutationFunction<
+    RecordType extends RaRecord = any,
+    TReturnPromise extends boolean = boolean,
+    ErrorType = Error,
+> = (
+    resource?: string,
+    params?: Partial<UpdateParams<RecordType>>,
+    options?: MutateOptions<
+        RecordType,
+        ErrorType,
+        Partial<UseUpdateMutateParams<RecordType>>,
+        unknown
+    > & { mutationMode?: MutationMode; returnPromise?: TReturnPromise }
+) => Promise<TReturnPromise extends true ? RecordType : void>;
+
+export type UseUpdateResult<
+    RecordType extends RaRecord = any,
+    TReturnPromise extends boolean = boolean,
+    ErrorType = Error,
+> = [
+    UpdateMutationFunction<RecordType, TReturnPromise, ErrorType>,
+    UseMutationResult<
+        RecordType,
+        ErrorType,
+        Partial<UpdateParams<RecordType> & { resource?: string }>,
+        unknown
+    > & { isLoading: boolean },
+];

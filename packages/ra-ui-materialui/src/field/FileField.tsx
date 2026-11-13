@@ -1,14 +1,24 @@
 import * as React from 'react';
-import { FC } from 'react';
-import PropTypes from 'prop-types';
-import get from 'lodash/get';
-import { makeStyles } from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import classnames from 'classnames';
-import { useRecordContext } from 'ra-core';
+import {
+    type ComponentsOverrides,
+    styled,
+    type SxProps,
+    type Theme,
+    useThemeProps,
+} from '@mui/material/styles';
+import get from 'lodash/get.js';
+import Typography from '@mui/material/Typography';
+import {
+    type ExtractRecordPaths,
+    type HintedString,
+    getSafeUrl,
+    useFieldValue,
+    useTranslate,
+} from 'ra-core';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import type { FieldProps } from './types';
+import { Link } from '@mui/material';
 
 /**
  * Render a link to a file based on a path contained in a record field
@@ -23,12 +33,18 @@ import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
  *     <a href="doc.pdf" title="Presentation">Presentation</a>
  * </div>
  */
-const FileField: FC<FileFieldProps> = props => {
+export const FileField = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: FileFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
         className,
-        classes: classesOverride,
         emptyText,
-        source,
         title,
         src,
         target,
@@ -37,9 +53,14 @@ const FileField: FC<FileFieldProps> = props => {
         rel,
         ...rest
     } = props;
-    const record = useRecordContext(props);
-    const sourceValue = get(record, source);
-    const classes = useStyles(props);
+    const sourceValue = useFieldValue(props);
+    const titleValue =
+        useFieldValue({
+            ...props,
+            // @ts-ignore We ignore here because title might be a custom label or undefined instead of a field name
+            source: title,
+        })?.toString() ?? title;
+    const translate = useTranslate();
 
     if (!sourceValue) {
         return emptyText ? (
@@ -49,95 +70,100 @@ const FileField: FC<FileFieldProps> = props => {
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {emptyText}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
         ) : (
-            <div
-                className={classnames(classes.root, className)}
-                {...sanitizeFieldRestProps(rest)}
-            />
+            <Root className={className} {...sanitizeFieldRestProps(rest)} />
         );
     }
 
     if (Array.isArray(sourceValue)) {
         return (
-            <ul
-                className={classnames(classes.root, className)}
-                {...sanitizeFieldRestProps(rest)}
-            >
+            <StyledList className={className} {...sanitizeFieldRestProps(rest)}>
                 {sourceValue.map((file, index) => {
-                    const fileTitleValue = get(file, title) || title;
-                    const srcValue = get(file, src) || title;
+                    const fileTitleValue = title
+                        ? get(file, title, title)
+                        : title;
+                    const srcValue = src ? get(file, src, title) : title;
 
                     return (
                         <li key={index}>
-                            <a
-                                href={srcValue}
+                            <Link
+                                href={getSafeUrl(srcValue)}
                                 title={fileTitleValue}
                                 target={target}
                                 download={download}
                                 ping={ping}
                                 rel={rel}
+                                variant="body2"
+                                onClick={e => e.stopPropagation()}
                             >
                                 {fileTitleValue}
-                            </a>
+                            </Link>
                         </li>
                     );
                 })}
-            </ul>
+            </StyledList>
         );
     }
 
-    const titleValue = get(record, title) || title;
-
     return (
-        <div
-            className={classnames(classes.root, className)}
-            {...sanitizeFieldRestProps(rest)}
-        >
-            <a
-                href={sourceValue}
+        <Root className={className} {...sanitizeFieldRestProps(rest)}>
+            <Link
+                href={getSafeUrl(sourceValue.toString())}
                 title={titleValue}
                 target={target}
                 download={download}
                 ping={ping}
                 rel={rel}
+                variant="body2"
             >
                 {titleValue}
-            </a>
-        </div>
+            </Link>
+        </Root>
     );
 };
 
-FileField.defaultProps = {
-    addLabel: true,
-};
-
-const useStyles = makeStyles(
-    {
-        root: { display: 'inline-block' },
-    },
-    { name: 'RaFileField' }
-);
-
-export interface FileFieldProps extends PublicFieldProps, InjectedFieldProps {
+export interface FileFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType> {
     src?: string;
-    title?: string;
+    title?: HintedString<ExtractRecordPaths<RecordType>>;
     target?: string;
     download?: boolean | string;
     ping?: string;
     rel?: string;
-    classes?: object;
+    sx?: SxProps<Theme>;
 }
 
-FileField.propTypes = {
-    ...fieldPropTypes,
-    src: PropTypes.string,
-    title: PropTypes.string,
-    target: PropTypes.string,
-    download: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
-    ping: PropTypes.string,
-    rel: PropTypes.string,
-};
+const PREFIX = 'RaFileField';
 
-export default FileField;
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    display: 'inline-block',
+});
+
+const StyledList = styled('ul')({
+    display: 'inline-block',
+});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaFileField: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaFileField: Partial<FileFieldProps>;
+    }
+
+    interface Components {
+        RaFileField?: {
+            defaultProps?: ComponentsPropsList['RaFileField'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaFileField'];
+        };
+    }
+}

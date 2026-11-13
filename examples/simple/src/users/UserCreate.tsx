@@ -1,69 +1,99 @@
 /* eslint react/jsx-key: off */
 import * as React from 'react';
+import { useFormContext } from 'react-hook-form';
 import {
     Create,
-    FormTab,
     SaveButton,
     AutocompleteInput,
     TabbedForm,
     TextInput,
     Toolbar,
     required,
+    useNotify,
+    useUnique,
+    CanAccess,
+    useCanAccess,
 } from 'react-admin';
 
 import Aside from './Aside';
 
-const UserEditToolbar = ({ permissions, ...props }) => (
-    <Toolbar {...props}>
-        <SaveButton
-            label="user.action.save_and_show"
-            redirect="show"
-            submitOnEnter={true}
-        />
-        {permissions === 'admin' && (
-            <SaveButton
-                label="user.action.save_and_add"
-                redirect={false}
-                submitOnEnter={false}
-                variant="text"
-            />
-        )}
-    </Toolbar>
-);
+const UserCreateToolbar = () => {
+    const notify = useNotify();
+    const { reset } = useFormContext();
+
+    return (
+        <Toolbar>
+            <SaveButton label="user.action.save_and_show" />
+            <CanAccess action="batch_create">
+                <SaveButton
+                    label="user.action.save_and_add"
+                    mutationOptions={{
+                        onSuccess: () => {
+                            notify('resources.users.notifications.created', {
+                                type: 'info',
+                                messageArgs: {
+                                    smart_count: 1,
+                                },
+                            });
+                            reset();
+                        },
+                    }}
+                    type="button"
+                    variant="text"
+                />
+            </CanAccess>
+        </Toolbar>
+    );
+};
 
 const isValidName = async value =>
-    new Promise<string>(resolve =>
+    new Promise<string | undefined>(resolve =>
         setTimeout(() =>
             resolve(value === 'Admin' ? "Can't be Admin" : undefined)
         )
     );
 
-const UserCreate = ({ permissions, ...props }) => (
-    <Create {...props} aside={<Aside />}>
-        <TabbedForm toolbar={<UserEditToolbar permissions={permissions} />}>
-            <FormTab label="user.form.summary" path="">
-                <TextInput
-                    source="name"
-                    defaultValue="Slim Shady"
-                    autoFocus
-                    validate={[required(), isValidName]}
-                />
-            </FormTab>
-            {permissions === 'admin' && (
-                <FormTab label="user.form.security" path="security">
-                    <AutocompleteInput
-                        source="role"
-                        choices={[
-                            { id: '', name: 'None' },
-                            { id: 'admin', name: 'Admin' },
-                            { id: 'user', name: 'User' },
-                            { id: 'user_simple', name: 'UserSimple' },
-                        ]}
+const UserCreate = () => {
+    const unique = useUnique();
+    const { isPending, canAccess: canEditRole } = useCanAccess({
+        action: 'edit',
+        resource: 'users.role',
+    });
+    if (isPending) {
+        return null;
+    }
+    return (
+        <Create aside={<Aside />} redirect="show">
+            <TabbedForm
+                mode="onBlur"
+                warnWhenUnsavedChanges
+                toolbar={<UserCreateToolbar />}
+            >
+                <TabbedForm.Tab label="user.form.summary" path="">
+                    <TextInput
+                        source="name"
+                        defaultValue="Slim Shady"
+                        autoFocus
+                        validate={[required(), isValidName, unique()]}
                     />
-                </FormTab>
-            )}
-        </TabbedForm>
-    </Create>
-);
+                </TabbedForm.Tab>
+                {canEditRole ? (
+                    <TabbedForm.Tab label="user.form.security" path="security">
+                        <AutocompleteInput
+                            source="role"
+                            choices={[
+                                { id: '', name: 'None' },
+                                { id: 'admin', name: 'Admin' },
+                                { id: 'user', name: 'User' },
+                                { id: 'user_simple', name: 'UserSimple' },
+                            ]}
+                            validate={[required()]}
+                        />
+                    </TabbedForm.Tab>
+                ) : null}
+            </TabbedForm>
+        </Create>
+    );
+};
 
 export default UserCreate;

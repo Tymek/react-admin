@@ -22,8 +22,7 @@ const customFrenchMessages: TranslationMessages = {
             all_customers: 'Voir tous les clients',
             pending_orders: 'Commandes à traiter',
             order: {
-                items:
-                    'par %{customer_name}, un poster |||| par %{customer_name}, %{nb_items} posters',
+                items: 'par %{customer_name}, un poster |||| par %{customer_name}, %{nb_items} posters',
             },
             welcome: {
                 title: 'Bienvenue sur la démo e-commerce de react-admin',
@@ -38,6 +37,14 @@ const customFrenchMessages: TranslationMessages = {
             catalog: 'Catalogue',
             customers: 'Clients',
         },
+        events: {
+            review: {
+                title: 'Commente sur "%{product}"',
+            },
+            order: {
+                title: 'Commande 1 poster |||| Commande %{smart_count} posters',
+            },
+        },
     },
     resources: {
         customers: {
@@ -47,9 +54,10 @@ const customFrenchMessages: TranslationMessages = {
                 birthday: 'Anniversaire',
                 city: 'Ville',
                 stateAbbr: 'Etat',
-                commands: 'Commandes',
+                orders: 'Commandes',
                 first_name: 'Prénom',
                 first_seen: 'Première visite',
+                full_name: 'Nom',
                 groups: 'Segments',
                 has_newsletter: 'Abonné à la newsletter',
                 has_ordered: 'A commandé',
@@ -90,8 +98,15 @@ const customFrenchMessages: TranslationMessages = {
                 password_mismatch:
                     'La confirmation du mot de passe est différent du mot de passe.',
             },
+            notifications: {
+                created: 'Client créé |||| %{smart_count} clients créés',
+                updated:
+                    'Client mis à jour |||| %{smart_count} clients mis à jour',
+                deleted:
+                    'Client supprimé |||| %{smart_count} clients supprimés',
+            },
         },
-        commands: {
+        orders: {
             name: 'Commande |||| Commandes',
             amount: '1 commande |||| %{smart_count} commandes',
             title: 'Commande n°%{reference}',
@@ -123,6 +138,13 @@ const customFrenchMessages: TranslationMessages = {
                 items: 'Articles',
                 total: 'Total',
             },
+            notifications: {
+                created: 'Commande créée |||| %{smart_count} commandes créées',
+                updated:
+                    'Commande mise à jour |||| %{smart_count} commandes mises à jour',
+                deleted:
+                    'Commande supprimée |||| %{smart_count} commandes supprimées',
+            },
         },
         invoices: {
             name: 'Facture |||| Factures',
@@ -130,13 +152,20 @@ const customFrenchMessages: TranslationMessages = {
                 id: 'Numéro',
                 date: 'Date de facture',
                 customer_id: 'Client',
-                command_id: 'Commande',
+                order_id: 'Commande',
                 date_gte: 'Emises depuis',
                 date_lte: 'Emises avant',
                 address: 'Adresse',
                 total_ex_taxes: 'Montant HT',
                 delivery_fees: 'Frais de livraison',
                 taxes: 'TVA',
+            },
+            notifications: {
+                created: 'Facture créée |||| %{smart_count} factures créées',
+                updated:
+                    'Facture mise à jour |||| %{smart_count} factures mises à jour',
+                deleted:
+                    'Facture supprimée |||| %{smart_count} factures supprimées',
             },
         },
         products: {
@@ -176,12 +205,27 @@ const customFrenchMessages: TranslationMessages = {
                 low_sellers: 'Peu vendu',
                 never_sold: 'Jamais vendu',
             },
+            notifications: {
+                created: 'Poster créé |||| %{smart_count} posters créés',
+                updated:
+                    'Poster mis à jour |||| %{smart_count} posters mis à jour',
+                deleted:
+                    'Poster supprimé |||| %{smart_count} posters supprimés',
+            },
         },
         categories: {
             name: 'Catégorie |||| Catégories',
             fields: {
                 name: 'Nom',
                 products: 'Produits',
+            },
+            notifications: {
+                created:
+                    'Catégorie créée |||| %{smart_count} catégories créées',
+                updated:
+                    'Catégorie mise à jour |||| %{smart_count} catégories mises à jour',
+                deleted:
+                    'Catégorie supprimée |||| %{smart_count} catégories supprimées',
             },
         },
         reviews: {
@@ -191,7 +235,7 @@ const customFrenchMessages: TranslationMessages = {
             detail: 'Détail du commentaire',
             fields: {
                 customer_id: 'Client',
-                command_id: 'Commande',
+                order_id: 'Commande',
                 product_id: 'Produit',
                 date_gte: 'Publié depuis',
                 date_lte: 'Publié avant',
@@ -204,7 +248,13 @@ const customFrenchMessages: TranslationMessages = {
                 accept: 'Accepter',
                 reject: 'Rejeter',
             },
-            notification: {
+            notifications: {
+                created:
+                    'Commentaire créé |||| %{smart_count} commentaires créés',
+                updated:
+                    'Commentaire mis à jour |||| %{smart_count} commentaires mis à jour',
+                deleted:
+                    'Commentaire supprimé |||| %{smart_count} commentaires supprimés',
                 approved_success: 'Commentaire approuvé',
                 approved_error: 'Erreur: Commentaire non approuvé',
                 rejected_success: 'Commentaire rejeté',

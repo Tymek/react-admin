@@ -1,20 +1,23 @@
 import * as React from 'react';
-import { ReactNode, ReactElement } from 'react';
-import SimpleForm from '../form/SimpleForm';
-import SimpleFormIterator from '../form/SimpleFormIterator';
-import ArrayInput from '../input/ArrayInput';
-import BooleanInput from '../input/BooleanInput';
-import DateInput from '../input/DateInput';
-import NumberInput from '../input/NumberInput';
-import ReferenceInput from '../input/ReferenceInput';
-import ReferenceArrayInput, {
+import { ReactNode } from 'react';
+import { SimpleForm } from '../form';
+import {
+    ArrayInput,
+    BooleanInput,
+    DateInput,
+    NumberInput,
+    ReferenceInput,
+    ReferenceInputProps,
+    ReferenceArrayInput,
     ReferenceArrayInputProps,
-} from '../input/ReferenceArrayInput';
-import { SelectInput } from '../input/SelectInput';
-import TextInput from '../input/TextInput';
+    SelectInput,
+    SimpleFormIterator,
+    TextInput,
+    TextArrayInput,
+} from '../input';
 import { InferredElement, InferredTypeMap, InputProps } from 'ra-core';
 
-const editFieldTypes: InferredTypeMap = {
+export const editFieldTypes: InferredTypeMap = {
     form: {
         component: SimpleForm,
         representation: (
@@ -25,7 +28,6 @@ ${children.map(child => `            ${child.getRepresentation()}`).join('\n')}
         </SimpleForm>`,
     },
     array: {
-        // eslint-disable-next-line react/display-name
         component: ({
             children,
             ...props
@@ -35,11 +37,14 @@ ${children.map(child => `            ${child.getRepresentation()}`).join('\n')}
             </ArrayInput>
         ),
         representation: (props: InputProps, children: InferredElement[]) =>
-            `<ArrayInput source="${
-                props.source
-            }"><SimpleFormIterator>${children
+            `<ArrayInput source="${props.source}"><SimpleFormIterator>${children
                 .map(child => child.getRepresentation())
                 .join('\n')}</SimpleFormIterator></ArrayInput>`,
+    },
+    scalar_array: {
+        component: TextArrayInput,
+        representation: (props: InputProps) =>
+            `<TextArrayInput source="${props.source}" />`,
     },
     boolean: {
         component: BooleanInput,
@@ -68,26 +73,18 @@ ${children.map(child => `            ${child.getRepresentation()}`).join('\n')}
     },
     reference: {
         component: ReferenceInput,
-        representation: (props: InputProps, children: InferredElement) =>
-            `<ReferenceInput source="${props.source}" reference="${
-                props.reference
-            }">${children.getRepresentation()}</ReferenceInput>`,
-    },
-    referenceChild: {
-        component: (props: { children: ReactNode } & InputProps) => (
-            <SelectInput optionText="id" {...props} />
-        ), // eslint-disable-line react/display-name
-        representation: () => `<SelectInput optionText="id" />`,
+        representation: (props: ReferenceInputProps) =>
+            `<ReferenceInput source="${props.source}" reference="${props.reference}" />`,
     },
     referenceArray: {
         component: ReferenceArrayInput,
         representation: (props: ReferenceArrayInputProps) =>
-            `<ReferenceArrayInput source="${props.source}" reference="${props.reference}"><TextInput source="id" /></ReferenceArrayInput>`,
+            `<ReferenceArrayInput source="${props.source}" reference="${props.reference}" />`,
     },
     referenceArrayChild: {
-        component: (
-            props: { children: ReactNode } & InputProps
-        ): ReactElement => <SelectInput optionText="id" {...props} />, // eslint-disable-line react/display-name
+        component: (props: { children: ReactNode } & InputProps) => (
+            <SelectInput optionText="id" {...props} />
+        ),
         representation: () => `<SelectInput optionText="id" />`,
     },
     richText: {
@@ -106,5 +103,3 @@ ${children.map(child => `            ${child.getRepresentation()}`).join('\n')}
             `<TextInput source="${props.source}" />`,
     },
 };
-
-export default editFieldTypes;

@@ -1,30 +1,30 @@
 import * as React from 'react';
-import { cloneElement, memo, FC, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import { TableBody, TableBodyProps } from '@material-ui/core';
-import classnames from 'classnames';
-import { shallowEqual } from 'react-redux';
-import { Identifier, Record, RecordMap } from 'ra-core';
+import { cloneElement, memo, FC, ReactElement, ReactNode } from 'react';
+import { SxProps, TableBody, TableBodyProps } from '@mui/material';
+import clsx from 'clsx';
+import { Identifier, RaRecord, RecordContextProvider } from 'ra-core';
 
-import DatagridRow, { PureDatagridRow, RowClickFunction } from './DatagridRow';
-import useDatagridStyles from './useDatagridStyles';
+import { RowClickFunction } from '../types';
+import { DatagridClasses } from './useDatagridStyles';
+import DatagridRow, { PureDatagridRow } from './DatagridRow';
 
-const DatagridBody: FC<DatagridBodyProps> = React.forwardRef(
+const DatagridBody: React.ForwardRefExoticComponent<
+    Omit<DatagridBodyProps, 'ref'> &
+        React.RefAttributes<HTMLTableSectionElement>
+> = React.forwardRef<HTMLTableSectionElement, DatagridBodyProps>(
     (
         {
-            basePath,
             children,
-            classes,
             className,
-            data,
+            data = defaultData,
             expand,
-            hasBulkActions,
+            hasBulkActions = false,
             hover,
-            ids,
             onToggleItem,
             resource,
-            row,
+            row = defaultChildren,
             rowClick,
+            rowSx,
             rowStyle,
             selectedIds,
             isRowSelectable,
@@ -34,127 +34,82 @@ const DatagridBody: FC<DatagridBodyProps> = React.forwardRef(
     ) => (
         <TableBody
             ref={ref}
-            className={classnames('datagrid-body', className)}
+            className={clsx('datagrid-body', className, DatagridClasses.tbody)}
             {...rest}
         >
-            {ids.map((id, rowIndex) =>
-                cloneElement(
-                    row,
-                    {
-                        basePath,
-                        classes,
-                        className: classnames(classes.row, {
-                            [classes.rowEven]: rowIndex % 2 === 0,
-                            [classes.rowOdd]: rowIndex % 2 !== 0,
-                            [classes.clickableRow]: rowClick,
-                        }),
-                        expand,
-                        hasBulkActions: hasBulkActions && !!selectedIds,
-                        hover,
-                        id,
-                        key: id,
-                        onToggleItem,
-                        record: data[id],
-                        resource,
-                        rowClick,
-                        selectable:
-                            !isRowSelectable || isRowSelectable(data[id]),
-                        selected: selectedIds?.includes(id),
-                        style: rowStyle ? rowStyle(data[id], rowIndex) : null,
-                    },
-                    children
-                )
-            )}
+            {data.map((record, rowIndex) => (
+                <RecordContextProvider
+                    value={record}
+                    key={record.id ?? `row${rowIndex}`}
+                >
+                    {cloneElement(
+                        row,
+                        {
+                            className: clsx(DatagridClasses.row, {
+                                [DatagridClasses.rowEven]: rowIndex % 2 === 0,
+                                [DatagridClasses.rowOdd]: rowIndex % 2 !== 0,
+                            }),
+                            expand,
+                            hasBulkActions: hasBulkActions && !!selectedIds,
+                            hover,
+                            id: record.id ?? `row${rowIndex}`,
+                            onToggleItem,
+                            resource,
+                            rowClick,
+                            selectable:
+                                !isRowSelectable || isRowSelectable(record),
+                            selected: selectedIds?.includes(record.id),
+                            sx: rowSx?.(record, rowIndex),
+                            style: rowStyle?.(record, rowIndex),
+                        },
+                        children
+                    )}
+                </RecordContextProvider>
+            ))}
         </TableBody>
     )
 );
 
-DatagridBody.propTypes = {
-    basePath: PropTypes.string,
-    classes: PropTypes.any,
-    className: PropTypes.string,
-    children: PropTypes.node,
-    // @ts-ignore
-    data: PropTypes.object.isRequired,
-    // @ts-ignore
-    expand: PropTypes.oneOfType([PropTypes.element, PropTypes.elementType]),
-    hasBulkActions: PropTypes.bool.isRequired,
-    hover: PropTypes.bool,
-    ids: PropTypes.arrayOf(PropTypes.any).isRequired,
-    onToggleItem: PropTypes.func,
-    resource: PropTypes.string,
-    row: PropTypes.element,
-    rowClick: PropTypes.oneOfType([PropTypes.string, PropTypes.func]),
-    rowStyle: PropTypes.func,
-    selectedIds: PropTypes.arrayOf(PropTypes.any),
-    styles: PropTypes.object,
-    isRowSelectable: PropTypes.func,
-};
-
-DatagridBody.defaultProps = {
-    data: {},
-    hasBulkActions: false,
-    ids: [],
-    row: <DatagridRow />,
-};
+const defaultChildren = <DatagridRow />;
 
 export interface DatagridBodyProps extends Omit<TableBodyProps, 'classes'> {
-    basePath?: string;
-    classes?: ReturnType<typeof useDatagridStyles>;
     className?: string;
-    data?: RecordMap;
+    data?: any[];
     expand?:
-        | ReactElement
+        | ReactNode
         | FC<{
-              basePath: string;
               id: Identifier;
-              record: Record;
+              record: RaRecord;
               resource: string;
           }>;
     hasBulkActions?: boolean;
     hover?: boolean;
-    ids?: Identifier[];
     onToggleItem?: (
         id: Identifier,
         event: React.TouchEvent | React.MouseEvent
     ) => void;
-    record?: Record;
+    record?: RaRecord;
     resource?: string;
     row?: ReactElement;
-    rowClick?: string | RowClickFunction;
-    rowStyle?: (record: Record, index: number) => any;
+    rowClick?: string | RowClickFunction | false;
+    rowSx?: (record: RaRecord, index: number) => SxProps;
+    rowStyle?: (record: RaRecord, index: number) => any;
     selectedIds?: Identifier[];
-    isRowSelectable?: (record: Record) => boolean;
+    isRowSelectable?: (record: RaRecord) => boolean;
 }
 
-// trick material-ui Table into thinking this is one of the child type it supports
+const defaultData = [];
+
+// trick Material UI Table into thinking this is one of the child type it supports
 // @ts-ignore
 DatagridBody.muiName = 'TableBody';
 
-const areEqual = (prevProps, nextProps) => {
-    const {
-        children: _1,
-        expand: _2,
-        row: _3,
-        ...prevPropsWithoutChildren
-    } = prevProps;
-    const {
-        children: _4,
-        expand: _5,
-        row: _6,
-        ...nextPropsWithoutChildren
-    } = nextProps;
-    return shallowEqual(prevPropsWithoutChildren, nextPropsWithoutChildren);
-};
+export const PureDatagridBody = memo(props => (
+    <DatagridBody row={<PureDatagridRow />} {...props} />
+));
 
-export const PureDatagridBody = memo(DatagridBody, areEqual);
-
-// trick material-ui Table into thinking this is one of the child type it supports
+// trick Material UI Table into thinking this is one of the child type it supports
 // @ts-ignore
 PureDatagridBody.muiName = 'TableBody';
-// @ts-ignore
-PureDatagridBody.defaultProps = {
-    row: <PureDatagridRow />,
-};
 
 export default DatagridBody;

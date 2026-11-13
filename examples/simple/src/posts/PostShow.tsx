@@ -4,49 +4,48 @@ import {
     BooleanField,
     CloneButton,
     ChipField,
-    Datagrid,
+    DataTable,
     DateField,
     EditButton,
+    InPlaceEditor,
     NumberField,
     ReferenceArrayField,
     ReferenceManyField,
+    ReferenceManyCount,
     RichTextField,
     SelectField,
     ShowContextProvider,
     ShowView,
     SingleFieldList,
-    Tab,
     TabbedShowLayout,
     TextField,
     UrlField,
     useShowController,
-    useLocale,
-    Record,
+    useLocaleState,
+    useRecordContext,
 } from 'react-admin';
-import { Link } from 'react-router-dom';
-import { Button } from '@material-ui/core';
 import PostTitle from './PostTitle';
 
-const CreateRelatedComment = ({ record }: { record?: Record }) => (
-    <Button
-        component={Link}
-        to={{
-            pathname: '/comments/create',
-            state: { record: { post_id: record?.id } },
-        }}
-    >
-        Add comment
-    </Button>
-);
+const CreateRelatedComment = () => {
+    const record = useRecordContext();
+    if (!record) return null;
+    return (
+        <CloneButton
+            resource="comments"
+            label="Add comment"
+            record={{ post_id: record.id }}
+        />
+    );
+};
 
-const PostShow = props => {
-    const controllerProps = useShowController(props);
-    const locale = useLocale();
+const PostShow = () => {
+    const controllerProps = useShowController();
+    const [locale] = useLocaleState();
     return (
         <ShowContextProvider value={controllerProps}>
             <ShowView title={<PostTitle />}>
                 <TabbedShowLayout>
-                    <Tab label="post.form.summary">
+                    <TabbedShowLayout.Tab label="post.form.summary">
                         <TextField source="id" />
                         <TextField source="title" />
                         {controllerProps.record &&
@@ -55,28 +54,34 @@ const PostShow = props => {
                                 <TextField source="teaser" />
                             )}
                         <ArrayField source="backlinks">
-                            <Datagrid>
-                                <DateField source="date" />
-                                <UrlField source="url" />
-                            </Datagrid>
+                            <DataTable bulkActionButtons={false}>
+                                <DataTable.Col
+                                    field={DateField}
+                                    source="date"
+                                />
+                                <DataTable.Col field={UrlField} source="url" />
+                            </DataTable>
                         </ArrayField>
-                    </Tab>
-                    <Tab label="post.form.body">
+                    </TabbedShowLayout.Tab>
+                    <TabbedShowLayout.Tab label="post.form.body">
                         <RichTextField
                             source="body"
                             stripTags={false}
-                            label=""
-                            addLabel={false}
+                            label={false}
                         />
-                    </Tab>
-                    <Tab label="post.form.miscellaneous">
+                    </TabbedShowLayout.Tab>
+                    <TabbedShowLayout.Tab label="post.form.miscellaneous">
                         <ReferenceArrayField
                             reference="tags"
                             source="tags"
                             sort={{ field: `name.${locale}`, order: 'ASC' }}
                         >
                             <SingleFieldList>
-                                <ChipField source={`name.${locale}`} />
+                                <ChipField
+                                    source={`name.${locale}`}
+                                    size="small"
+                                    clickable
+                                />
                             </SingleFieldList>
                         </ReferenceArrayField>
                         <DateField source="published_at" />
@@ -89,25 +94,51 @@ const PostShow = props => {
                         />
                         <NumberField source="average_note" />
                         <BooleanField source="commentable" />
-                        <TextField source="views" />
+                        <InPlaceEditor
+                            source="views"
+                            sx={{
+                                '& .RaInPlaceEditor-reading div': {
+                                    fontSize: 14,
+                                },
+                                '& .RaInPlaceEditor-saving div': {
+                                    fontSize: 14,
+                                },
+                                '& .RaInPlaceEditor-editing input': {
+                                    fontSize: 14,
+                                },
+                            }}
+                        />
                         <CloneButton />
-                    </Tab>
-                    <Tab label="post.form.comments">
+                    </TabbedShowLayout.Tab>
+                    <TabbedShowLayout.Tab
+                        label="post.form.comments"
+                        count={
+                            <ReferenceManyCount
+                                reference="comments"
+                                target="post_id"
+                                sx={{ lineHeight: 'inherit' }}
+                            />
+                        }
+                    >
                         <ReferenceManyField
-                            addLabel={false}
                             reference="comments"
                             target="post_id"
                             sort={{ field: 'created_at', order: 'DESC' }}
                         >
-                            <Datagrid>
-                                <DateField source="created_at" />
-                                <TextField source="author.name" />
-                                <TextField source="body" />
-                                <EditButton />
-                            </Datagrid>
+                            <DataTable>
+                                <DataTable.Col
+                                    source="created_at"
+                                    field={DateField}
+                                />
+                                <DataTable.Col source="author.name" />
+                                <DataTable.Col source="body" />
+                                <DataTable.Col>
+                                    <EditButton />
+                                </DataTable.Col>
+                            </DataTable>
                         </ReferenceManyField>
                         <CreateRelatedComment />
-                    </Tab>
+                    </TabbedShowLayout.Tab>
                 </TabbedShowLayout>
             </ShowView>
         </ShowContextProvider>

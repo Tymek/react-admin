@@ -1,7 +1,7 @@
 import * as React from 'react';
-import PropTypes from 'prop-types';
+import { useResourceDefinition } from 'ra-core';
 
-import { Record, useEditContext, useResourceDefinition } from 'ra-core';
+import { ToolbarProps } from '@mui/material';
 import { ShowButton } from '../button';
 import TopToolbar from '../layout/TopToolbar';
 
@@ -13,12 +13,12 @@ import TopToolbar from '../layout/TopToolbar';
  * use it in the `actions` prop to pass a custom component.
  *
  * @example
- *     import Button from '@material-ui/core/Button';
- *     import { TopToolbar, ShowButton, Edit } from 'react-admin';
+ *     import Button from '@mui/material/Button';
+ *     import { TopToolbar, EditButton, Edit } from 'react-admin';
  *
- *     const PostEditActions = ({ basePath, record, resource }) => (
+ *     const PostEditActions = () => (
  *         <TopToolbar>
- *             <ShowButton basePath={basePath} record={record} />
+ *             <EditButton />
  *             // Add your custom actions here
  *             <Button color="primary" onClick={customAction}>Custom Action</Button>
  *         </TopToolbar>
@@ -30,44 +30,28 @@ import TopToolbar from '../layout/TopToolbar';
  *         </Edit>
  *     );
  */
-export const EditActions = ({ className, ...rest }: EditActionsProps) => {
-    const { basePath, record } = useEditContext(rest);
-    const { hasShow } = useResourceDefinition(rest);
-
+export const EditActions = (props: EditActionsProps) => {
+    const { hasShow } = useResourceDefinition(props);
     return (
-        <TopToolbar className={className} {...sanitizeRestProps(rest)}>
-            {hasShow && <ShowButton basePath={basePath} record={record} />}
+        <TopToolbar {...sanitizeRestProps(props)}>
+            {hasShow && <ShowButton />}
         </TopToolbar>
     );
 };
 
 const sanitizeRestProps = ({
-    basePath = null,
-    hasCreate = null,
-    hasEdit = null,
-    hasShow = null,
-    hasList = null,
+    hasCreate,
+    hasEdit,
+    hasShow,
+    hasList,
+    resource,
     ...rest
-}) => rest;
+}: EditActionsProps) => rest;
 
-export interface EditActionsProps {
-    basePath?: string;
-    className?: string;
-    data?: Record;
+export interface EditActionsProps extends ToolbarProps {
     hasCreate?: boolean;
     hasEdit?: boolean;
     hasList?: boolean;
     hasShow?: boolean;
     resource?: string;
 }
-
-EditActions.propTypes = {
-    basePath: PropTypes.string,
-    className: PropTypes.string,
-    data: PropTypes.object,
-    hasCreate: PropTypes.bool,
-    hasEdit: PropTypes.bool,
-    hasShow: PropTypes.bool,
-    hasList: PropTypes.bool,
-    resource: PropTypes.string,
-};

@@ -1,6 +1,7 @@
-import { random, lorem } from 'faker/locale/en';
+import { faker } from '@faker-js/faker';
 
 import { randomFloat, weightedBoolean } from './utils';
+import type { Db } from './types';
 
 const productReferences = {
     animals: [
@@ -162,7 +163,7 @@ const productReferences = {
     ],
 };
 
-export default db => {
+export const generateProducts = (db: Db): Product[] => {
     let id = 0;
 
     return db.categories.reduce(
@@ -194,14 +195,28 @@ export default db => {
                         '-' +
                         (index + 1) +
                         '.jpeg',
-                    description: lorem.paragraph(),
+                    description: faker.lorem.paragraph(),
                     stock: weightedBoolean(10)
                         ? 0
-                        : random.number({ min: 0, max: 150 }),
+                        : faker.number.int({ min: 0, max: 150 }),
                     sales: 0,
                 };
             }),
         ],
         []
     );
+};
+
+export type Product = {
+    id: number;
+    category_id: number;
+    reference: string;
+    width: number;
+    height: number;
+    price: number;
+    thumbnail: string;
+    image: string;
+    description: string;
+    stock: number;
+    sales: number;
 };

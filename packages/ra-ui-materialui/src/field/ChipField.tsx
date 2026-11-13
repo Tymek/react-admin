@@ -1,35 +1,33 @@
 import * as React from 'react';
-import { FC, memo } from 'react';
-import get from 'lodash/get';
-import Chip, { ChipProps } from '@material-ui/core/Chip';
-import Typography from '@material-ui/core/Typography';
-import { makeStyles } from '@material-ui/core/styles';
-import classnames from 'classnames';
-import { useRecordContext } from 'ra-core';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { Chip, type ChipProps, Typography } from '@mui/material';
+import clsx from 'clsx';
+import { useFieldValue, useTranslate, genericMemo } from 'ra-core';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import type { FieldProps } from './types';
 
-const useStyles = makeStyles(
-    {
-        chip: { margin: 4, cursor: 'inherit' },
-    },
-    { name: 'RaChipField' }
-);
+const ChipFieldImpl = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: ChipFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { className, emptyText, ...rest } = props;
+    const value = useFieldValue(props);
+    const translate = useTranslate();
 
-export const ChipField: FC<ChipFieldProps> = memo<ChipFieldProps>(props => {
-    const {
-        className,
-        classes: classesOverride,
-        source,
-        emptyText,
-        ...rest
-    } = props;
-    const record = useRecordContext(props);
-    const classes = useStyles(props);
-    const value = get(record, source);
-
-    if (value == null && emptyText) {
+    if (value == null || value === '') {
+        if (!emptyText || emptyText.length === 0) {
+            return null;
+        }
         return (
             <Typography
                 component="span"
@@ -37,32 +35,61 @@ export const ChipField: FC<ChipFieldProps> = memo<ChipFieldProps>(props => {
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {emptyText}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
         );
     }
 
     return (
-        <Chip
-            className={classnames(classes.chip, className)}
+        <StyledChip
+            className={clsx(ChipFieldClasses.chip, className)}
             label={value}
             {...sanitizeFieldRestProps(rest)}
         />
     );
+};
+ChipFieldImpl.displayName = 'ChipFieldImpl';
+
+export const ChipField = genericMemo(ChipFieldImpl);
+
+export interface ChipFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType>,
+        Omit<ChipProps, 'label' | 'children'> {
+    /**
+     * @internal do not use (prop required for TS to be able to cast ChipField as FunctionComponent)
+     */
+    children?: React.ReactNode;
+}
+
+const PREFIX = 'RaChipField';
+
+const ChipFieldClasses = {
+    chip: `${PREFIX}-chip`,
+};
+
+const StyledChip = styled(Chip, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    [`&.${ChipFieldClasses.chip}`]: { cursor: 'inherit' },
 });
 
-ChipField.defaultProps = {
-    addLabel: true,
-};
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaChipField: 'root' | 'chip';
+    }
 
-ChipField.propTypes = {
-    ...ChipField.propTypes,
-    ...fieldPropTypes,
-};
+    interface ComponentsPropsList {
+        RaChipField: Partial<ChipFieldProps>;
+    }
 
-export interface ChipFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps,
-        Omit<ChipProps, 'label'> {}
-
-export default ChipField;
+    interface Components {
+        RaChipField?: {
+            defaultProps?: ComponentsPropsList['RaChipField'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaChipField'];
+        };
+    }
+}

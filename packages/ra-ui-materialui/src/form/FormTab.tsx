@@ -1,110 +1,110 @@
 import * as React from 'react';
-import { FC, ReactElement, ReactNode } from 'react';
-import PropTypes from 'prop-types';
-import { FormGroupContextProvider, Record } from 'ra-core';
+import { ReactElement, ReactNode } from 'react';
+import { FormGroupContextProvider } from 'ra-core';
+import { Stack, StackProps, TabProps as MuiTabProps } from '@mui/material';
 
-import FormInput from './FormInput';
 import { FormTabHeader } from './FormTabHeader';
 
-const hiddenStyle = { display: 'none' };
+export const FormTab = (props: FormTabProps) => {
+    const {
+        children,
+        className,
+        contentClassName,
+        count,
+        hidden,
+        icon,
+        iconPosition,
+        intent,
+        label,
+        onChange,
+        path,
+        resource,
+        syncWithLocation,
+        value,
+        ...rest
+    } = props;
+    if (typeof value === 'undefined') {
+        throw new Error('the value prop is required at runtime');
+    }
 
-export const FormTab: FC<FormTabProps> = ({
-    basePath,
-    className,
-    classes,
-    contentClassName,
-    children,
-    hidden,
-    icon,
-    intent,
-    label,
-    margin,
-    path,
-    record,
-    resource,
-    variant,
-    value,
-    ...rest
-}) => {
     const renderHeader = () => (
         <FormTabHeader
             label={label}
+            count={count}
             value={value}
             icon={icon}
+            iconPosition={iconPosition}
             className={className}
-            classes={classes}
-            {...rest}
+            syncWithLocation={syncWithLocation}
+            onChange={onChange}
+            {...sanitizeRestProps(rest)}
         />
     );
 
     const renderContent = () => (
         <FormGroupContextProvider name={value.toString()}>
-            <span
-                style={hidden ? hiddenStyle : null}
+            <Stack
+                style={hidden ? hiddenStyle : undefined}
                 className={contentClassName}
                 id={`tabpanel-${value}`}
                 aria-labelledby={`tabheader-${value}`}
                 // Set undefined instead of false because WAI-ARIA Authoring Practices 1.1
                 // notes that aria-hidden="false" currently behaves inconsistently across browsers.
                 aria-hidden={hidden || undefined}
+                {...rest}
+                sx={[
+                    {
+                        alignItems: 'flex-start',
+                    },
+                    ...(Array.isArray(rest.sx) ? rest.sx : [rest.sx]),
+                ]}
             >
-                {React.Children.map(
-                    children,
-                    (input: ReactElement) =>
-                        input && (
-                            <FormInput
-                                basePath={basePath}
-                                input={input}
-                                record={record}
-                                resource={resource}
-                                variant={input.props.variant || variant}
-                                margin={input.props.margin || margin}
-                            />
-                        )
-                )}
-            </span>
+                {children}
+            </Stack>
         </FormGroupContextProvider>
     );
 
     return intent === 'header' ? renderHeader() : renderContent();
 };
 
-FormTab.propTypes = {
-    basePath: PropTypes.string,
-    className: PropTypes.string,
-    contentClassName: PropTypes.string,
-    children: PropTypes.node,
-    intent: PropTypes.oneOf(['header', 'content']),
-    hidden: PropTypes.bool,
-    icon: PropTypes.element,
-    label: PropTypes.oneOfType([PropTypes.string, PropTypes.element])
-        .isRequired,
-    margin: PropTypes.oneOf(['none', 'dense', 'normal']),
-    path: PropTypes.string,
-    // @ts-ignore
-    record: PropTypes.object,
-    resource: PropTypes.string,
-    value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    variant: PropTypes.oneOf(['standard', 'outlined', 'filled']),
-};
-
-export interface FormTabProps {
-    basePath?: string;
+export interface FormTabProps
+    extends Omit<StackProps, 'color'>,
+        Omit<MuiTabProps, 'children' | 'classes' | 'ref'> {
     className?: string;
-    classes?: object;
     children?: ReactNode;
     contentClassName?: string;
+    count?: ReactNode;
     hidden?: boolean;
     icon?: ReactElement;
     intent?: 'header' | 'content';
     label: string | ReactElement;
-    margin?: 'none' | 'normal' | 'dense';
     path?: string;
-    record?: Record;
     resource?: string;
     syncWithLocation?: boolean;
     value?: string | number;
-    variant?: 'standard' | 'outlined' | 'filled';
 }
 
 FormTab.displayName = 'FormTab';
+
+const hiddenStyle = { display: 'none' };
+
+const sanitizeRestProps = ({
+    classes,
+    ref,
+    margin,
+    ...rest
+}: Omit<
+    FormTabProps,
+    | 'className'
+    | 'contentClassName'
+    | 'children'
+    | 'hidden'
+    | 'icon'
+    | 'intent'
+    | 'label'
+    | 'onChange'
+    | 'path'
+    | 'resource'
+    | 'syncWithLocation'
+    | 'value'
+>) => rest;

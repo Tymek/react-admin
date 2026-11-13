@@ -1,79 +1,109 @@
-import * as React from 'react';
 import {
-    List,
-    ListProps,
-    Filter,
-    SearchInput,
-    SelectInput,
-    TopToolbar,
     CreateButton,
     ExportButton,
+    FilterButton,
+    ListBase,
+    ListToolbar,
+    ReferenceInput,
+    SearchInput,
+    SelectInput,
+    Title,
+    TopToolbar,
     useGetIdentity,
+    useListContext,
 } from 'react-admin';
-import { Route } from 'react-router';
-import { makeStyles } from '@material-ui/core/styles';
+import { matchPath, useLocation } from 'react-router';
 
-import { DealListContent } from './DealListContent';
+import { Card, Stack } from '@mui/material';
+import { useConfigurationContext } from '../root/ConfigurationContext';
+import { DealArchivedList } from './DealArchivedList';
 import { DealCreate } from './DealCreate';
+import { DealEdit } from './DealEdit';
+import { DealEmpty } from './DealEmpty';
+import { DealListContent } from './DealListContent';
 import { DealShow } from './DealShow';
 import { OnlyMineInput } from './OnlyMineInput';
-import { typeChoices } from './types';
 
-export const DealList = (props: ListProps) => {
+const DealList = () => {
     const { identity } = useGetIdentity();
-    return identity ? (
-        <>
-            <List
-                {...props}
-                perPage={100}
-                sort={{ field: 'index', order: 'ASC' }}
-                filters={<DealFilters />}
-                filterDefaultValues={{ sales_id: identity && identity?.id }}
-                actions={<DealActions />}
-                pagination={false}
-                component="div"
-            >
-                <DealListContent />
-            </List>
-            <Route path="/deals/create">
-                {({ match }) => <DealCreate open={!!match} />}
-            </Route>
-            <Route path="/deals/:id/show">
-                {({ match }) =>
-                    !!match ? (
-                        <DealShow open={!!match} id={match?.params?.id} />
-                    ) : null
-                }
-            </Route>
-        </>
-    ) : null;
+
+    if (!identity) return null;
+    return (
+        <ListBase
+            perPage={100}
+            filter={{
+                'archived_at@is': null,
+            }}
+            sort={{ field: 'index', order: 'DESC' }}
+        >
+            <DealLayout />
+        </ListBase>
+    );
 };
 
-const DealFilters = (props: any) => (
-    <Filter {...props}>
-        <SearchInput source="q" alwaysOn />
-        <OnlyMineInput alwaysOn />
-        <SelectInput source="type" choices={typeChoices} />
-    </Filter>
-);
+const DealLayout = () => {
+    const location = useLocation();
+    const matchCreate = matchPath('/deals/create', location.pathname);
+    const matchShow = matchPath('/deals/:id/show', location.pathname);
+    const matchEdit = matchPath('/deals/:id', location.pathname);
 
-const useActionStyles = makeStyles(theme => ({
-    createButton: {
-        marginLeft: theme.spacing(2),
-    },
-}));
-const DealActions = (props: any) => {
-    const classes = useActionStyles();
+    const { dealCategories } = useConfigurationContext();
+
+    const dealFilters = [
+        <SearchInput source="q" alwaysOn />,
+        <ReferenceInput source="company_id" reference="companies" />,
+        <SelectInput
+            source="category"
+            label="Category"
+            choices={dealCategories.map(type => ({ id: type, name: type }))}
+        />,
+        <OnlyMineInput source="sales_id" alwaysOn />,
+    ];
+
+    const { data, isPending, filterValues } = useListContext();
+    const hasFilters = filterValues && Object.keys(filterValues).length > 0;
+
+    if (isPending) return null;
+    if (!data?.length && !hasFilters)
+        return (
+            <>
+                <DealEmpty>
+                    <DealShow open={!!matchShow} id={matchShow?.params.id} />
+                    <DealArchivedList />
+                </DealEmpty>
+            </>
+        );
+
+    return (
+        <Stack component="div" sx={{ width: '100%' }}>
+            <Title title={'Deals'} />
+            <ListToolbar filters={dealFilters} actions={<DealActions />} />
+            <Card>
+                <DealListContent />
+            </Card>
+            <DealArchivedList />
+            <DealCreate open={!!matchCreate} />
+            <DealEdit
+                open={!!matchEdit && !matchCreate}
+                id={matchEdit?.params.id}
+            />
+            <DealShow open={!!matchShow} id={matchShow?.params.id} />
+        </Stack>
+    );
+};
+
+const DealActions = () => {
     return (
         <TopToolbar>
-            <DealFilters context="button" />
+            <FilterButton />
             <ExportButton />
             <CreateButton
-                basePath="/deals"
                 variant="contained"
                 label="New Deal"
-                className={classes.createButton}
+                sx={{ marginLeft: 2 }}
             />
         </TopToolbar>
     );
 };
+
+export default DealList;

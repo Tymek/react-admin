@@ -1,15 +1,19 @@
 import * as React from 'react';
-import { FunctionComponent } from 'react';
-import PropTypes from 'prop-types';
-import { useInput, FieldTitle, InputProps } from 'ra-core';
-import { TextFieldProps } from '@material-ui/core/TextField';
+import clsx from 'clsx';
+import { useInput, FieldTitle } from 'ra-core';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 
-import ResettableTextField from './ResettableTextField';
-import InputHelperText from './InputHelperText';
-import sanitizeInputRestProps from './sanitizeInputRestProps';
-
-export type TextInputProps = InputProps<TextFieldProps> &
-    Omit<TextFieldProps, 'label' | 'helperText'>;
+import { CommonInputProps } from './CommonInputProps';
+import {
+    ResettableTextField,
+    ResettableTextFieldProps,
+} from './ResettableTextField';
+import { InputHelperText } from './InputHelperText';
+import { sanitizeInputRestProps } from './sanitizeInputRestProps';
 
 /**
  * An Input component for a string
@@ -23,79 +27,100 @@ export type TextInputProps = InputProps<TextFieldProps> &
  * <TextInput source="email" type="email" />
  * <NumberInput source="nb_views" />
  *
- * The object passed as `options` props is passed to the <ResettableTextField> component
  */
-const TextInput: FunctionComponent<TextInputProps> = ({
-    label,
-    format,
-    helperText,
-    onBlur,
-    onFocus,
-    onChange,
-    options,
-    parse,
-    resource,
-    source,
-    validate,
-    ...rest
-}) => {
+export const TextInput = (props: TextInputProps) => {
     const {
-        id,
-        input,
-        isRequired,
-        meta: { error, submitError, touched },
-    } = useInput({
+        className,
+        defaultValue,
+        label,
         format,
+        helperText,
         onBlur,
         onChange,
-        onFocus,
+        parse,
+        resource,
+        source,
+        validate,
+        ...rest
+    } = useThemeProps({
+        props: props,
+        name: PREFIX,
+    });
+
+    const {
+        field,
+        fieldState: { error, invalid },
+        id,
+        isRequired,
+    } = useInput({
+        defaultValue,
+        format,
         parse,
         resource,
         source,
         type: 'text',
         validate,
+        onBlur,
+        onChange,
         ...rest,
     });
 
+    const renderHelperText = helperText !== false || invalid;
+
     return (
-        <ResettableTextField
+        <StyledResettableTextField
             id={id}
-            {...input}
+            {...field}
+            className={clsx('ra-input', `ra-input-${source}`, className)}
             label={
-                label !== '' &&
-                label !== false && (
+                label !== '' && label !== false ? (
                     <FieldTitle
                         label={label}
                         source={source}
                         resource={resource}
                         isRequired={isRequired}
                     />
-                )
+                ) : null
             }
-            error={!!(touched && (error || submitError))}
+            error={invalid}
             helperText={
-                <InputHelperText
-                    touched={touched}
-                    error={error || submitError}
-                    helperText={helperText}
-                />
+                renderHelperText ? (
+                    <InputHelperText
+                        error={error?.message}
+                        helperText={helperText}
+                    />
+                ) : null
             }
-            {...options}
             {...sanitizeInputRestProps(rest)}
         />
     );
 };
 
-TextInput.propTypes = {
-    className: PropTypes.string,
-    label: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
-    options: PropTypes.object,
-    resource: PropTypes.string,
-    source: PropTypes.string,
-};
+export type TextInputProps = CommonInputProps &
+    Omit<ResettableTextFieldProps, 'label' | 'helperText'>;
 
-TextInput.defaultProps = {
-    options: {},
-};
+const PREFIX = 'RaTextInput';
 
-export default TextInput;
+const StyledResettableTextField = styled(ResettableTextField, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<TextInputProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

@@ -1,108 +1,329 @@
-import { useCallback } from 'react';
-import { Identifier, Record } from '../types';
-import useMutation, { MutationOptions, Mutation } from './useMutation';
+import {
+    useQueryClient,
+    type UseMutationOptions,
+    type UseMutationResult,
+    type MutateOptions,
+    type UseInfiniteQueryResult,
+    type InfiniteData,
+} from '@tanstack/react-query';
+
+import { useDataProvider } from './useDataProvider';
+import type {
+    RaRecord,
+    DeleteParams,
+    MutationMode,
+    GetListResult as OriginalGetListResult,
+    GetInfiniteListResult,
+    DeleteResult,
+} from '../types';
+import {
+    type Snapshot,
+    useMutationWithMutationMode,
+} from './useMutationWithMutationMode';
+import { useEvent } from '../util';
 
 /**
- * Get a callback to call the dataProvider.delete() method, the result
- * of the call (the deleted record), and the loading state.
+ * Get a callback to call the dataProvider.delete() method, the result and the loading state.
+ *
+ * @param {string} resource
+ * @param {Params} params The delete parameters { id, previousData }
+ * @param {Object} options Options object to pass to the queryClient.
+ * May include side effects to be executed upon success or failure, e.g. { onSuccess: () => { refresh(); } }
+ * May include a mutation mode (optimistic/pessimistic/undoable), e.g. { mutationMode: 'undoable' }
+ *
+ * @typedef Params
+ * @prop params.id The resource identifier, e.g. 123
+ * @prop params.previousData The record before the update is applied
+ *
+ * @returns The current mutation state. Destructure as [deleteOne, { data, error, isPending }].
  *
  * The return value updates according to the request state:
  *
- * - initial: [deleteOne, { loading: false, loaded: false }]
- * - start:   [deleteOne, { loading: true, loaded: false }]
- * - success: [deleteOne, { data: [data from response], loading: false, loaded: true }]
- * - error:   [deleteOne, { error: [error from response], loading: false, loaded: false }]
+ * - initial: [deleteOne, { isPending: false, isIdle: true }]
+ * - start:   [deleteOne, { isPending: true }]
+ * - success: [deleteOne, { data: [data from response], isPending: false, isSuccess: true }]
+ * - error:   [deleteOne, { error: [error from response], isPending: false, isError: true }]
  *
- * @param resource The resource name, e.g. 'posts'
- * @param id The resource identifier, e.g. 123
- * @param previousData The record before the delete is applied
- * @param options Options object to pass to the dataProvider. May include side effects to be executed upon success or failure, e.g. { onSuccess: { refresh: true } }
+ * The deleteOne() function must be called with a resource and a parameter object: deleteOne(resource, { id, previousData, meta }, options)
  *
- * @returns The current request state. Destructure as [deleteOne, { data, error, loading, loaded }].
+ * This hook uses react-query useMutation under the hood.
+ * This means the state object contains mutate, isIdle, reset and other react-query methods.
  *
- * The deleteOne() function can be called in 3 different ways:
- *  - with the same parameters as the useDelete() hook: deleteOne(resource, id, previousData, options)
- *  - with the same syntax as useMutation: deleteOne({ resource, payload: { id, previousData } }, options)
- *  - with no parameter (if they were already passed to useDelete()): deleteOne()
+ * @see https://tanstack.com/query/v5/docs/react/reference/useMutation
  *
  * @example // set params when calling the deleteOne callback
  *
- * import { useDelete } from 'react-admin';
+ * import { useDelete, useRecordContext } from 'react-admin';
  *
- * const DeleteButton = ({ record }) => {
- *     const [deleteOne, { loading, error }] = useDelete();
+ * const DeleteButton = () => {
+ *     const record = useRecordContext();
+ *     const [deleteOne, { isPending, error }] = useDelete();
  *     const handleClick = () => {
- *         deleteOne('likes', record.id, record)
+ *         deleteOne('likes', { id: record.id, previousData: record })
  *     }
  *     if (error) { return <p>ERROR</p>; }
- *     return <button disabled={loading} onClick={handleClick}>Delete</div>;
+ *     return <button disabled={isPending} onClick={handleClick}>Delete</div>;
  * };
  *
  * @example // set params when calling the hook
  *
- * import { useDelete } from 'react-admin';
+ * import { useDelete, useRecordContext } from 'react-admin';
  *
- * const DeleteButton = ({ record }) => {
- *     const [deleteOne, { loading, error }] = useDelete('likes', record.id, record);
+ * const DeleteButton = () => {
+ *     const record = useRecordContext();
+ *     const [deleteOne, { isPending, error }] = useDelete('likes', { id: record.id, previousData: record });
  *     if (error) { return <p>ERROR</p>; }
- *     return <button disabled={loading} onClick={deleteOne}>Delete</button>;
+ *     return <button disabled={isPending} onClick={() => deleteOne()}>Delete</button>;
  * };
+ *
+ * @example // TypeScript
+ * const [delete, { data }] = useDelete<Product>('products', { id, previousData: product });
+ *                    \-- data is Product
  */
-const useDelete = <RecordType extends Record = Record>(
+export const useDelete = <
+    RecordType extends RaRecord = any,
+    MutationError = unknown,
+>(
     resource?: string,
-    id?: Identifier,
-    previousData: any = {},
-    options?: MutationOptions
-): UseDeleteHookValue<RecordType> => {
-    const [mutate, state] = useMutation(
-        { type: 'delete', resource, payload: { id, previousData } },
-        options
-    );
+    params: Partial<DeleteParams<RecordType>> = {},
+    options: UseDeleteOptions<RecordType, MutationError> = {}
+): UseDeleteResult<RecordType, MutationError> => {
+    const dataProvider = useDataProvider();
+    const queryClient = useQueryClient();
+    const {
+        mutationMode = 'pessimistic',
+        mutationFn: customMutationFn,
+        onSettled,
+        ...mutationOptions
+    } = options;
+    const customMutationFnWithDataProviderResult = async (
+        resource: string | undefined,
+        params: Omit<UseDeleteMutateParams<RecordType>, 'resource'>
+    ) => {
+        if (resource == null) {
+            throw new Error('useDelete mutation requires a resource');
+        }
+        if (params.id == null) {
+            throw new Error('useDelete mutation requires a non-empty id');
+        }
+        if (customMutationFn == null) {
+            return dataProvider.delete<RecordType>(
+                resource,
+                params as DeleteParams<RecordType>
+            );
+        }
 
-    const deleteOne = useCallback(
-        (
-            resource?: string | Partial<Mutation> | Event,
-            id?: Identifier | Partial<MutationOptions>,
-            previousData?: any,
-            options?: MutationOptions
-        ) => {
-            if (typeof resource === 'string') {
-                const query = {
-                    type: 'delete',
-                    resource,
-                    payload: {
-                        id: id as Identifier,
-                        previousData,
-                    },
+        return {
+            data: await customMutationFn({ resource, ...params }),
+        };
+    };
+
+    const [mutate, mutationResult] = useMutationWithMutationMode<
+        MutationError,
+        DeleteResult<RecordType>,
+        UseDeleteMutateParams<RecordType>
+    >(
+        { resource, ...params },
+        {
+            ...mutationOptions,
+            mutationKey: [resource, 'delete', params],
+            mutationMode,
+            mutationFn: ({ resource, ...params }) =>
+                customMutationFnWithDataProviderResult(resource, params),
+            updateCache: ({ resource, ...params }, { mutationMode }) => {
+                // hack: only way to tell react-query not to fetch this query for the next 5 seconds
+                // because setQueryData doesn't accept a stale time option
+                const now = Date.now();
+                const updatedAt =
+                    mutationMode === 'undoable' ? now + 5 * 1000 : now;
+
+                const updateColl = (old: RecordType[]) => {
+                    if (!old) return old;
+                    const index = old.findIndex(
+                        // eslint-disable-next-line eqeqeq
+                        record => record.id == params.id
+                    );
+                    if (index === -1) {
+                        return old;
+                    }
+                    return [...old.slice(0, index), ...old.slice(index + 1)];
                 };
-                return mutate(query, options);
-            } else {
-                return mutate(
-                    resource as Mutation | Event,
-                    id as MutationOptions
+
+                type GetListResult = Omit<OriginalGetListResult, 'data'> & {
+                    data?: RecordType[];
+                };
+
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getList'] },
+                    (res: GetListResult) => {
+                        if (!res || !res.data) return res;
+                        const newCollection = updateColl(res.data);
+                        const recordWasFound =
+                            newCollection.length < res.data.length;
+                        return recordWasFound
+                            ? {
+                                  data: newCollection,
+                                  total: res.total ? res.total - 1 : undefined,
+                                  pageInfo: res.pageInfo,
+                              }
+                            : res;
+                    },
+                    { updatedAt }
                 );
-            }
-        },
-        [mutate] // eslint-disable-line react-hooks/exhaustive-deps
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getInfiniteList'] },
+                    (
+                        res: UseInfiniteQueryResult<
+                            InfiniteData<GetInfiniteListResult>
+                        >['data']
+                    ) => {
+                        if (!res || !res.pages) return res;
+                        return {
+                            ...res,
+                            pages: res.pages.map(page => {
+                                const newCollection = updateColl(page.data);
+                                const recordWasFound =
+                                    newCollection.length < page.data.length;
+                                return recordWasFound
+                                    ? {
+                                          ...page,
+                                          data: newCollection,
+                                          total: page.total
+                                              ? page.total - 1
+                                              : undefined,
+                                          pageInfo: page.pageInfo,
+                                      }
+                                    : page;
+                            }),
+                        };
+                    },
+                    { updatedAt }
+                );
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getMany'] },
+                    (coll: RecordType[]) =>
+                        coll && coll.length > 0 ? updateColl(coll) : coll,
+                    { updatedAt }
+                );
+                queryClient.setQueriesData(
+                    { queryKey: [resource, 'getManyReference'] },
+                    (res: GetListResult) => {
+                        if (!res || !res.data) return res;
+                        const newCollection = updateColl(res.data);
+                        const recordWasFound =
+                            newCollection.length < res.data.length;
+                        return recordWasFound
+                            ? {
+                                  ...res,
+                                  data: newCollection,
+                                  total: res.total! - 1,
+                              }
+                            : res;
+                    },
+                    { updatedAt }
+                );
+
+                return params.previousData;
+            },
+            getQueryKeys: ({ resource }) => {
+                const queryKeys = [
+                    [resource, 'getList'],
+                    [resource, 'getInfiniteList'],
+                    [resource, 'getMany'],
+                    [resource, 'getManyReference'],
+                ];
+                return queryKeys;
+            },
+            onSettled: (...args) => {
+                const [, , , mutateResult] = args;
+
+                // For deletion, we always refetch after error or success:
+                (mutateResult as { snapshot: Snapshot }).snapshot.forEach(
+                    ([queryKey]) => {
+                        queryClient.invalidateQueries({ queryKey });
+                    }
+                );
+
+                onSettled?.(...args);
+            },
+        }
     );
 
-    return [deleteOne, state];
+    const deleteOne = useEvent(
+        (
+            callTimeResource: string | undefined = resource,
+            callTimeParams: Partial<DeleteParams<RecordType>> = {},
+            callTimeOptions: MutateOptions<
+                RecordType | undefined,
+                MutationError,
+                Partial<UseDeleteMutateParams<RecordType>>,
+                unknown
+            > & {
+                mutationMode?: MutationMode;
+                returnPromise?: boolean;
+            } = {}
+        ) => {
+            return mutate(
+                {
+                    resource: callTimeResource,
+                    ...callTimeParams,
+                },
+                callTimeOptions
+            );
+        }
+    );
+
+    return [deleteOne, mutationResult];
 };
 
-type UseDeleteHookValue<RecordType extends Record = Record> = [
-    (
-        resource?: string | Partial<Mutation> | Event,
-        id?: Identifier | Partial<MutationOptions>,
-        previousData?: RecordType,
-        options?: MutationOptions
-    ) => void | Promise<any>,
-    {
-        data?: RecordType;
-        total?: number;
-        error?: any;
-        loading: boolean;
-        loaded: boolean;
-    }
-];
+export interface UseDeleteMutateParams<RecordType extends RaRecord = any> {
+    resource?: string;
+    id?: RecordType['id'];
+    data?: Partial<RecordType>;
+    previousData?: any;
+    meta?: any;
+}
 
-export default useDelete;
+export type UseDeleteOptions<
+    RecordType extends RaRecord = any,
+    MutationError = unknown,
+> = Omit<
+    UseMutationOptions<
+        RecordType,
+        MutationError,
+        Partial<UseDeleteMutateParams<RecordType>>
+    >,
+    'mutationFn'
+> & {
+    mutationFn?: (
+        params: Partial<UseDeleteMutateParams<RecordType>>
+    ) => Promise<RecordType>;
+    mutationMode?: MutationMode;
+    returnPromise?: boolean;
+};
+
+export type UseDeleteResult<
+    RecordType extends RaRecord = any,
+    MutationError = unknown,
+    TReturnPromise extends boolean = boolean,
+> = [
+    (
+        resource?: string,
+        params?: Partial<DeleteParams<RecordType>>,
+        options?: MutateOptions<
+            RecordType | undefined,
+            MutationError,
+            Partial<UseDeleteMutateParams<RecordType>>,
+            unknown
+        > & {
+            mutationMode?: MutationMode;
+            returnPromise?: TReturnPromise;
+        }
+    ) => Promise<TReturnPromise extends true ? RecordType | undefined : void>,
+    UseMutationResult<
+        RecordType | undefined,
+        MutationError,
+        Partial<DeleteParams<RecordType> & { resource?: string }>,
+        unknown
+    > & { isLoading: boolean },
+];

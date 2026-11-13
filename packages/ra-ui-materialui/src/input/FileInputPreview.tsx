@@ -1,39 +1,29 @@
 import * as React from 'react';
-import { useEffect, ReactNode, FunctionComponent } from 'react';
-import PropTypes from 'prop-types';
-import { makeStyles } from '@material-ui/core/styles';
-import RemoveCircle from '@material-ui/icons/RemoveCircle';
-import IconButton from '@material-ui/core/IconButton';
+import { type ReactNode, useEffect } from 'react';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import RemoveCircle from '@mui/icons-material/RemoveCircle';
+import IconButton from '@mui/material/IconButton';
 import { useTranslate } from 'ra-core';
+import { type SvgIconProps } from '@mui/material';
 
-const useStyles = makeStyles(
-    theme => ({
-        removeButton: {},
-        removeIcon: {
-            color: theme.palette.error.main,
-        },
-    }),
-    { name: 'RaFileInputPreview' }
-);
-
-interface Props {
-    children: ReactNode;
-    className?: string;
-    classes?: object;
-    onRemove: () => void;
-    file: any;
-}
-
-const FileInputPreview: FunctionComponent<Props> = props => {
+export const FileInputPreview = (inProps: FileInputPreviewProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
         children,
-        classes: classesOverride,
         className,
         onRemove,
         file,
+        removeIcon: RemoveIcon = RemoveCircle,
         ...rest
     } = props;
-    const classes = useStyles(props);
+
     const translate = useTranslate();
 
     useEffect(() => {
@@ -47,29 +37,62 @@ const FileInputPreview: FunctionComponent<Props> = props => {
     }, [file]);
 
     return (
-        <div className={className} {...rest}>
+        <Root className={className} {...rest}>
             <IconButton
-                className={classes.removeButton}
+                className={FileInputPreviewClasses.removeButton}
                 onClick={onRemove}
                 aria-label={translate('ra.action.delete')}
                 title={translate('ra.action.delete')}
+                size="small"
             >
-                <RemoveCircle className={classes.removeIcon} />
+                <RemoveIcon className={FileInputPreviewClasses.removeIcon} />
             </IconButton>
             {children}
-        </div>
+        </Root>
     );
 };
 
-FileInputPreview.propTypes = {
-    children: PropTypes.element.isRequired,
-    className: PropTypes.string,
-    file: PropTypes.object,
-    onRemove: PropTypes.func.isRequired,
+const PREFIX = 'RaFileInputPreview';
+
+const FileInputPreviewClasses = {
+    removeButton: `${PREFIX}-removeButton`,
+    removeIcon: `${PREFIX}-removeIcon`,
 };
 
-FileInputPreview.defaultProps = {
-    file: undefined,
-};
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    [`& .${FileInputPreviewClasses.removeButton}`]: {},
 
-export default FileInputPreview;
+    [`& .${FileInputPreviewClasses.removeIcon}`]: {
+        color: (theme.vars || theme).palette.error.main,
+    },
+}));
+
+export interface FileInputPreviewProps {
+    children: ReactNode;
+    className?: string;
+    onRemove: () => void;
+    file: any;
+    removeIcon?: React.ComponentType<SvgIconProps>;
+}
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaFileInputPreview: 'root' | 'removeButton' | 'removeIcon';
+    }
+
+    interface ComponentsPropsList {
+        RaFileInputPreview: Partial<FileInputPreviewProps>;
+    }
+
+    interface Components {
+        RaFileInputPreview?: {
+            defaultProps?: ComponentsPropsList['RaFileInputPreview'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaFileInputPreview'];
+        };
+    }
+}

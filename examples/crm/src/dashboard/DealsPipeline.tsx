@@ -1,41 +1,52 @@
+/**
+ * This component displays the deals pipeline for the current user.
+ * It's currently not used in the application but can be added to the dashboard.
+ */
+
 import * as React from 'react';
-import { useEffect, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import { Card, Link, Box } from '@material-ui/core';
-import MonetizationOnIcon from '@material-ui/icons/MonetizationOn';
+import { Card, Box } from '@mui/material';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import {
     useGetList,
     SimpleList,
     useGetIdentity,
+    Link,
     ReferenceField,
-    Identifier,
 } from 'react-admin';
 
 import { CompanyAvatar } from '../companies/CompanyAvatar';
-import { stages, stageNames } from '../deals/stages';
+import { Deal } from '../types';
+import { useConfigurationContext } from '../root/ConfigurationContext';
+import { findDealLabel } from '../deals/deal';
 
 export const DealsPipeline = () => {
     const { identity } = useGetIdentity();
-    const { data, ids: unorderedIds, total, loaded } = useGetList(
+    const { dealStages, dealPipelineStatuses } = useConfigurationContext();
+    const { data, total, isPending } = useGetList<Deal>(
         'deals',
-        { page: 1, perPage: 10 },
-        { field: 'last_seen', order: 'DESC' },
-        { stage_neq: 'lost', sales_id: identity?.id },
+        {
+            pagination: { page: 1, perPage: 10 },
+            sort: { field: 'last_seen', order: 'DESC' },
+            filter: { 'stage@neq': 'lost', sales_id: identity?.id },
+        },
         { enabled: Number.isInteger(identity?.id) }
     );
-    const [ids, setIds] = useState(unorderedIds);
-    useEffect(() => {
-        const deals = unorderedIds.map(id => data[id]);
-        const orderedIds: Identifier[] = [];
-        stages
-            .filter(stage => stage !== 'won')
+
+    const getOrderedDeals = (data?: Deal[]): Deal[] | undefined => {
+        if (!data) {
+            return;
+        }
+        const deals: Deal[] = [];
+        dealStages
+            .filter(stage => !dealPipelineStatuses.includes(stage.value))
             .forEach(stage =>
-                deals
-                    .filter(deal => deal.stage === stage)
-                    .forEach(deal => orderedIds.push(deal.id))
+                data
+                    .filter(deal => deal.stage === stage.value)
+                    .forEach(deal => deals.push(deal))
             );
-        setIds(orderedIds);
-    }, [unorderedIds, data]);
+        return deals;
+    };
+
     return (
         <>
             <Box display="flex" alignItems="center" marginBottom="1em">
@@ -46,20 +57,18 @@ export const DealsPipeline = () => {
                     underline="none"
                     variant="h5"
                     color="textSecondary"
-                    component={RouterLink}
                     to="/deals"
                 >
                     Deals Pipeline
                 </Link>
             </Box>
             <Card>
-                <SimpleList
-                    basePath="/deals"
+                <SimpleList<Deal>
+                    resource="deals"
                     linkType="show"
-                    ids={ids}
-                    data={data}
+                    data={getOrderedDeals(data)}
                     total={total}
-                    loaded={loaded}
+                    isPending={isPending}
                     primaryText={deal => deal.name}
                     secondaryText={deal =>
                         `${deal.amount.toLocaleString('en-US', {
@@ -68,8 +77,7 @@ export const DealsPipeline = () => {
                             currency: 'USD',
                             currencyDisplay: 'narrowSymbol',
                             minimumSignificantDigits: 3,
-                            // @ts-ignore
-                        })} , ${stageNames[deal.stage]}`
+                        })} , ${findDealLabel(dealStages, deal.stage)}`
                     }
                     leftAvatar={deal => (
                         <ReferenceField
@@ -77,9 +85,9 @@ export const DealsPipeline = () => {
                             record={deal}
                             reference="companies"
                             resource="deals"
-                            basePath="/deals"
+                            link={false}
                         >
-                            <CompanyAvatar size="small" />
+                            <CompanyAvatar width={20} height={20} />
                         </ReferenceField>
                     )}
                 />

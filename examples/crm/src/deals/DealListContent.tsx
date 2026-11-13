@@ -1,92 +1,37 @@
-import * as React from 'react';
-import { useState, useEffect, useContext } from 'react';
-import {
-    useMutation,
-    Identifier,
-    useListContext,
-    RecordMap,
-    DataProviderContext,
-} from 'react-admin';
-import { Box } from '@material-ui/core';
-import { DragDropContext, OnDragEndResponder } from 'react-beautiful-dnd';
-import isEqual from 'lodash/isEqual';
+import { DragDropContext, OnDragEndResponder } from '@hello-pangea/dnd';
+import { Box } from '@mui/material';
+import isEqual from 'lodash/isEqual.js';
+import { useEffect, useState } from 'react';
+import { DataProvider, useDataProvider, useListContext } from 'react-admin';
 
-import { DealColumn } from './DealColumn';
-import { stages } from './stages';
 import { Deal } from '../types';
-
-interface DealsByColumn {
-    [stage: string]: Identifier[];
-}
-
-const initialDeals: DealsByColumn = stages.reduce(
-    (obj, stage) => ({ ...obj, [stage]: [] }),
-    {}
-);
-
-const getDealsByColumn = (
-    ids: Identifier[],
-    data: RecordMap<Deal>
-): DealsByColumn => {
-    // group deals by column
-    const columns = ids.reduce(
-        (acc, id) => {
-            acc[data[id].stage].push(id);
-            return acc;
-        },
-        stages.reduce((obj, stage) => ({ ...obj, [stage]: [] }), {} as any)
-    );
-    // order each column by index
-    stages.forEach(stage => {
-        columns[stage] = columns[stage].sort(
-            (a: Identifier, b: Identifier) => data[a].index - data[b].index
-        );
-    });
-    return columns;
-};
+import { DealColumn } from './DealColumn';
+import { DealsByStage, getDealsByStage } from './stages';
+import { useConfigurationContext } from '../root/ConfigurationContext';
 
 export const DealListContent = () => {
-    const {
-        data,
-        ids,
-        loaded,
-        page,
-        perPage,
-        currentSort,
-        filterValues,
-    } = useListContext<Deal>();
+    const { dealStages } = useConfigurationContext();
+    const { data: unorderedDeals, isPending, refetch } = useListContext<Deal>();
+    const dataProvider = useDataProvider();
 
-    const [deals, setDeals] = useState<DealsByColumn>(
-        loaded ? getDealsByColumn(ids, data) : initialDeals
+    const [dealsByStage, setDealsByStage] = useState<DealsByStage>(
+        getDealsByStage([], dealStages)
     );
-    // we use the raw dataProvider to avoid too many updates to the Redux store after updates (which would create jank)
-    const dataProvider = useContext(DataProviderContext);
 
-    // FIXME: use refetch when available
-    const [refresh] = useMutation({
-        resource: 'deals',
-        type: 'getList',
-        payload: {
-            pagination: { page, perPage },
-            sort: currentSort,
-            filter: filterValues,
-        },
-    });
-
-    // update deals by columns when the dataProvider response updates
     useEffect(() => {
-        if (!loaded) return;
-        const newDeals = getDealsByColumn(ids, data);
-        if (isEqual(deals, newDeals)) {
-            return;
+        if (unorderedDeals) {
+            const newDealsByStage = getDealsByStage(unorderedDeals, dealStages);
+            if (!isEqual(newDealsByStage, dealsByStage)) {
+                setDealsByStage(newDealsByStage);
+            }
         }
-        setDeals(newDeals);
-    }, [data, ids, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [unorderedDeals]);
 
-    if (!loaded) return null;
+    if (isPending) return null;
 
-    const onDragEnd: OnDragEndResponder = async result => {
-        const { destination, source, draggableId } = result;
+    const onDragEnd: OnDragEndResponder = result => {
+        const { destination, source } = result;
 
         if (!destination) {
             return;
@@ -99,146 +44,113 @@ export const DealListContent = () => {
             return;
         }
 
-        if (source.droppableId === destination.droppableId) {
-            // moving deal inside the same column
+        const sourceStage = source.droppableId;
+        const destinationStage = destination.droppableId;
+        const sourceDeal = dealsByStage[sourceStage][source.index]!;
+        const destinationDeal = dealsByStage[destinationStage][
+            destination.index
+        ] ?? {
+            stage: destinationStage,
+            index: undefined, // undefined if dropped after the last item
+        };
 
-            const column = Array.from(deals[source.droppableId]); // [4, 7, 23, 5] array of ids
-            const sourceDeal = data[column[source.index]];
-            const destinationDeal = data[column[destination.index]];
+        // compute local state change synchronously
+        setDealsByStage(
+            updateDealStageLocal(
+                sourceDeal,
+                { stage: sourceStage, index: source.index },
+                { stage: destinationStage, index: destination.index },
+                dealsByStage
+            )
+        );
 
-            // update local state
-            // remove source deal from column
-            column.splice(source.index, 1);
-            // readd source deal at destination
-            column.splice(destination.index, 0, Number(draggableId));
-            setDeals({
-                ...deals,
-                [source.droppableId]: column,
-            });
+        // persist the changes
+        updateDealStage(sourceDeal, destinationDeal, dataProvider).then(() => {
+            refetch();
+        });
+    };
 
-            // update backend
-            // Fetch all the deals in this stage (because the list may be filtered, but we need to update even non-filtered deals)
-            const { data: columnDeals } = await dataProvider.getList('deals', {
-                sort: { field: 'index', order: 'ASC' },
-                pagination: { page: 1, perPage: 100 },
-                filter: { stage: source.droppableId },
-            });
+    return (
+        <DragDropContext onDragEnd={onDragEnd}>
+            <Box display="flex">
+                {dealStages.map(stage => (
+                    <DealColumn
+                        stage={stage.value}
+                        deals={dealsByStage[stage.value]}
+                        key={stage.value}
+                    />
+                ))}
+            </Box>
+        </DragDropContext>
+    );
+};
 
-            if (source.index > destination.index) {
-                // deal moved up, eg
-                // dest   src
-                //  <------
-                // [4, 7, 23, 5]
+const updateDealStageLocal = (
+    sourceDeal: Deal,
+    source: { stage: string; index: number },
+    destination: {
+        stage: string;
+        index?: number; // undefined if dropped after the last item
+    },
+    dealsByStage: DealsByStage
+) => {
+    if (source.stage === destination.stage) {
+        // moving deal inside the same column
+        const column = dealsByStage[source.stage];
+        column.splice(source.index, 1);
+        column.splice(destination.index ?? column.length + 1, 0, sourceDeal);
+        return {
+            ...dealsByStage,
+            [destination.stage]: column,
+        };
+    } else {
+        // moving deal across columns
+        const sourceColumn = dealsByStage[source.stage];
+        const destinationColumn = dealsByStage[destination.stage];
+        sourceColumn.splice(source.index, 1);
+        destinationColumn.splice(
+            destination.index ?? destinationColumn.length + 1,
+            0,
+            sourceDeal
+        );
+        return {
+            ...dealsByStage,
+            [source.stage]: sourceColumn,
+            [destination.stage]: destinationColumn,
+        };
+    }
+};
 
-                await Promise.all([
-                    // for all deals between destination.index and source.index, increase the index
-                    ...columnDeals
-                        .filter(
-                            deal =>
-                                deal.index >= destinationDeal.index &&
-                                deal.index < sourceDeal.index
-                        )
-                        .map(deal =>
-                            dataProvider.update('deals', {
-                                id: deal.id,
-                                data: { index: deal.index + 1 },
-                                previousData: deal,
-                            })
-                        ),
-                    // for the deal that was moved, update its index
-                    dataProvider.update('deals', {
-                        id: sourceDeal.id,
-                        data: { index: destinationDeal.index },
-                        previousData: sourceDeal,
-                    }),
-                ]);
+const updateDealStage = async (
+    source: Deal,
+    destination: {
+        stage: string;
+        index?: number; // undefined if dropped after the last item
+    },
+    dataProvider: DataProvider
+) => {
+    if (source.stage === destination.stage) {
+        // moving deal inside the same column
+        // Fetch all the deals in this stage (because the list may be filtered, but we need to update even non-filtered deals)
+        const { data: columnDeals } = await dataProvider.getList('deals', {
+            sort: { field: 'index', order: 'ASC' },
+            pagination: { page: 1, perPage: 100 },
+            filter: { stage: source.stage },
+        });
+        const destinationIndex = destination.index ?? columnDeals.length + 1;
 
-                refresh();
-            } else {
-                // deal moved down, e.g
-                // src   dest
-                //  ------>
-                // [4, 7, 23, 5]
-
-                await Promise.all([
-                    // for all deals between source.index and destination.index, decrease the index
-                    ...columnDeals
-                        .filter(
-                            deal =>
-                                deal.index <= destinationDeal.index &&
-                                deal.index > sourceDeal.index
-                        )
-                        .map(deal =>
-                            dataProvider.update('deals', {
-                                id: deal.id,
-                                data: { index: deal.index - 1 },
-                                previousData: deal,
-                            })
-                        ),
-                    // for the deal that was moved, update its index
-                    dataProvider.update('deals', {
-                        id: sourceDeal.id,
-                        data: { index: destinationDeal.index },
-                        previousData: sourceDeal,
-                    }),
-                ]);
-
-                refresh();
-            }
-        } else {
-            // moving deal across columns
-
-            const sourceColumn = Array.from(deals[source.droppableId]); // [4, 7, 23, 5] array of ids
-            const destinationColumn = Array.from(
-                deals[destination.droppableId]
-            ); // [4, 7, 23, 5] arrays of ids
-            const sourceDeal = data[sourceColumn[source.index]];
-            const destinationDeal = data[destinationColumn[destination.index]]; // may be undefined if dropping at the end of a column
-
-            // update local state
-            sourceColumn.splice(source.index, 1);
-            destinationColumn.splice(destination.index, 0, draggableId);
-            setDeals({
-                ...deals,
-                [source.droppableId]: sourceColumn,
-                [destination.droppableId]: destinationColumn,
-            });
-
-            // update backend
-            // Fetch all the deals in both stages (because the list may be filtered, but we need to update even non-filtered deals)
-            const [
-                { data: sourceDeals },
-                { data: destinationDeals },
-            ] = await Promise.all([
-                dataProvider.getList('deals', {
-                    sort: { field: 'index', order: 'ASC' },
-                    pagination: { page: 1, perPage: 100 },
-                    filter: { stage: source.droppableId },
-                }),
-                dataProvider.getList('deals', {
-                    sort: { field: 'index', order: 'ASC' },
-                    pagination: { page: 1, perPage: 100 },
-                    filter: { stage: destination.droppableId },
-                }),
-            ]);
-
+        if (source.index > destinationIndex) {
+            // deal moved up, eg
+            // dest   src
+            //  <------
+            // [4, 7, 23, 5]
             await Promise.all([
-                // decrease index on the deals after the source index in the source columns
-                ...sourceDeals
-                    .filter(deal => deal.index > sourceDeal.index)
-                    .map(deal =>
-                        dataProvider.update('deals', {
-                            id: deal.id,
-                            data: { index: deal.index - 1 },
-                            previousData: deal,
-                        })
-                    ),
-                // increase index on the deals after the destination index in the destination columns
-                ...destinationDeals
-                    .filter(deal =>
-                        destinationDeal
-                            ? deal.index >= destinationDeal.index
-                            : false
+                // for all deals between destinationIndex and source.index, increase the index
+                ...columnDeals
+                    .filter(
+                        deal =>
+                            deal.index >= destinationIndex &&
+                            deal.index < source.index
                     )
                     .map(deal =>
                         dataProvider.update('deals', {
@@ -247,35 +159,90 @@ export const DealListContent = () => {
                             previousData: deal,
                         })
                     ),
-                // change the dragged deal to take the destination index and column
+                // for the deal that was moved, update its index
                 dataProvider.update('deals', {
-                    id: sourceDeal.id,
-                    data: {
-                        index: destinationDeal
-                            ? destinationDeal.index
-                            : destinationDeals.pop()!.index + 1,
-                        stage: destination.droppableId,
-                    },
-                    previousData: sourceDeal,
+                    id: source.id,
+                    data: { index: destinationIndex },
+                    previousData: source,
                 }),
             ]);
-
-            refresh();
+        } else {
+            // deal moved down, e.g
+            // src   dest
+            //  ------>
+            // [4, 7, 23, 5]
+            await Promise.all([
+                // for all deals between source.index and destinationIndex, decrease the index
+                ...columnDeals
+                    .filter(
+                        deal =>
+                            deal.index <= destinationIndex &&
+                            deal.index > source.index
+                    )
+                    .map(deal =>
+                        dataProvider.update('deals', {
+                            id: deal.id,
+                            data: { index: deal.index - 1 },
+                            previousData: deal,
+                        })
+                    ),
+                // for the deal that was moved, update its index
+                dataProvider.update('deals', {
+                    id: source.id,
+                    data: { index: destinationIndex },
+                    previousData: source,
+                }),
+            ]);
         }
-    };
+    } else {
+        // moving deal across columns
+        // Fetch all the deals in both stages (because the list may be filtered, but we need to update even non-filtered deals)
+        const [{ data: sourceDeals }, { data: destinationDeals }] =
+            await Promise.all([
+                dataProvider.getList('deals', {
+                    sort: { field: 'index', order: 'ASC' },
+                    pagination: { page: 1, perPage: 100 },
+                    filter: { stage: source.stage },
+                }),
+                dataProvider.getList('deals', {
+                    sort: { field: 'index', order: 'ASC' },
+                    pagination: { page: 1, perPage: 100 },
+                    filter: { stage: destination.stage },
+                }),
+            ]);
+        const destinationIndex =
+            destination.index ?? destinationDeals.length + 1;
 
-    return (
-        <DragDropContext onDragEnd={onDragEnd}>
-            <Box display="flex">
-                {stages.map(stage => (
-                    <DealColumn
-                        stage={stage}
-                        dealIds={deals[stage]}
-                        data={data}
-                        key={stage}
-                    />
-                ))}
-            </Box>
-        </DragDropContext>
-    );
+        await Promise.all([
+            // decrease index on the deals after the source index in the source columns
+            ...sourceDeals
+                .filter(deal => deal.index > source.index)
+                .map(deal =>
+                    dataProvider.update('deals', {
+                        id: deal.id,
+                        data: { index: deal.index - 1 },
+                        previousData: deal,
+                    })
+                ),
+            // increase index on the deals after the destination index in the destination columns
+            ...destinationDeals
+                .filter(deal => deal.index >= destinationIndex)
+                .map(deal =>
+                    dataProvider.update('deals', {
+                        id: deal.id,
+                        data: { index: deal.index + 1 },
+                        previousData: deal,
+                    })
+                ),
+            // change the dragged deal to take the destination index and column
+            dataProvider.update('deals', {
+                id: source.id,
+                data: {
+                    index: destinationIndex,
+                    stage: destination.stage,
+                },
+                previousData: source,
+            }),
+        ]);
+    }
 };

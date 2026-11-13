@@ -1,173 +1,193 @@
 import * as React from 'react';
 import {
-    cloneElement,
-    Children,
-    HtmlHTMLAttributes,
-    FC,
-    ComponentType,
-} from 'react';
-import PropTypes from 'prop-types';
-import classnames from 'classnames';
-import LinearProgress from '@material-ui/core/LinearProgress';
-import { makeStyles } from '@material-ui/core/styles';
+    Chip,
+    type ComponentsOverrides,
+    Stack,
+    type StackProps,
+    styled,
+    useThemeProps,
+} from '@mui/material';
 import {
-    linkToRecord,
     sanitizeListRestProps,
-    useListContext,
+    useListContextWithProps,
     useResourceContext,
-    Record,
-    RecordMap,
-    Identifier,
+    type RaRecord,
+    RecordRepresentation,
+    useCreatePath,
     RecordContextProvider,
-    ComponentPropType,
 } from 'ra-core';
 
-import Link from '../Link';
-import { ClassesOverride } from '../types';
-
-const useStyles = makeStyles(
-    theme => ({
-        root: {
-            display: 'flex',
-            flexWrap: 'wrap',
-            marginTop: -theme.spacing(1),
-            marginBottom: -theme.spacing(1),
-        },
-        link: {},
-    }),
-    { name: 'RaSingleFieldList' }
-);
-
-// useful to prevent click bubbling in a datagrid with rowClick
-const stopPropagation = e => e.stopPropagation();
-
-// Our handleClick does nothing as we wrap the children inside a Link but it is
-// required by ChipField, which uses a Chip from material-ui.
-// The material-ui Chip requires an onClick handler to behave like a clickable element.
-const handleClick = () => {};
+import { LinearProgress } from '../layout/LinearProgress';
+import { Link } from '../Link';
 
 /**
  * Iterator component to be used to display a list of entities, using a single field
  *
- * @example Display all the books by the current author
+ * @example Display all the orders by the current customer as a list of chips
+ * <ReferenceManyField reference="orders" target="customer_id">
+ *     <SingleFieldList />
+ * </ReferenceManyField>
+
+ * @example Choose the field to be used as text label
+ * <ReferenceManyField reference="orders" target="customer_id">
+ *     <SingleFieldList>
+ *         <ChipField source="reference" />
+ *     </SingleFieldList>
+ * </ReferenceManyField>
+ *
+ * @example Customize the link type
+ * // By default, it includes a link to the <Edit> page of the related record
+ * // (`/orders/:id` in the previous example).
+ * // Set the linkType prop to "show" to link to the <Show> page instead.
  * <ReferenceManyField reference="books" target="author_id">
- *     <SingleFieldList>
+ *     <SingleFieldList linkType="show">
  *         <ChipField source="title" />
  *     </SingleFieldList>
  * </ReferenceManyField>
  *
- * By default, it includes a link to the <Edit> page of the related record
- * (`/books/:id` in the previous example).
- *
- * Set the linkType prop to "show" to link to the <Show> page instead.
- *
- * @example
- * <ReferenceManyField reference="books" target="author_id" linkType="show">
- *     <SingleFieldList>
- *         <ChipField source="title" />
- *     </SingleFieldList>
- * </ReferenceManyField>
- *
- * You can also prevent `<SingleFieldList>` from adding link to children by setting
- * `linkType` to false.
- *
- * @example
- * <ReferenceManyField reference="books" target="author_id" linkType={false}>
- *     <SingleFieldList>
+ * @example Disable the link
+ * // You can also prevent `<SingleFieldList>` from adding link to children by
+ * // setting `linkType` to false.
+ * <ReferenceManyField reference="books" target="author_id">
+ *     <SingleFieldList linkType={false}>
  *         <ChipField source="title" />
  *     </SingleFieldList>
  * </ReferenceManyField>
  */
-const SingleFieldList: FC<SingleFieldListProps> = props => {
+export const SingleFieldList = <RecordType extends RaRecord = any>(
+    inProps: SingleFieldListProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
-        classes: classesOverride,
         className,
         children,
+        empty,
         linkType = 'edit',
-        component = 'div',
+        gap = 1,
+        direction = 'row',
         ...rest
     } = props;
-    const { ids, data, loaded, basePath } = useListContext(props);
+    const { data, total, isPending } = useListContextWithProps(props);
     const resource = useResourceContext(props);
+    const createPath = useCreatePath();
 
-    const classes = useStyles(props);
-    const Component = component;
-
-    if (loaded === false) {
+    if (isPending === true) {
         return <LinearProgress />;
     }
 
+    if (data == null || data.length === 0 || total === 0) {
+        return empty ?? null;
+    }
+
     return (
-        <Component
-            className={classnames(classes.root, className)}
+        <Root
+            gap={gap}
+            direction={direction}
+            className={className}
             {...sanitizeListRestProps(rest)}
         >
-            {ids.map(id => {
+            {data.map((record, rowIndex) => {
                 const resourceLinkPath = !linkType
                     ? false
-                    : linkToRecord(basePath, id, linkType);
+                    : createPath({
+                          resource,
+                          type: linkType,
+                          id: record.id,
+                      });
 
                 if (resourceLinkPath) {
                     return (
-                        <RecordContextProvider value={data[id]} key={id}>
+                        <RecordContextProvider
+                            value={record}
+                            key={record.id ?? `row${rowIndex}`}
+                        >
                             <Link
-                                className={classes.link}
-                                key={id}
+                                className={SingleFieldListClasses.link}
                                 to={resourceLinkPath}
                                 onClick={stopPropagation}
                             >
-                                {cloneElement(Children.only(children), {
-                                    record: data[id],
-                                    resource,
-                                    basePath,
-                                    // Workaround to force ChipField to be clickable
-                                    onClick: handleClick,
-                                })}
+                                {children || (
+                                    <DefaultChildComponent clickable />
+                                )}
                             </Link>
                         </RecordContextProvider>
                     );
                 }
 
                 return (
-                    <RecordContextProvider value={data[id]} key={id}>
-                        {cloneElement(Children.only(children), {
-                            key: id,
-                            record: data[id],
-                            resource,
-                            basePath,
-                        })}
+                    <RecordContextProvider
+                        value={record}
+                        key={record.id ?? `row${rowIndex}`}
+                    >
+                        {children || <DefaultChildComponent />}
                     </RecordContextProvider>
                 );
             })}
-        </Component>
+        </Root>
     );
 };
 
-SingleFieldList.propTypes = {
-    basePath: PropTypes.string,
-    children: PropTypes.element.isRequired,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    component: ComponentPropType,
-    data: PropTypes.any,
-    ids: PropTypes.array,
-    // @ts-ignore
-    linkType: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
-    resource: PropTypes.string,
-};
-
-export interface SingleFieldListProps<RecordType extends Record = Record>
-    extends HtmlHTMLAttributes<HTMLDivElement> {
+export interface SingleFieldListProps<RecordType extends RaRecord = any>
+    extends StackProps {
     className?: string;
-    classes?: ClassesOverride<typeof useStyles>;
-    component?: string | ComponentType<any>;
+    empty?: React.ReactNode;
     linkType?: string | false;
-    children: React.ReactElement;
+    children?: React.ReactNode;
     // can be injected when using the component without context
-    basePath?: string;
-    data?: RecordMap<RecordType>;
-    ids?: Identifier[];
+    data?: RecordType[];
+    total?: number;
     loaded?: boolean;
 }
 
-export default SingleFieldList;
+const PREFIX = 'RaSingleFieldList';
+
+export const SingleFieldListClasses = {
+    link: `${PREFIX}-link`,
+};
+
+const Root = styled(Stack, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    flexWrap: 'wrap',
+    [`& .${SingleFieldListClasses.link}`]: {
+        textDecoration: 'none',
+        '& > *': {
+            color: (theme.vars || theme).palette.primary.main,
+        },
+    },
+}));
+
+// useful to prevent click bubbling in a datagrid with rowClick
+const stopPropagation = e => e.stopPropagation();
+
+const DefaultChildComponent = ({ clickable }: { clickable?: boolean }) => (
+    <Chip
+        sx={{ cursor: 'inherit' }}
+        size="small"
+        label={<RecordRepresentation />}
+        clickable={clickable}
+    />
+);
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaSingleFieldList: 'root' | 'link';
+    }
+
+    interface ComponentsPropsList {
+        RaSingleFieldList: Partial<SingleFieldListProps>;
+    }
+
+    interface Components {
+        RaSingleFieldList?: {
+            defaultProps?: ComponentsPropsList['RaSingleFieldList'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaSingleFieldList'];
+        };
+    }
+}

@@ -1,93 +1,54 @@
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import get from 'lodash/get.js';
+import {
+    FilterLiveForm,
+    useFilterContext,
+    useListContext,
+    useResourceContext,
+} from 'ra-core';
 import * as React from 'react';
-import { useEffect, useCallback, HtmlHTMLAttributes, ReactNode } from 'react';
-import PropTypes from 'prop-types';
-import { Form, FormRenderProps, FormSpy } from 'react-final-form';
-import arrayMutators from 'final-form-arrays';
-import classnames from 'classnames';
-import { makeStyles } from '@material-ui/core/styles';
-import lodashSet from 'lodash/set';
-import lodashGet from 'lodash/get';
+import {
+    type HtmlHTMLAttributes,
+    type ReactNode,
+    useCallback,
+    useEffect,
+} from 'react';
 
-import FilterFormInput from './FilterFormInput';
-import { ClassesOverride } from '../../types';
+import { FilterFormInput } from './FilterFormInput';
 
-const useStyles = makeStyles(
-    theme => ({
-        form: {
-            marginTop: -theme.spacing(2),
-            paddingTop: 0,
-            display: 'flex',
-            alignItems: 'flex-end',
-            flexWrap: 'wrap',
-            minHeight: theme.spacing(10),
-            pointerEvents: 'none',
-        },
-        clearFix: { clear: 'right' },
-    }),
-    { name: 'RaFilterForm' }
-);
+export const FilterForm = (inProps: FilterFormProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { filters: filtersProps, ...rest } = props;
+    const filters = useFilterContext() || filtersProps;
 
-const sanitizeRestProps = ({
-    active,
-    dirty,
-    dirtyFields,
-    dirtyFieldsSinceLastSubmit,
-    dirtySinceLastSubmit,
-    error,
-    errors,
-    filterValues,
-    form,
-    handleSubmit,
-    hasSubmitErrors,
-    hasValidationErrors,
-    invalid,
-    modified,
-    modifiedSinceLastSubmit,
-    pristine,
-    setFilters,
-    submitError,
-    submitErrors,
-    submitFailed,
-    submitSucceeded,
-    submitting,
-    touched,
-    valid,
-    validating,
-    values,
-    visited,
-    ...props
-}: Partial<FilterFormProps>) => props;
+    return (
+        <FilterLiveForm formComponent={StyledForm} {...sanitizeRestProps(rest)}>
+            <FilterFormBase filters={filters} />
+        </FilterLiveForm>
+    );
+};
 
-export interface FilterFormProps
-    extends Omit<FormRenderProps, 'initialValues'>,
-        Omit<HtmlHTMLAttributes<HTMLFormElement>, 'children'> {
-    classes?: ClassesOverride<typeof useStyles>;
-    className?: string;
-    resource?: string;
-    filterValues: any;
-    hideFilter: (filterName: string) => void;
-    setFilters: (filters: any, displayedFilters: any) => void;
-    displayedFilters: any;
-    filters: ReactNode[];
-    initialValues?: any;
-    margin?: 'none' | 'normal' | 'dense';
-    variant?: 'standard' | 'outlined' | 'filled';
-}
+export type FilterFormProps = FilterFormBaseProps;
 
-export const FilterForm = ({
-    classes = {},
-    className,
-    resource,
-    margin,
-    variant,
-    filters,
-    displayedFilters = {},
-    hideFilter,
-    initialValues,
-    ...rest
-}: FilterFormProps) => {
+export const FilterFormBase = (props: FilterFormBaseProps) => {
+    const { filters } = props;
+    const resource = useResourceContext(props);
+    const {
+        displayedFilters = {},
+        filterValues,
+        hideFilter,
+    } = useListContext();
+
     useEffect(() => {
-        filters.forEach((filter: JSX.Element) => {
+        if (!filters) return;
+        filters.forEach((filter: React.ReactElement) => {
             if (filter.props.alwaysOn && filter.props.defaultValue) {
                 throw new Error(
                     'Cannot use alwaysOn and defaultValue on a filter input. Please set the filterDefaultValues props on the <List> element instead.'
@@ -96,14 +57,35 @@ export const FilterForm = ({
         });
     }, [filters]);
 
-    const getShownFilters = () =>
-        filters.filter(
-            (filterElement: JSX.Element) =>
-                filterElement.props.alwaysOn ||
-                displayedFilters[filterElement.props.source] ||
-                typeof lodashGet(initialValues, filterElement.props.source) !==
-                    'undefined'
+    const getShownFilters = () => {
+        if (!filters) return [];
+        const values = filterValues;
+        const shownFilters = filters.filter(
+            (filterElement): filterElement is React.ReactElement => {
+                if (!React.isValidElement(filterElement)) {
+                    return false;
+                }
+
+                const filterValue = get(values, filterElement.props.source);
+                return (
+                    filterElement.props.alwaysOn ||
+                    displayedFilters[filterElement.props.source] ||
+                    !isEmptyValue(filterValue)
+                );
+            }
         );
+        // show the filters added by the user in the order they were added
+        // (the displayedFilters keys keep their insertion order), after the
+        // alwaysOn filters and the ones shown only because they have a value
+        const displayedOrder = Object.keys(displayedFilters).filter(
+            source => displayedFilters[source]
+        );
+        const getRank = (filterElement: React.ReactElement) =>
+            filterElement.props.alwaysOn
+                ? -1
+                : displayedOrder.indexOf(filterElement.props.source);
+        return shownFilters.sort((a, b) => getRank(a) - getRank(b));
+    };
 
     const handleHide = useCallback(
         event => hideFilter(event.currentTarget.dataset.key),
@@ -111,98 +93,98 @@ export const FilterForm = ({
     );
 
     return (
-        <form
-            className={classnames(className, classes.form)}
-            {...sanitizeRestProps(rest)}
-            onSubmit={handleSubmit}
-        >
-            {getShownFilters().map((filterElement: JSX.Element) => (
+        <>
+            {getShownFilters().map(filterElement => (
                 <FilterFormInput
-                    key={filterElement.props.source}
+                    key={filterElement.key || filterElement.props.source}
                     filterElement={filterElement}
                     handleHide={handleHide}
                     resource={resource}
-                    variant={filterElement.props.variant || variant}
-                    margin={filterElement.props.margin || margin}
+                    className={FilterFormClasses.filterFormInput}
                 />
             ))}
-            <div className={classes.clearFix} />
-        </form>
+            <div className={FilterFormClasses.clearFix} />
+        </>
     );
 };
 
-const handleSubmit = event => {
-    event.preventDefault();
+const sanitizeRestProps = ({
+    hasCreate,
+    resource,
+    ...props
+}: Partial<FilterFormBaseProps> & { hasCreate?: boolean }) => props;
+
+export type FilterFormBaseProps = Omit<
+    HtmlHTMLAttributes<HTMLFormElement>,
+    'children'
+> & {
+    className?: string;
+    resource?: string;
+    filters?: ReactNode[];
+};
+
+const PREFIX = 'RaFilterForm';
+
+export const FilterFormClasses = {
+    clearFix: `${PREFIX}-clearFix`,
+    filterFormInput: `${PREFIX}-filterFormInput`,
+};
+
+const StyledForm = styled('form', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    display: 'flex',
+    flex: '0 1 auto',
+    [theme.breakpoints.down('sm')]: {
+        width: '100%',
+    },
+    [theme.breakpoints.up('sm')]: {
+        minHeight: theme.spacing(8),
+    },
+    [theme.breakpoints.up('md')]: {
+        flex: '0 1 100%',
+    },
+    flexWrap: 'wrap',
+    alignItems: 'flex-end',
+    pointerEvents: 'none',
+    padding: `0 0 ${theme.spacing(0.5)} 0`,
+    '& .MuiFormHelperText-root': { display: 'none' },
+    [`& .${FilterFormClasses.clearFix}`]: { clear: 'right' },
+    [`& .${FilterFormClasses.filterFormInput} .MuiFormControl-root`]: {
+        marginTop: `${theme.spacing(1)}`,
+    },
+}));
+
+const isEmptyValue = (filterValue: unknown) => {
+    if (filterValue === '' || filterValue == null) return true;
+
+    // If one of the value leaf is not empty
+    // the value is considered not empty
+    if (typeof filterValue === 'object') {
+        return Object.keys(filterValue).every(key =>
+            isEmptyValue(filterValue[key])
+        );
+    }
+
     return false;
 };
 
-FilterForm.propTypes = {
-    resource: PropTypes.string,
-    filters: PropTypes.arrayOf(PropTypes.node).isRequired,
-    displayedFilters: PropTypes.object,
-    hideFilter: PropTypes.func.isRequired,
-    initialValues: PropTypes.object,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-};
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaFilterForm: 'root';
+    }
 
-export const mergeInitialValuesWithDefaultValues = ({
-    initialValues,
-    filters,
-}) => ({
-    ...filters
-        .filter(
-            (filterElement: JSX.Element) =>
-                filterElement.props.alwaysOn && filterElement.props.defaultValue
-        )
-        .reduce(
-            (acc, filterElement: JSX.Element) =>
-                lodashSet(
-                    { ...acc },
-                    filterElement.props.source,
-                    filterElement.props.defaultValue
-                ),
-            {} as any
-        ),
-    ...initialValues,
-});
+    interface ComponentsPropsList {
+        RaFilterForm: Partial<FilterFormProps>;
+    }
 
-const EnhancedFilterForm = props => {
-    const { classes: classesOverride, ...rest } = props;
-    const classes = useStyles(props);
-
-    const mergedInitialValuesWithDefaultValues = mergeInitialValuesWithDefaultValues(
-        props
-    );
-
-    const { initialValues, ...rest2 } = rest;
-
-    return (
-        <Form
-            onSubmit={handleFinalFormSubmit}
-            initialValues={mergedInitialValuesWithDefaultValues}
-            mutators={{ ...arrayMutators }}
-            render={formProps => (
-                <>
-                    <FormSpy
-                        subscription={FormSpySubscription}
-                        onChange={({ pristine, values }) => {
-                            if (pristine) {
-                                return;
-                            }
-                            rest && rest.setFilters(values);
-                        }}
-                    />
-                    <FilterForm classes={classes} {...formProps} {...rest2} />
-                </>
-            )}
-        />
-    );
-};
-
-const handleFinalFormSubmit = () => {};
-
-// Options to instruct the FormSpy that it should only listen to the values and pristine changes
-const FormSpySubscription = { values: true, pristine: true };
-
-export default EnhancedFilterForm;
+    interface Components {
+        RaFilterForm?: {
+            defaultProps?: ComponentsPropsList['RaFilterForm'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaFilterForm'];
+        };
+    }
+}

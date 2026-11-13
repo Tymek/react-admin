@@ -10,7 +10,7 @@ import { ResourceContext, ResourceContextValue } from './ResourceContext';
  * @example
  *
  * const ResourceName = (props) => {
- *   const { resource } = useResourceContext(props);
+ *   const resource = useResourceContext(props);
  *   const getResourceLabel = useGetResourceLabel();
  *   return <>{getResourceLabel(resource, 1)}</>;
  * }
@@ -34,7 +34,7 @@ import { ResourceContext, ResourceContextValue } from './ResourceContext';
  * @returns {ResourceContextValue} The resource name, e.g. 'posts'
  */
 export const useResourceContext = <
-    ResourceInformationsType extends Partial<{ resource: string }>
+    ResourceInformationsType extends Partial<{ resource: string }>,
 >(
     props?: ResourceInformationsType
 ): ResourceContextValue => {

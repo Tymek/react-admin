@@ -1,12 +1,15 @@
-import * as React from 'react';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import isEqual from 'lodash/isEqual';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import isEqual from 'lodash/isEqual.js';
 
 // thanks Kent C Dodds for the following helpers
 
+/**
+ * @deprecated use `useState` instead, since React no longer
+ * issues warnings when calling setState on unmounted components.
+ */
 export function useSafeSetState<T>(
-    initialState?: T
-): [T, React.Dispatch<React.SetStateAction<T>>] {
+    initialState?: T | (() => T)
+): [T | undefined, React.Dispatch<React.SetStateAction<T>>] {
     const [state, setState] = useState(initialState);
 
     const mountedRef = useRef(false);
@@ -47,18 +50,36 @@ export function useDeepCompareEffect(callback, inputs) {
     const previousInputs = usePrevious(inputs);
 }
 
-export function useTimeout(ms = 0) {
+/**
+ * A hook that returns true once a delay has expired.
+ * @param ms The delay in milliseconds
+ * @param key A key that can be used to reset the timer
+ * @returns true if the delay has expired, false otherwise
+ */
+export function useTimeout(ms = 0, key = '') {
     const [ready, setReady] = useState(false);
 
     useEffect(() => {
-        let timer = setTimeout(() => {
+        setReady(false);
+        const timer = setTimeout(() => {
             setReady(true);
         }, ms);
 
         return () => {
             clearTimeout(timer);
         };
-    }, [ms]);
+    }, [key, ms, setReady]);
 
     return ready;
+}
+
+export function useIsMounted() {
+    const isMounted = useRef(true);
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+    return isMounted;
 }

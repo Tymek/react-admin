@@ -1,11 +1,10 @@
 /* eslint react/jsx-key: off */
 import * as React from 'react';
-import PropTypes from 'prop-types';
 import {
+    CanAccess,
     CloneButton,
     DeleteWithConfirmButton,
     Edit,
-    FormTab,
     required,
     SaveButton,
     SelectInput,
@@ -14,18 +13,11 @@ import {
     TextInput,
     Toolbar,
     TopToolbar,
+    useCanAccess,
+    useSaveContext,
 } from 'react-admin';
-import { makeStyles } from '@material-ui/core/styles';
 
-import UserTitle from './UserTitle';
 import Aside from './Aside';
-
-const useToolbarStyles = makeStyles({
-    toolbar: {
-        display: 'flex',
-        justifyContent: 'space-between',
-    },
-});
 
 /**
  * Custom Toolbar for the Edit form
@@ -33,29 +25,37 @@ const useToolbarStyles = makeStyles({
  * Save with undo, but delete with confirm
  */
 const UserEditToolbar = props => {
-    const classes = useToolbarStyles();
     return (
-        <Toolbar {...props} classes={classes}>
+        <Toolbar
+            sx={{ display: 'flex', justifyContent: 'space-between' }}
+            {...props}
+        >
             <SaveButton />
             <DeleteWithConfirmButton />
         </Toolbar>
     );
 };
 
-const EditActions = ({ basePath, data, hasShow }) => (
+const EditActions = () => (
     <TopToolbar>
-        <CloneButton
-            className="button-clone"
-            basePath={basePath}
-            record={data}
-        />
-        <ShowButton basePath={basePath} record={data} />
+        <CloneButton className="button-clone" />
+        <ShowButton />
     </TopToolbar>
 );
 
-const UserEditForm = ({ permissions, save, ...props }) => {
+const UserEditForm = () => {
+    const { isPending, canAccess: canEditRole } = useCanAccess({
+        action: 'edit',
+        resource: 'users.role',
+    });
+    const { save } = useSaveContext();
+    if (isPending) {
+        return null;
+    }
+    if (!save) return null;
+
     const newSave = values =>
-        new Promise((resolve, reject) => {
+        new Promise(resolve => {
             if (values.name === 'test') {
                 return resolve({
                     name: {
@@ -69,21 +69,22 @@ const UserEditForm = ({ permissions, save, ...props }) => {
 
     return (
         <TabbedForm
-            defaultValue={{ role: 'user' }}
+            defaultValues={{ role: 'user' }}
             toolbar={<UserEditToolbar />}
-            {...props}
-            save={newSave}
+            onSubmit={newSave}
         >
-            <FormTab label="user.form.summary" path="">
-                {permissions === 'admin' && <TextInput disabled source="id" />}
+            <TabbedForm.Tab label="user.form.summary" path="">
+                <CanAccess action="edit" resource="users.id">
+                    <TextInput source="id" InputProps={{ disabled: true }} />
+                </CanAccess>
                 <TextInput
                     source="name"
                     defaultValue="slim shady"
                     validate={required()}
                 />
-            </FormTab>
-            {permissions === 'admin' && (
-                <FormTab label="user.form.security" path="security">
+            </TabbedForm.Tab>
+            {canEditRole ? (
+                <TabbedForm.Tab label="user.form.security" path="security">
                     <SelectInput
                         source="role"
                         validate={required()}
@@ -94,29 +95,17 @@ const UserEditForm = ({ permissions, save, ...props }) => {
                         ]}
                         defaultValue={'user'}
                     />
-                </FormTab>
-            )}
+                </TabbedForm.Tab>
+            ) : null}
         </TabbedForm>
     );
 };
-const UserEdit = ({ permissions, ...props }) => {
+const UserEdit = () => {
     return (
-        <Edit
-            title={<UserTitle />}
-            aside={<Aside />}
-            actions={<EditActions />}
-            {...props}
-        >
-            <UserEditForm permissions={permissions} />
+        <Edit aside={<Aside />} actions={<EditActions />}>
+            <UserEditForm />
         </Edit>
     );
-};
-
-UserEdit.propTypes = {
-    id: PropTypes.any.isRequired,
-    location: PropTypes.object.isRequired,
-    match: PropTypes.object.isRequired,
-    permissions: PropTypes.string,
 };
 
 export default UserEdit;

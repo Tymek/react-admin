@@ -1,111 +1,83 @@
 import * as React from 'react';
-import { FC } from 'react';
 import {
     Table,
     TableBody,
     TableCell,
     TableHead,
     TableRow,
-} from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import { Link, FieldProps, useTranslate, useQueryWithStore } from 'react-admin';
+} from '@mui/material';
+import { Link, useTranslate, useGetMany, useRecordContext } from 'react-admin';
 
-import { AppState, Order, Product } from '../types';
+import { Order, Product } from '../types';
+import { TableCellRight } from './TableCellRight';
 
-const useStyles = makeStyles({
-    rightAlignedCell: { textAlign: 'right' },
-});
-
-const Basket: FC<FieldProps<Order>> = ({ record }) => {
-    const classes = useStyles();
+const Basket = () => {
+    const record = useRecordContext<Order>();
     const translate = useTranslate();
 
-    const { loaded, data: products } = useQueryWithStore<AppState>(
-        {
-            type: 'getMany',
-            resource: 'products',
-            payload: {
-                ids: record ? record.basket.map(item => item.product_id) : [],
-            },
-        },
-        {},
-        state => {
-            const productIds = record
-                ? record.basket.map(item => item.product_id)
-                : [];
+    const productIds = record ? record.basket.map(item => item.product_id) : [];
 
-            return productIds
-                .map<Product>(
-                    productId =>
-                        state.admin.resources.products.data[
-                            productId
-                        ] as Product
-                )
-                .filter(r => typeof r !== 'undefined')
-                .reduce((prev, next) => {
-                    prev[next.id] = next;
-                    return prev;
-                }, {} as { [key: string]: Product });
-        }
+    const { isPending, data: products } = useGetMany<Product>(
+        'products',
+        { ids: productIds },
+        { enabled: !!record }
     );
+    const productsById = products
+        ? products.reduce((acc, product) => {
+              acc[product.id] = product;
+              return acc;
+          }, {} as any)
+        : {};
 
-    if (!loaded || !record) return null;
+    if (isPending || !record || !products) return null;
 
     return (
         <Table>
             <TableHead>
                 <TableRow>
                     <TableCell>
-                        {translate(
-                            'resources.commands.fields.basket.reference'
-                        )}
+                        {translate('resources.orders.fields.basket.reference')}
                     </TableCell>
-                    <TableCell className={classes.rightAlignedCell}>
-                        {translate(
-                            'resources.commands.fields.basket.unit_price'
-                        )}
-                    </TableCell>
-                    <TableCell className={classes.rightAlignedCell}>
-                        {translate('resources.commands.fields.basket.quantity')}
-                    </TableCell>
-                    <TableCell className={classes.rightAlignedCell}>
-                        {translate('resources.commands.fields.basket.total')}
-                    </TableCell>
+                    <TableCellRight>
+                        {translate('resources.orders.fields.basket.unit_price')}
+                    </TableCellRight>
+                    <TableCellRight>
+                        {translate('resources.orders.fields.basket.quantity')}
+                    </TableCellRight>
+                    <TableCellRight>
+                        {translate('resources.orders.fields.basket.total')}
+                    </TableCellRight>
                 </TableRow>
             </TableHead>
             <TableBody>
-                {record.basket.map(
-                    (item: any) =>
-                        products[item.product_id] && (
-                            <TableRow key={item.product_id}>
-                                <TableCell>
-                                    <Link to={`/products/${item.product_id}`}>
-                                        {products[item.product_id].reference}
-                                    </Link>
-                                </TableCell>
-                                <TableCell className={classes.rightAlignedCell}>
-                                    {products[
-                                        item.product_id
-                                    ].price.toLocaleString(undefined, {
-                                        style: 'currency',
-                                        currency: 'USD',
-                                    })}
-                                </TableCell>
-                                <TableCell className={classes.rightAlignedCell}>
-                                    {item.quantity}
-                                </TableCell>
-                                <TableCell className={classes.rightAlignedCell}>
-                                    {(
-                                        products[item.product_id].price *
-                                        item.quantity
-                                    ).toLocaleString(undefined, {
-                                        style: 'currency',
-                                        currency: 'USD',
-                                    })}
-                                </TableCell>
-                            </TableRow>
-                        )
-                )}
+                {record.basket.map((item: any) => (
+                    <TableRow key={item.product_id}>
+                        <TableCell>
+                            <Link to={`/products/${item.product_id}`}>
+                                {productsById[item.product_id].reference}
+                            </Link>
+                        </TableCell>
+                        <TableCellRight>
+                            {productsById[item.product_id].price.toLocaleString(
+                                undefined,
+                                {
+                                    style: 'currency',
+                                    currency: 'USD',
+                                }
+                            )}
+                        </TableCellRight>
+                        <TableCellRight>{item.quantity}</TableCellRight>
+                        <TableCellRight>
+                            {(
+                                productsById[item.product_id].price *
+                                item.quantity
+                            ).toLocaleString(undefined, {
+                                style: 'currency',
+                                currency: 'USD',
+                            })}
+                        </TableCellRight>
+                    </TableRow>
+                ))}
             </TableBody>
         </Table>
     );

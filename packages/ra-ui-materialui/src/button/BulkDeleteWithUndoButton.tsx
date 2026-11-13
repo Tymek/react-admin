@@ -1,130 +1,100 @@
 import * as React from 'react';
-import { FC, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import ActionDelete from '@material-ui/icons/Delete';
-import { fade } from '@material-ui/core/styles/colorManipulator';
-import { makeStyles } from '@material-ui/core/styles';
+import ActionDelete from '@mui/icons-material/Delete';
 import {
-    useDeleteMany,
-    useRefresh,
-    useNotify,
-    useUnselectAll,
-    CRUD_DELETE_MANY,
-    useResourceContext,
-    useListContext,
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import {
+    type RaRecord,
+    useBulkDeleteController,
+    UseBulkDeleteControllerParams,
 } from 'ra-core';
 
-import Button, { ButtonProps } from './Button';
-import { BulkActionProps } from '../types';
+import { Button, type ButtonProps } from './Button';
 
-const useStyles = makeStyles(
-    theme => ({
-        deleteButton: {
-            color: theme.palette.error.main,
-            '&:hover': {
-                backgroundColor: fade(theme.palette.error.main, 0.12),
-                // Reset on mouse devices
-                '@media (hover: none)': {
-                    backgroundColor: 'transparent',
-                },
-            },
-        },
-    }),
-    { name: 'RaBulkDeleteWithUndoButton' }
+export const BulkDeleteWithUndoButton = React.forwardRef(
+    function BulkDeleteWithUndoButton(
+        inProps: BulkDeleteWithUndoButtonProps,
+        ref: React.ForwardedRef<HTMLButtonElement>
+    ) {
+        const props = useThemeProps({
+            props: inProps,
+            name: PREFIX,
+        });
+        const {
+            label = 'ra.action.delete',
+            icon = defaultIcon,
+            onClick,
+            ...rest
+        } = props;
+        const { handleDelete, isPending } = useBulkDeleteController(rest);
+
+        const handleClick = e => {
+            handleDelete();
+            if (typeof onClick === 'function') {
+                onClick(e);
+            }
+        };
+
+        return (
+            <StyledButton
+                ref={ref}
+                onClick={handleClick}
+                label={label}
+                disabled={isPending}
+                color="error"
+                {...sanitizeRestProps(rest)}
+            >
+                {icon}
+            </StyledButton>
+        );
+    }
 );
 
-const BulkDeleteWithUndoButton: FC<BulkDeleteWithUndoButtonProps> = props => {
-    const {
-        basePath,
-        classes: classesOverride,
-        icon,
-        label,
-        onClick,
-        ...rest
-    } = props;
-    const { selectedIds } = useListContext(props);
-    const classes = useStyles(props);
-    const notify = useNotify();
-    const unselectAll = useUnselectAll();
-    const refresh = useRefresh();
-    const resource = useResourceContext(props);
-    const [deleteMany, { loading }] = useDeleteMany(resource, selectedIds, {
-        action: CRUD_DELETE_MANY,
-        onSuccess: () => {
-            notify(
-                'ra.notification.deleted',
-                'info',
-                { smart_count: selectedIds.length },
-                true
-            );
-            unselectAll(resource);
-            refresh();
-        },
-        onFailure: error =>
-            notify(
-                typeof error === 'string'
-                    ? error
-                    : error.message || 'ra.notification.http_error',
-                'warning',
-                {
-                    _:
-                        typeof error === 'string'
-                            ? error
-                            : error && error.message
-                            ? error.message
-                            : undefined,
-                }
-            ),
-        undoable: true,
-    });
-
-    const handleClick = e => {
-        deleteMany();
-        if (typeof onClick === 'function') {
-            onClick(e);
-        }
-    };
-
-    return (
-        <Button
-            onClick={handleClick}
-            label={label}
-            className={classes.deleteButton}
-            disabled={loading}
-            {...sanitizeRestProps(rest)}
-        >
-            {icon}
-        </Button>
-    );
-};
+const defaultIcon = <ActionDelete />;
 
 const sanitizeRestProps = ({
-    basePath,
     classes,
-    filterValues,
     label,
-    selectedIds,
+    resource,
+    successMessage,
     ...rest
-}: Omit<BulkDeleteWithUndoButtonProps, 'resource' | 'icon'>) => rest;
+}: Omit<BulkDeleteWithUndoButtonProps, 'icon' | 'mutationMode'>) => rest;
 
-export interface BulkDeleteWithUndoButtonProps
-    extends BulkActionProps,
-        ButtonProps {
-    icon?: ReactElement;
+export interface BulkDeleteWithUndoButtonProps<
+    RecordType extends RaRecord = any,
+    MutationOptionsError = unknown,
+> extends ButtonProps,
+        Omit<
+            UseBulkDeleteControllerParams<RecordType, MutationOptionsError>,
+            'mutationMode'
+        > {
+    icon?: React.ReactNode;
 }
 
-BulkDeleteWithUndoButton.propTypes = {
-    basePath: PropTypes.string,
-    classes: PropTypes.object,
-    label: PropTypes.string,
-    resource: PropTypes.string,
-    selectedIds: PropTypes.arrayOf(PropTypes.any),
-    icon: PropTypes.element,
-};
+const PREFIX = 'RaBulkDeleteWithUndoButton';
 
-BulkDeleteWithUndoButton.defaultProps = {
-    label: 'ra.action.delete',
-    icon: <ActionDelete />,
-};
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(() => ({}));
 
-export default BulkDeleteWithUndoButton;
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaBulkDeleteWithUndoButton: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaBulkDeleteWithUndoButton: Partial<BulkDeleteWithUndoButtonProps>;
+    }
+
+    interface Components {
+        RaBulkDeleteWithUndoButton?: {
+            defaultProps?: ComponentsPropsList['RaBulkDeleteWithUndoButton'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaBulkDeleteWithUndoButton'];
+        };
+    }
+}

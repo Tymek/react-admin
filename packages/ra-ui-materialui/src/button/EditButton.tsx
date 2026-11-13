@@ -1,51 +1,111 @@
 import * as React from 'react';
-import { FC, ReactElement, useMemo } from 'react';
-import PropTypes from 'prop-types';
-import ContentCreate from '@material-ui/icons/Create';
-import { ButtonProps as MuiButtonProps } from '@material-ui/core/Button';
-import { Link } from 'react-router-dom';
-import { linkToRecord, Record, useResourceContext } from 'ra-core';
+import type { ReactNode } from 'react';
+import clsx from 'clsx';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import ContentCreate from '@mui/icons-material/Create';
+import {
+    type RaRecord,
+    useResourceContext,
+    useRecordContext,
+    useCreatePath,
+    useCanAccess,
+    useGetResourceLabel,
+    useGetRecordRepresentation,
+    useResourceTranslation,
+    LinkBase,
+} from 'ra-core';
 
-import Button, { ButtonProps } from './Button';
+import { Button, ButtonProps } from './Button';
 
 /**
- * Opens the Edit view of a given record:
+ * Opens the Edit view for the current record.
+ *
+ * Reads the record and resource from the context.
  *
  * @example // basic usage
  * import { EditButton } from 'react-admin';
  *
- * const CommentEditButton = ({ record }) => (
- *     <EditButton basePath="/comments" label="Edit comment" record={record} />
+ * const CommentEditButton = () => (
+ *     <EditButton label="Edit comment" />
  * );
  */
-const EditButton: FC<EditButtonProps> = ({
-    basePath = '',
-    icon = defaultIcon,
-    label = 'ra.action.edit',
-    record,
-    scrollToTop = true,
-    ...rest
-}) => {
-    const resource = useResourceContext();
+export const EditButton = React.forwardRef(function EditButton<
+    RecordType extends RaRecord = any,
+>(
+    inProps: EditButtonProps<RecordType>,
+    ref: React.ForwardedRef<HTMLAnchorElement>
+) {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const {
+        icon = defaultIcon,
+        label: labelProp,
+        scrollToTop = true,
+        className,
+        ...rest
+    } = props;
+    const resource = useResourceContext(props);
+    if (!resource) {
+        throw new Error(
+            '<EditButton> components should be used inside a <Resource> component or provided with a resource prop. (The <Resource> component set the resource prop for all its children).'
+        );
+    }
+    const record = useRecordContext(props);
+    const createPath = useCreatePath();
+    const { canAccess, isPending } = useCanAccess({
+        action: 'edit',
+        resource,
+        record,
+    });
+    const getResourceLabel = useGetResourceLabel();
+    const getRecordRepresentation = useGetRecordRepresentation();
+    const recordRepresentationValue = getRecordRepresentation(record);
+
+    const recordRepresentation =
+        typeof recordRepresentationValue === 'string'
+            ? recordRepresentationValue
+            : recordRepresentationValue?.toString();
+    const label = useResourceTranslation({
+        resourceI18nKey: `resources.${resource}.action.edit`,
+        baseI18nKey: 'ra.action.edit',
+        options: {
+            name: getResourceLabel(resource, 1),
+            recordRepresentation,
+        },
+        userText: labelProp,
+    });
+
+    if (!record || !canAccess || isPending) return null;
+
     return (
-        <Button
-            component={Link}
-            to={useMemo(
-                () => ({
-                    pathname: record
-                        ? linkToRecord(basePath || `/${resource}`, record.id)
-                        : '',
-                    state: { _scrollToTop: scrollToTop },
-                }),
-                [basePath, record, resource, scrollToTop]
-            )}
-            label={label}
+        <StyledButton
+            component={LinkBase}
+            ref={ref}
+            to={createPath({ type: 'edit', resource, id: record.id })}
+            state={scrollStates[String(scrollToTop)]}
+            // avoid double translation
+            label={<>{label}</>}
+            // If users provide a ReactNode as label, its their responsibility to also provide an aria-label should they need it
+            aria-label={typeof label === 'string' ? label : undefined}
             onClick={stopPropagation}
+            className={clsx(EditButtonClasses.root, className)}
             {...(rest as any)}
         >
             {icon}
-        </Button>
+        </StyledButton>
     );
+});
+
+// avoids using useMemo to get a constant value for the link state
+const scrollStates = {
+    true: { _scrollToTop: true },
+    false: {},
 };
 
 const defaultIcon = <ContentCreate />;
@@ -53,22 +113,43 @@ const defaultIcon = <ContentCreate />;
 // useful to prevent click bubbling in a datagrid with rowClick
 const stopPropagation = e => e.stopPropagation();
 
-interface Props {
-    basePath?: string;
-    icon?: ReactElement;
+interface Props<RecordType extends RaRecord = any> {
+    icon?: ReactNode;
     label?: string;
-    record?: Record;
+    record?: RecordType;
+    resource?: string;
     scrollToTop?: boolean;
 }
 
-export type EditButtonProps = Props & ButtonProps & MuiButtonProps;
+export type EditButtonProps<RecordType extends RaRecord = any> =
+    Props<RecordType> & Omit<ButtonProps<typeof LinkBase>, 'to'>;
 
-EditButton.propTypes = {
-    basePath: PropTypes.string,
-    icon: PropTypes.element,
-    label: PropTypes.string,
-    record: PropTypes.any,
-    scrollToTop: PropTypes.bool,
+const PREFIX = 'RaEditButton';
+
+export const EditButtonClasses = {
+    root: `${PREFIX}-root`,
 };
 
-export default EditButton;
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (_props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaEditButton: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaEditButton: Partial<EditButtonProps>;
+    }
+
+    interface Components {
+        RaEditButton?: {
+            defaultProps?: ComponentsPropsList['RaEditButton'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaEditButton'];
+        };
+    }
+}

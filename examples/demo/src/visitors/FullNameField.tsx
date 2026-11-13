@@ -1,45 +1,46 @@
 import * as React from 'react';
-import { FC, memo } from 'react';
-import { makeStyles } from '@material-ui/core/styles';
+import { SxProps, Typography } from '@mui/material';
+import { memo } from 'react';
 
-import { FieldProps } from 'react-admin';
+import { FieldProps, useRecordContext } from 'react-admin';
 import AvatarField from './AvatarField';
 import { Customer } from '../types';
 
-const useStyles = makeStyles(theme => ({
-    root: {
-        display: 'flex',
-        flexWrap: 'nowrap',
-        alignItems: 'center',
-    },
-    avatar: {
-        marginRight: theme.spacing(1),
-        marginTop: -theme.spacing(0.5),
-        marginBottom: -theme.spacing(0.5),
-    },
-}));
-
 interface Props extends FieldProps<Customer> {
     size?: string;
+    sx?: SxProps;
 }
 
-const FullNameField: FC<Props> = ({ record, size }) => {
-    const classes = useStyles();
+const FullNameField = (props: Props) => {
+    const { size } = props;
+    const record = useRecordContext<Customer>();
     return record ? (
-        <div className={classes.root}>
+        <Typography
+            variant="body2"
+            component="div"
+            sx={[
+                {
+                    display: 'flex',
+                    flexWrap: 'nowrap',
+                    alignItems: 'center',
+                },
+                ...(Array.isArray(props.sx) ? props.sx : [props.sx]),
+            ]}
+        >
             <AvatarField
-                className={classes.avatar}
                 record={record}
                 size={size}
+                sx={{
+                    mr: 1,
+                    mt: -0.5,
+                    mb: -0.5,
+                    textDecoration: 'underline',
+                    textDecorationColor: '#bdbdbd',
+                }}
             />
             {record.first_name} {record.last_name}
-        </div>
+        </Typography>
     ) : null;
-};
-
-FullNameField.defaultProps = {
-    source: 'last_name',
-    label: 'resources.customers.fields.name',
 };
 
 export default memo<Props>(FullNameField);

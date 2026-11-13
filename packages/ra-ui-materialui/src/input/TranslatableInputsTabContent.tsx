@@ -1,99 +1,141 @@
 import * as React from 'react';
+import { type ReactNode, useMemo } from 'react';
 import {
-    Children,
-    cloneElement,
-    isValidElement,
-    ReactElement,
-    ReactNode,
-} from 'react';
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { Stack, type StackProps } from '@mui/material';
+import clsx from 'clsx';
 import {
     FormGroupContextProvider,
-    Record,
+    type RaRecord,
+    RecordContextProvider,
+    SourceContextProvider,
     useRecordContext,
+    useSourceContext,
     useTranslatableContext,
 } from 'ra-core';
-import { makeStyles } from '@material-ui/core/styles';
-import { ClassesOverride } from '../types';
-import { FormInput } from '../form';
-import { useResourceContext } from 'ra-core';
 
 /**
  * Default container for a group of translatable inputs inside a TranslatableInputs component.
  * @see TranslatableInputs
  */
 export const TranslatableInputsTabContent = (
-    props: TranslatableInputsTabContentProps
-): ReactElement => {
-    const {
-        basePath,
-        children,
-        groupKey = '',
-        locale,
-        margin,
-        variant,
-        ...other
-    } = props;
-    const { selectedLocale, getLabel, getSource } = useTranslatableContext();
-    const classes = useStyles(props);
+    inProps: TranslatableInputsTabContentProps
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { children, groupKey = '', locale, ...other } = props;
+    const { selectedLocale, getRecordForLocale } = useTranslatableContext();
+    const parentSourceContext = useSourceContext();
     const record = useRecordContext(props);
-    const resource = useResourceContext(props);
+
+    // The SourceContext will be read by children of TranslatableInputs to compute their composed source and label
+    //
+    // <TranslatableInputs locales={['en', 'fr']} /> => SourceContext is "fr"
+    //     <TextInput source="description" /> => final source for this input will be "description.fr"
+    // </TranslatableInputs>
+    const sourceContext = useMemo(
+        () => ({
+            getSource: (source: string) => {
+                if (!source) {
+                    throw new Error(
+                        'Children of TranslatableInputs must have a source'
+                    );
+                }
+                return parentSourceContext.getSource(`${source}.${locale}`);
+            },
+            getLabel: (source: string) => {
+                return parentSourceContext.getLabel(source);
+            },
+        }),
+        [locale, parentSourceContext]
+    );
+
+    // As fields rely on the RecordContext to get their values and have no knowledge of the locale,
+    // we need to create a new record with the values for the current locale only
+    // Given the record { title: { en: 'title_en', fr: 'title_fr' } } and the locale 'fr',
+    // the record for the locale 'fr' will be { title: 'title_fr' }
+    const recordForLocale = useMemo(
+        () => getRecordForLocale(record, locale),
+        [getRecordForLocale, record, locale]
+    );
 
     return (
         <FormGroupContextProvider name={`${groupKey}${locale}`}>
-            <div
+            <Root
                 role="tabpanel"
-                hidden={selectedLocale !== locale}
                 id={`translatable-content-${groupKey}${locale}`}
                 aria-labelledby={`translatable-header-${groupKey}${locale}`}
-                className={classes.root}
+                className={clsx(TranslatableInputsTabContentClasses.root, {
+                    [TranslatableInputsTabContentClasses.hidden]:
+                        selectedLocale !== locale,
+                })}
                 {...other}
             >
-                {Children.map(children, child =>
-                    isValidElement(child) ? (
-                        <FormInput
-                            basePath={basePath}
-                            input={cloneElement(child, {
-                                ...child.props,
-                                label: getLabel(child.props.source),
-                                source: getSource(child.props.source, locale),
-                            })}
-                            record={record}
-                            resource={resource}
-                            variant={child.props.variant || variant}
-                            margin={child.props.margin || margin}
-                        />
-                    ) : null
-                )}
-            </div>
+                <SourceContextProvider value={sourceContext}>
+                    <RecordContextProvider value={recordForLocale}>
+                        {children}
+                    </RecordContextProvider>
+                </SourceContextProvider>
+            </Root>
         </FormGroupContextProvider>
     );
 };
 
 export type TranslatableInputsTabContentProps<
-    RecordType extends Record | Omit<Record, 'id'> = Record
-> = {
-    basePath?: string;
+    RecordType extends RaRecord | Omit<RaRecord, 'id'> = any,
+> = StackProps & {
     children: ReactNode;
-    classes?: ClassesOverride<typeof useStyles>;
     groupKey?: string;
     locale: string;
     record?: RecordType;
     resource?: string;
-    margin?: 'none' | 'normal' | 'dense';
-    variant?: 'standard' | 'outlined' | 'filled';
 };
 
-const useStyles = makeStyles(
-    theme => ({
-        root: {
-            flexGrow: 1,
-            padding: theme.spacing(2),
-            borderRadius: 0,
-            borderBottomLeftRadius: theme.shape.borderRadius,
-            borderBottomRightRadius: theme.shape.borderRadius,
-            border: `1px solid ${theme.palette.divider}`,
-            borderTop: 0,
-        },
-    }),
-    { name: 'RaTranslatableInputsTabContent' }
-);
+const PREFIX = 'RaTranslatableInputsTabContent';
+
+export const TranslatableInputsTabContentClasses = {
+    root: `${PREFIX}-root`,
+    hidden: `${PREFIX}-hidden`,
+};
+
+const Root = styled(Stack, { name: PREFIX })(({ theme }) => ({
+    [`&.${TranslatableInputsTabContentClasses.root}`]: {
+        flexGrow: 1,
+        paddingLeft: theme.spacing(2),
+        paddingRight: theme.spacing(2),
+        paddingTop: theme.spacing(1),
+        paddingBottom: theme.spacing(1),
+        borderRadius: 0,
+        borderBottomLeftRadius: theme.shape.borderRadius,
+        borderBottomRightRadius: theme.shape.borderRadius,
+        border: `1px solid ${(theme.vars || theme).palette.divider}`,
+        borderTop: 0,
+    },
+    [`&.${TranslatableInputsTabContentClasses.hidden}`]: {
+        display: 'none',
+    },
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaTranslatableInputsTabContent: 'root' | 'hidden';
+    }
+
+    interface ComponentsPropsList {
+        RaTranslatableInputsTabContent: Partial<TranslatableInputsTabContentProps>;
+    }
+
+    interface Components {
+        RaTranslatableInputsTabContent?: {
+            defaultProps?: ComponentsPropsList['RaTranslatableInputsTabContent'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaTranslatableInputsTabContent'];
+        };
+    }
+}

@@ -1,43 +1,41 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import expect from 'expect';
-import { render, waitFor } from '@testing-library/react';
+import { screen, render, waitFor } from '@testing-library/react';
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 
-import useCheckAuth from './useCheckAuth';
-import AuthContext from './AuthContext';
-import useLogout from './useLogout';
-import useNotify from '../sideEffect/useNotify';
+import { useCheckAuth } from './useCheckAuth';
+import { AuthContext } from './AuthContext';
+
+import {
+    BasenameContextProvider,
+    TestMemoryRouter,
+    RouterLocation,
+} from '../routing';
+import { useNotify } from '../notification/useNotify';
 import { AuthProvider } from '../types';
-import { defaultAuthParams } from './useAuthProvider';
 
-jest.mock('./useLogout');
-jest.mock('../sideEffect/useNotify');
+jest.mock('../notification/useNotify');
 
-const logout = jest.fn();
-useLogout.mockImplementation(() => logout);
 const notify = jest.fn();
 useNotify.mockImplementation(() => notify);
 
-const defaultParams = {};
-
 const TestComponent = ({
-    params = defaultParams,
-    logoutOnFailure = true,
-    redirectTo = defaultAuthParams.loginUrl,
-    disableNotification = false,
+    params,
+    logoutOnFailure,
+    redirectTo,
 }: {
     params?: any;
     logoutOnFailure?: boolean;
     redirectTo?: string;
-    disableNotification?: boolean;
 }) => {
     const [authenticated, setAuthenticated] = useState(true);
     const checkAuth = useCheckAuth();
     useEffect(() => {
-        checkAuth(params, logoutOnFailure, redirectTo, disableNotification)
+        checkAuth(params, logoutOnFailure, redirectTo)
             .then(() => setAuthenticated(true))
-            .catch(error => setAuthenticated(false));
-    }, [params, logoutOnFailure, redirectTo, disableNotification, checkAuth]);
+            .catch(() => setAuthenticated(false));
+    }, [params, logoutOnFailure, redirectTo, checkAuth]);
     return <div>{authenticated ? 'authenticated' : 'not authenticated'}</div>;
 };
 
@@ -56,82 +54,135 @@ const authProvider: AuthProvider = {
     getPermissions: () => Promise.reject('not authenticated'),
 };
 
+const queryClient = new QueryClient();
+
 describe('useCheckAuth', () => {
     afterEach(() => {
-        logout.mockClear();
         notify.mockClear();
     });
 
-    it('should not logout if has credentials', async () => {
-        const { queryByText } = render(
-            <AuthContext.Provider value={authProvider}>
-                <TestComponent params={{ token: true }} />
-            </AuthContext.Provider>
+    it('should not logout if user is authenticated', async () => {
+        let location: RouterLocation;
+        render(
+            <TestMemoryRouter
+                initialEntries={['/']}
+                locationCallback={l => {
+                    location = l;
+                }}
+            >
+                <AuthContext.Provider value={authProvider}>
+                    <QueryClientProvider client={queryClient}>
+                        <TestComponent params={{ token: true }} />
+                    </QueryClientProvider>
+                </AuthContext.Provider>
+            </TestMemoryRouter>
         );
         await waitFor(() => {
-            expect(logout).toHaveBeenCalledTimes(0);
             expect(notify).toHaveBeenCalledTimes(0);
-            expect(queryByText('authenticated')).not.toBeNull();
+            expect(screen.queryByText('authenticated')).not.toBeNull();
+            expect(location.pathname).toBe('/');
         });
     });
 
-    it('should logout if has no credentials', async () => {
-        const { queryByText } = render(
-            <AuthContext.Provider value={authProvider}>
-                <TestComponent params={{ token: false }} />
-            </AuthContext.Provider>
+    it('should logout if user is not authenticated', async () => {
+        let location: RouterLocation;
+        render(
+            <TestMemoryRouter
+                initialEntries={['/']}
+                locationCallback={l => {
+                    location = l;
+                }}
+            >
+                <AuthContext.Provider value={authProvider}>
+                    <QueryClientProvider client={queryClient}>
+                        <TestComponent params={{ token: false }} />
+                    </QueryClientProvider>
+                </AuthContext.Provider>
+            </TestMemoryRouter>
         );
         await waitFor(() => {
-            expect(logout).toHaveBeenCalledTimes(1);
             expect(notify).toHaveBeenCalledTimes(1);
-            expect(queryByText('authenticated')).toBeNull();
+            expect(screen.queryByText('authenticated')).toBeNull();
+            expect(location.pathname).toBe('/login');
         });
     });
 
     it('should not logout if has no credentials and passed logoutOnFailure as false', async () => {
-        const { queryByText } = render(
-            <AuthContext.Provider value={authProvider}>
-                <TestComponent
-                    params={{ token: false }}
-                    logoutOnFailure={false}
-                />
-            </AuthContext.Provider>
+        let location: RouterLocation;
+        render(
+            <TestMemoryRouter
+                initialEntries={['/']}
+                locationCallback={l => {
+                    location = l;
+                }}
+            >
+                <AuthContext.Provider value={authProvider}>
+                    <QueryClientProvider client={queryClient}>
+                        <TestComponent
+                            params={{ token: false }}
+                            logoutOnFailure={false}
+                        />
+                    </QueryClientProvider>
+                </AuthContext.Provider>
+            </TestMemoryRouter>
         );
         await waitFor(() => {
-            expect(logout).toHaveBeenCalledTimes(0);
             expect(notify).toHaveBeenCalledTimes(0);
-            expect(queryByText('not authenticated')).not.toBeNull();
-        });
-    });
-
-    it('should logout without showing a notification when disableNotification is true', async () => {
-        const { queryByText } = render(
-            <AuthContext.Provider value={authProvider}>
-                <TestComponent params={{ token: false }} disableNotification />
-            </AuthContext.Provider>
-        );
-        await waitFor(() => {
-            expect(logout).toHaveBeenCalledTimes(1);
-            expect(notify).toHaveBeenCalledTimes(0);
-            expect(queryByText('authenticated')).toBeNull();
+            expect(screen.queryByText('not authenticated')).not.toBeNull();
+            expect(location.pathname).toBe('/');
         });
     });
 
     it('should logout without showing a notification when authProvider returns error with message false', async () => {
-        const { queryByText } = render(
-            <AuthContext.Provider
-                value={{
-                    ...authProvider,
-                    checkAuth: () => Promise.reject({ message: false }),
+        let location: RouterLocation;
+        render(
+            <TestMemoryRouter
+                initialEntries={['/']}
+                locationCallback={l => {
+                    location = l;
                 }}
             >
-                <TestComponent />
-            </AuthContext.Provider>
+                <AuthContext.Provider
+                    value={{
+                        ...authProvider,
+                        checkAuth: () => Promise.reject({ message: false }),
+                    }}
+                >
+                    <QueryClientProvider client={queryClient}>
+                        <TestComponent />
+                    </QueryClientProvider>
+                </AuthContext.Provider>
+            </TestMemoryRouter>
         );
         await waitFor(() => {
-            expect(logout).toHaveBeenCalledTimes(1);
             expect(notify).toHaveBeenCalledTimes(0);
-            expect(queryByText('authenticated')).toBeNull();
+            expect(screen.queryByText('authenticated')).toBeNull();
+            expect(location.pathname).toBe('/login');
+        });
+    });
+
+    it('should take basename into account when redirecting to login', async () => {
+        let location: RouterLocation;
+        render(
+            <TestMemoryRouter
+                initialEntries={['/foo']}
+                locationCallback={l => {
+                    location = l;
+                }}
+            >
+                <BasenameContextProvider basename="/foo">
+                    <AuthContext.Provider value={authProvider}>
+                        <QueryClientProvider client={queryClient}>
+                            <TestComponent params={{ token: false }} />
+                        </QueryClientProvider>
+                    </AuthContext.Provider>
+                </BasenameContextProvider>
+            </TestMemoryRouter>
+        );
+        await waitFor(() => {
+            expect(notify).toHaveBeenCalledTimes(1);
+            expect(screen.queryByText('authenticated')).toBeNull();
+            expect(location.pathname).toBe('/foo/login');
         });
     });
 });

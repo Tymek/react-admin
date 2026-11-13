@@ -6,7 +6,7 @@ This package takes a JSON object as input, then creates a client-side data provi
 
 All operations carried out in react-admin are local to the browser, and last only for the current browser session. A browser refresh erases all modifications.
 
-[![react-admin-demo](https://marmelab.com/react-admin/img/react-admin-demo-still.png)](https://vimeo.com/268958716)
+[![react-admin-demo](https://marmelab.com/react-admin/img/react-admin-demo-still.png)](https://www.youtube.com/watch?v=bJEo1O1oT6o)
 
 ## Installation
 
@@ -90,6 +90,49 @@ const App = () => (
 );
 ```
 
+## Delay
+
+You can pass a delay in milliseconds as the third argument to the constructor. This will simulate a network delay for each request.
+
+```jsx
+// in src/App.js
+import * as React from "react";
+import { Admin, Resource } from 'react-admin';
+import fakeDataProvider from 'ra-data-fakerest';
+
+const dataProvider = fakeDataProvider({ /* data here */ }, false, 1000);
+
+const App = () => (
+    <Admin dataProvider={dataProvider}>
+        // ...
+    </Admin>
+);
+```
+
+### Random delay
+
+You can also pass `true` to use a random delay between 500ms and 1500ms, or an object `{ min: number, max: number }` to specify a custom range.
+
+```jsx
+// random delay between 500ms and 1500ms
+const dataProvider2 = fakeDataProvider({ /* data here */ }, false, true);
+
+// random delay between 200ms and 1000ms
+const dataProvider3 = fakeDataProvider({ /* data here */ }, false, { min: 200, max: 1000 });
+
+// random delay between 0 and 500ms (max only)
+const dataProvider4 = fakeDataProvider({ /* data here */ }, false, { max: 500 });
+```
+
+## Inspecting the Data
+
+`ra-data-fakerest` makes its internal database accessible in the global scope under the `_database` key. You can use it to inspect the data in your browser console.
+
+```js
+_database.getOne('posts', 1);
+// { id: 1, title: 'FooBar' }
+```
+
 ## Features
 
 This data provider uses [FakeRest](https://github.com/marmelab/FakeRest) under the hood. That means that it offers the same features:
@@ -100,6 +143,70 @@ This data provider uses [FakeRest](https://github.com/marmelab/FakeRest) under t
 - filtering by the `q` full-text search
 - filtering numbers and dates greater or less than a value
 - embedding related resources
+
+## Embedding
+
+`ra-data-fakerest` supports [Embedded Relationships](https://marmelab.com/react-admin/DataProviders.html#embedding-relationships). Use the `meta.embed` query parameter to specify the relationships that you want to embed. 
+
+```jsx
+dataProvider.getOne('posts', { id: 1, meta: { embed: ['author'] } });
+// { 
+//    data: { id: 1, title: 'FooBar', author: { id: 1, name: 'John Doe' } },
+// }
+```
+
+You can embed more than one related record, so the `embed` value must be an array. The name of the embedded resource must be singular for a many-to-one relationship, and plural for a one-to-many relationship.
+
+```
+{ meta: { embed: ['author', 'comments'] } }
+```
+
+You can leverage this feature in page components to avoid multiple requests to the data provider:
+
+```jsx
+const PostList = () => (
+    <List queryOptions={{ meta: { embed: ['author'] } }}>
+        <DataTable>
+            <DataTable.Col source="title" />
+            <DataTable.Col source="author.name" />
+        </DataTable>
+    </List>
+);
+```
+
+Embedding Relationships is supported in `getList`, `getOne`, `getMany`, and `getManyReference` queries.
+
+## Prefetching
+
+`ra-data-fakerest` also supports [Prefetching Relationships](https://marmelab.com/react-admin/DataProviders.html#prefetching-relationships) to pre-populate the query cache with related resources. Use the `meta.prefetch` query parameter to specify the relationships that you want to prefetch.
+
+```jsx
+dataProvider.getOne('posts', { id: 1, meta: { prefetch: ['author'] } });
+// { 
+//    data: { id: 1, title: 'FooBar', author_id: 1 },
+//    meta: {
+//      prefetched: {
+//        authors: [{ id: 1, name: 'John Doe' }]
+//      }
+//    }
+// }
+```
+
+Prefetching is useful to avoid additional requests when rendering a list of resources with related resources using a `<ReferenceField>` component:
+
+```jsx
+const PostList = () => (
+    <List queryOptions={{ meta: { prefetch: ['author'] } }}>
+        <Datagrid>
+            <TextField source="title" />
+            {/** renders without an additional request */}
+            <ReferenceField source="author_id" reference="authors" />
+        </Datagrid>
+    </List>
+);
+```
+
+Prefetching Relationships is supported in `getList`, `getOne`, `getMany`, and `getManyReference` queries.
 
 ## License
 

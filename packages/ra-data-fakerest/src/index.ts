@@ -1,8 +1,8 @@
-import FakeRest from 'fakerest';
+import { Database } from 'fakerest';
 import { DataProvider } from 'ra-core';
 
-/* eslint-disable no-console */
 function log(type, resource, params, response) {
+    // @ts-ignore
     if (console.group) {
         // Better logging in Chrome
         console.groupCollapsed(type, resource, JSON.stringify(params));
@@ -12,6 +12,33 @@ function log(type, resource, params, response) {
         console.log('FakeRest request ', type, resource, params);
         console.log('FakeRest response', response);
     }
+}
+
+type Delay = number | boolean | { min?: number; max?: number };
+
+function delayed<T>(response: T, delay?: Delay): T | Promise<T> {
+    let min = 0,
+        max = 0;
+    if (typeof delay === 'number') {
+        min = max = delay;
+    } else if (delay === true) {
+        min = 500;
+        max = 1500;
+    } else if (delay) {
+        min = delay.min ?? 0;
+        max = delay.max ?? min;
+    }
+
+    // If there is no delay, we return the value right away/
+    // This saves a tick in unit tests.
+    if (max === 0) return response;
+
+    const milliseconds =
+        min === max ? min : min + Math.floor(Math.random() * (max - min + 1));
+
+    return new Promise<T>(resolve =>
+        setTimeout(() => resolve(response), milliseconds)
+    );
 }
 
 /**
@@ -33,12 +60,11 @@ function log(type, resource, params, response) {
  *   ],
  * })
  */
-export default (data, loggingEnabled = false): DataProvider => {
-    const restServer = new FakeRest.Server();
-    restServer.init(data);
+export default (data, loggingEnabled = false, delay?: Delay): DataProvider => {
+    const database = new Database({ data });
     if (typeof window !== 'undefined') {
         // give way to update data in the console
-        (window as any).restServer = restServer;
+        (window as any)._database = database;
     }
 
     function getResponse(type, resource, params) {
@@ -47,64 +73,148 @@ export default (data, loggingEnabled = false): DataProvider => {
                 const { page, perPage } = params.pagination;
                 const { field, order } = params.sort;
                 const query = {
-                    sort: [field, order],
-                    range: [(page - 1) * perPage, page * perPage - 1],
+                    sort: [field, order] as [string, 'asc' | 'desc'],
+                    range: [(page - 1) * perPage, page * perPage - 1] as [
+                        number,
+                        number,
+                    ],
                     filter: params.filter,
+                    embed: getEmbedParam(
+                        params.meta?.embed,
+                        params.meta?.prefetch
+                    ),
                 };
-                return {
-                    data: restServer.getAll(resource, query),
-                    total: restServer.getCount(resource, {
-                        filter: params.filter,
-                    }),
-                };
+                const data = database.getAll(resource, query);
+                const prefetched = getPrefetchedData(
+                    data,
+                    params.meta?.prefetch
+                );
+                return delayed(
+                    {
+                        data: removePrefetchedData(data, params.meta?.prefetch),
+                        total: database.getCount(resource, {
+                            filter: params.filter,
+                        }),
+                        meta: params.meta?.prefetch
+                            ? { prefetched }
+                            : undefined,
+                    },
+                    delay
+                );
             }
-            case 'getOne':
-                return {
-                    data: restServer.getOne(resource, params.id, { ...params }),
-                };
-            case 'getMany':
-                return {
-                    data: restServer.getAll(resource, {
-                        filter: { id: params.ids },
-                    }),
-                };
+            case 'getOne': {
+                const data = database.getOne(resource, params.id, {
+                    ...params,
+                    embed: getEmbedParam(
+                        params.meta?.embed,
+                        params.meta?.prefetch
+                    ),
+                });
+                const prefetched = getPrefetchedData(
+                    data,
+                    params.meta?.prefetch
+                );
+                return delayed(
+                    {
+                        data: removePrefetchedData(data, params.meta?.prefetch),
+                        meta: params.meta?.prefetch
+                            ? { prefetched }
+                            : undefined,
+                    },
+                    delay
+                );
+            }
+            case 'getMany': {
+                const data = params.ids.map(id =>
+                    database.getOne(resource, id, {
+                        ...params,
+                        embed: getEmbedParam(
+                            params.meta?.embed,
+                            params.meta?.prefetch
+                        ),
+                    })
+                );
+                const prefetched = getPrefetchedData(
+                    data,
+                    params.meta?.prefetch
+                );
+                return delayed(
+                    {
+                        data: removePrefetchedData(data, params.meta?.prefetch),
+                        meta: params.meta?.prefetch
+                            ? { prefetched }
+                            : undefined,
+                    },
+                    delay
+                );
+            }
             case 'getManyReference': {
                 const { page, perPage } = params.pagination;
                 const { field, order } = params.sort;
                 const query = {
-                    sort: [field, order],
-                    range: [(page - 1) * perPage, page * perPage - 1],
+                    sort: [field, order] as [string, 'asc' | 'desc'],
+                    range: [(page - 1) * perPage, page * perPage - 1] as [
+                        number,
+                        number,
+                    ],
                     filter: { ...params.filter, [params.target]: params.id },
+                    embed: getEmbedParam(
+                        params.meta?.embed,
+                        params.meta?.prefetch
+                    ),
                 };
-                return {
-                    data: restServer.getAll(resource, query),
-                    total: restServer.getCount(resource, {
-                        filter: query.filter,
-                    }),
-                };
+                const data = database.getAll(resource, query);
+                const prefetched = getPrefetchedData(
+                    data,
+                    params.meta?.prefetch
+                );
+                return delayed(
+                    {
+                        data: removePrefetchedData(data, params.meta?.prefetch),
+                        total: database.getCount(resource, {
+                            filter: query.filter,
+                        }),
+                        meta: params.meta?.prefetch
+                            ? { prefetched }
+                            : undefined,
+                    },
+                    delay
+                );
             }
             case 'update':
-                return {
-                    data: restServer.updateOne(resource, params.id, {
-                        ...params.data,
-                    }),
-                };
+                return delayed(
+                    {
+                        data: database.updateOne(
+                            resource,
+                            params.id,
+                            cleanupData(params.data)
+                        ),
+                    },
+                    delay
+                );
             case 'updateMany':
                 params.ids.forEach(id =>
-                    restServer.updateOne(resource, id, {
-                        ...params.data,
-                    })
+                    database.updateOne(resource, id, cleanupData(params.data))
                 );
-                return { data: params.ids };
+                return delayed({ data: params.ids }, delay);
             case 'create':
-                return {
-                    data: restServer.addOne(resource, { ...params.data }),
-                };
+                return delayed(
+                    {
+                        data: database.addOne(
+                            resource,
+                            cleanupData(params.data)
+                        ),
+                    },
+                    delay
+                );
             case 'delete':
-                return { data: restServer.removeOne(resource, params.id) };
+                return delayed(
+                    { data: database.removeOne(resource, params.id) },
+                    delay
+                );
             case 'deleteMany':
-                params.ids.forEach(id => restServer.removeOne(resource, id));
-                return { data: params.ids };
+                params.ids.forEach(id => database.removeOne(resource, id));
+                return delayed({ data: params.ids }, delay);
             default:
                 return false;
         }
@@ -116,26 +226,27 @@ export default (data, loggingEnabled = false): DataProvider => {
      * @param {Object} params The data request params, depending on the type
      * @returns {Promise} The response
      */
-    const handle = (type, resource, params): Promise<any> => {
-        const collection = restServer.getCollection(resource);
+    const handle = async (type, resource, params): Promise<any> => {
+        const collection = database.getCollection(resource);
         if (!collection && type !== 'create') {
             const error = new UndefinedResourceError(
                 `Undefined collection "${resource}"`
             );
             error.code = 1; // make that error detectable
-            return Promise.reject(error);
+            throw error;
         }
         let response;
         try {
-            response = getResponse(type, resource, params);
+            response = await getResponse(type, resource, params);
         } catch (error) {
             console.error(error);
-            return Promise.reject(error);
+            throw error;
         }
         if (loggingEnabled) {
-            log(type, resource, params, response);
+            const { signal, ...paramsWithoutSignal } = params;
+            log(type, resource, paramsWithoutSignal, response);
         }
-        return Promise.resolve(response);
+        return response;
     };
 
     return {
@@ -153,6 +264,92 @@ export default (data, loggingEnabled = false): DataProvider => {
             handle('deleteMany', resource, params),
     };
 };
+
+function getEmbedParam(embed: string[], prefetch: string[]) {
+    if (!embed && !prefetch) return;
+    const param = new Set<string>();
+    if (embed) embed.forEach(e => param.add(e));
+    if (prefetch) prefetch.forEach(e => param.add(e));
+    return Array.from(param);
+}
+
+/**
+ * Extract embeds from FakeRest responses
+ *
+ * When calling FakeRest database.getOne('comments', 123, { embed: 'post' }),
+ * the FakeRest response adds a `post` key to the response, containing the
+ * related post. Something like:
+ *
+ *     { id: 123, body: 'Nice post!', post: { id: 1, title: 'Hello, world' } }
+ *
+ * We want to copy all the embeds in a data object, that will later
+ * be included into the response meta.prefetched key.
+ *
+ * @example getPrefetchedData({ id: 123, body: 'Nice post!', post: { id: 1, title: 'Hello, world' } }, ['post'])
+ * // {
+ * //   posts: [{ id: 1, title: 'Hello, world' }] }
+ * // }
+ */
+const getPrefetchedData = (data, prefetchParam?: string[]) => {
+    if (!prefetchParam) return undefined;
+    const prefetched = {};
+    const dataArray = Array.isArray(data) ? data : [data];
+    prefetchParam.forEach(name => {
+        const resource = name.endsWith('s') ? name : `${name}s`;
+        dataArray.forEach(record => {
+            if (!prefetched[resource]) {
+                prefetched[resource] = [];
+            }
+            if (prefetched[resource].some(r => r.id === record[name].id)) {
+                // do not add the record if it's already there
+                return;
+            }
+            prefetched[resource].push(record[name]);
+        });
+    });
+
+    return prefetched;
+};
+
+/**
+ * Remove embeds from FakeRest responses
+ *
+ * When calling FakeRest database.getOne('comments', 123, { embed: 'post' }),
+ * the FakeRest response adds a `post` key to the response, containing the
+ * related post. Something like:
+ *
+ *     { id: 123, body: 'Nice post!', post: { id: 1, title: 'Hello, world' } }
+ *
+ * We want to remove all the embeds from the response.
+ *
+ * @example removePrefetchedData({ id: 123, body: 'Nice post!', post: { id: 1, title: 'Hello, world' } }, 'post')
+ * // { id: 123, body: 'Nice post!' }
+ */
+const removePrefetchedData = (data, prefetchParam?: string[]) => {
+    if (!prefetchParam) return data;
+    const dataArray = Array.isArray(data) ? data : [data];
+    const newDataArray = dataArray.map(record => {
+        const newRecord = {};
+        for (const key in record) {
+            if (!prefetchParam.includes(key)) {
+                newRecord[key] = record[key];
+            }
+        }
+        return newRecord;
+    });
+    return Array.isArray(data) ? newDataArray : newDataArray[0];
+};
+
+/**
+ * Clone the data and ignore undefined values.
+ *
+ * If we don't do this, an update with { id: undefined } as payload
+ * would remove the id from the record, which no real data provider does.
+ *
+ * Also, this is a way to ensure we don't keep a reference to the data
+ * and that the data is not mutated.
+ */
+const cleanupData = <T>(data: T): T => JSON.parse(JSON.stringify(data));
 
 class UndefinedResourceError extends Error {
     code: number;

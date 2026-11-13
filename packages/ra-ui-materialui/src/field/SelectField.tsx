@@ -1,12 +1,20 @@
 import * as React from 'react';
-import { FC, memo } from 'react';
-import PropTypes from 'prop-types';
-import get from 'lodash/get';
-import { ChoicesProps, useChoices, useRecordContext } from 'ra-core';
-import { Typography, TypographyProps } from '@material-ui/core';
+import {
+    ChoicesProps,
+    useChoices,
+    useFieldValue,
+    useTranslate,
+    genericMemo,
+} from 'ra-core';
+import { Typography, TypographyProps } from '@mui/material';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import { FieldProps } from './types';
 
 /**
  * Display a value in an enumeration
@@ -43,14 +51,17 @@ import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
  * const optionRenderer = choice => `${choice.first_name} ${choice.last_name}`;
  * <SelectField source="author_id" choices={choices} optionText={optionRenderer} />
  *
- * `optionText` also accepts a React Element, that will be cloned and receive
- * the related choice as the `record` prop. You can use Field components there.
+ * `optionText` also accepts a React Element, that can access
+ * the related choice through the `useRecordContext` hook. You can use Field components there.
  * @example
  * const choices = [
  *    { id: 123, first_name: 'Leo', last_name: 'Tolstoi' },
  *    { id: 456, first_name: 'Jane', last_name: 'Austen' },
  * ];
- * const FullNameField = ({ record }) => <Chip>{record.first_name} {record.last_name}</Chip>;
+ * const FullNameField = () => {
+ *     const record = useRecordContext();
+ *     return (<Chip>{record.first_name} {record.last_name}</Chip>)
+ * };
  * <SelectField source="gender" choices={choices} optionText={<FullNameField />}/>
  *
  * The current choice is translated by default, so you can use translation identifiers as choices:
@@ -67,86 +78,97 @@ import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
  *
  * **Tip**: <ReferenceField> sets `translateChoice` to false by default.
  */
-export const SelectField: FC<SelectFieldProps> = memo<SelectFieldProps>(
-    props => {
-        const {
-            className,
-            emptyText,
-            source,
-            choices,
-            optionValue,
-            optionText,
-            translateChoice,
-            ...rest
-        } = props;
-        const record = useRecordContext(props);
-        const value = get(record, source);
-        const { getChoiceText, getChoiceValue } = useChoices({
-            optionText,
-            optionValue,
-            translateChoice,
-        });
+const SelectFieldImpl = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: SelectFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
 
-        const choice = choices.find(choice => getChoiceValue(choice) === value);
+    const {
+        className,
+        emptyText,
+        choices,
+        optionValue = 'id',
+        optionText = 'name',
+        translateChoice = true,
+        ...rest
+    } = props;
+    const value = useFieldValue(props);
 
-        if (!choice) {
-            return emptyText ? (
-                <Typography
-                    component="span"
-                    variant="body2"
-                    className={className}
-                    {...sanitizeFieldRestProps(rest)}
-                >
-                    {emptyText}
-                </Typography>
-            ) : null;
-        }
+    const { getChoiceText, getChoiceValue } = useChoices({
+        optionText,
+        optionValue,
+        translateChoice,
+    });
+    const translate = useTranslate();
 
-        let choiceText = getChoiceText(choice);
+    const choice = choices
+        ? choices.find(choice => getChoiceValue(choice) === value)
+        : null;
 
-        return (
+    if (!choice) {
+        return emptyText ? (
             <Typography
                 component="span"
                 variant="body2"
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {choiceText}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
-        );
+        ) : null;
     }
-);
 
-SelectField.defaultProps = {
-    optionText: 'name',
-    optionValue: 'id',
-    translateChoice: true,
+    const choiceText = getChoiceText(choice);
+
+    return (
+        <StyledTypography
+            component="span"
+            variant="body2"
+            className={className}
+            {...sanitizeFieldRestProps(rest)}
+        >
+            {choiceText}
+        </StyledTypography>
+    );
 };
 
-SelectField.defaultProps = {
-    addLabel: true,
-};
+SelectFieldImpl.displayName = 'SelectFieldImpl';
 
-SelectField.propTypes = {
-    // @ts-ignore
-    ...Typography.propTypes,
-    ...fieldPropTypes,
-    choices: PropTypes.arrayOf(PropTypes.object).isRequired,
-    optionText: PropTypes.oneOfType([
-        PropTypes.string,
-        PropTypes.func,
-        PropTypes.element,
-    ]),
-    optionValue: PropTypes.string,
-    translateChoice: PropTypes.bool,
-};
+export const SelectField = genericMemo(SelectFieldImpl);
 
-export interface SelectFieldProps
-    extends ChoicesProps,
-        PublicFieldProps,
-        InjectedFieldProps,
-        TypographyProps {}
+export interface SelectFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends Omit<ChoicesProps, 'disableValue'>,
+        FieldProps<RecordType>,
+        Omit<TypographyProps, 'textAlign'> {}
 
-SelectField.displayName = 'SelectField';
+const PREFIX = 'RaSelectField';
 
-export default SelectField;
+const StyledTypography = styled(Typography, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<SelectFieldProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

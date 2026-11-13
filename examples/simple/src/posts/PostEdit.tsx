@@ -1,28 +1,28 @@
-import RichTextInput from 'ra-input-rich-text';
 import * as React from 'react';
+import { RichTextInput } from 'ra-input-rich-text';
 import {
     TopToolbar,
     AutocompleteInput,
     ArrayInput,
     BooleanInput,
     CheckboxGroupInput,
-    Datagrid,
+    DataTable,
     DateField,
     DateInput,
     Edit,
     CloneButton,
+    CreateButton,
     ShowButton,
     EditButton,
-    FormTab,
     ImageField,
     ImageInput,
     NumberInput,
     ReferenceManyField,
+    ReferenceManyCount,
     ReferenceInput,
     SelectInput,
     SimpleFormIterator,
     TabbedForm,
-    TextField,
     TextInput,
     minValue,
     number,
@@ -30,7 +30,8 @@ import {
     FormDataConsumer,
     useCreateSuggestionContext,
     EditActionsProps,
-} from 'react-admin'; // eslint-disable-line import/no-unresolved
+    CanAccess,
+} from 'react-admin';
 import {
     Box,
     BoxProps,
@@ -39,8 +40,7 @@ import {
     DialogActions,
     DialogContent,
     TextField as MuiTextField,
-} from '@material-ui/core';
-
+} from '@mui/material';
 import PostTitle from './PostTitle';
 import TagReferenceInput from './TagReferenceInput';
 
@@ -79,175 +79,172 @@ const CreateCategory = ({
     );
 };
 
-const EditActions = ({ basePath, data, hasShow }: EditActionsProps) => (
+const EditActions = ({ hasShow }: EditActionsProps) => (
     <TopToolbar>
-        <CloneButton
-            className="button-clone"
-            basePath={basePath}
-            record={data}
-        />
-        {hasShow && <ShowButton basePath={basePath} record={data} />}
+        <CloneButton className="button-clone" />
+        {hasShow && <ShowButton />}
+        {/* FIXME: added because react-router HashHistory cannot block navigation induced by address bar changes */}
+        <CreateButton />
     </TopToolbar>
 );
 
 const SanitizedBox = ({
     fullWidth,
-    basePath,
     ...props
-}: BoxProps & { fullWidth?: boolean; basePath?: string }) => <Box {...props} />;
+}: BoxProps & { fullWidth?: boolean }) => <Box {...props} />;
 
 const categories = [
     { name: 'Tech', id: 'tech' },
     { name: 'Lifestyle', id: 'lifestyle' },
 ];
 
-const PostEdit = ({ permissions, ...props }) => {
-    return (
-        <Edit title={<PostTitle />} actions={<EditActions />} {...props}>
-            <TabbedForm
-                initialValues={{ average_note: 0 }}
-                warnWhenUnsavedChanges
-            >
-                <FormTab label="post.form.summary">
-                    <SanitizedBox
-                        display="flex"
-                        flexDirection="column"
-                        width="100%"
-                        justifyContent="space-between"
-                        fullWidth
-                    >
-                        <TextInput disabled source="id" />
-                        <TextInput
-                            source="title"
-                            validate={required()}
-                            resettable
-                        />
-                    </SanitizedBox>
+const PostEdit = () => (
+    <Edit title={<PostTitle />} actions={<EditActions />}>
+        <TabbedForm defaultValues={{ average_note: 0 }} warnWhenUnsavedChanges>
+            <TabbedForm.Tab label="post.form.summary">
+                <SanitizedBox
+                    display="flex"
+                    flexDirection="column"
+                    width="100%"
+                    justifyContent="space-between"
+                    fullWidth
+                >
+                    <TextInput InputProps={{ disabled: true }} source="id" />
                     <TextInput
-                        multiline={true}
-                        fullWidth={true}
-                        source="teaser"
+                        source="title"
                         validate={required()}
                         resettable
                     />
-                    <CheckboxGroupInput
-                        source="notifications"
-                        choices={[
-                            { id: 12, name: 'Ray Hakt' },
-                            { id: 31, name: 'Ann Gullar' },
-                            { id: 42, name: 'Sean Phonee' },
-                        ]}
-                    />
-                    <ImageInput multiple source="pictures" accept="image/*">
-                        <ImageField source="src" title="title" />
-                    </ImageInput>
-                    {permissions === 'admin' && (
-                        <ArrayInput source="authors">
-                            <SimpleFormIterator>
-                                <ReferenceInput
-                                    label="User"
-                                    source="user_id"
-                                    reference="users"
-                                >
-                                    <AutocompleteInput />
-                                </ReferenceInput>
-                                <FormDataConsumer>
-                                    {({
-                                        formData,
-                                        scopedFormData,
-                                        getSource,
-                                        ...rest
-                                    }) =>
-                                        scopedFormData &&
-                                        scopedFormData.user_id ? (
-                                            <SelectInput
-                                                label="Role"
-                                                source={getSource('role')}
-                                                choices={[
-                                                    {
-                                                        id: 'headwriter',
-                                                        name: 'Head Writer',
-                                                    },
-                                                    {
-                                                        id: 'proofreader',
-                                                        name: 'Proof reader',
-                                                    },
-                                                    {
-                                                        id: 'cowriter',
-                                                        name: 'Co-Writer',
-                                                    },
-                                                ]}
-                                                {...rest}
-                                            />
-                                        ) : null
-                                    }
-                                </FormDataConsumer>
-                            </SimpleFormIterator>
-                        </ArrayInput>
-                    )}
-                </FormTab>
-                <FormTab label="post.form.body">
-                    <RichTextInput
-                        source="body"
-                        label=""
-                        validate={required()}
-                        addLabel={false}
-                    />
-                </FormTab>
-                <FormTab label="post.form.miscellaneous">
-                    <TagReferenceInput
-                        reference="tags"
-                        source="tags"
-                        label="Tags"
-                    />
-                    <ArrayInput source="backlinks">
-                        <SimpleFormIterator>
-                            <DateInput source="date" />
-                            <TextInput source="url" validate={required()} />
+                </SanitizedBox>
+                <TextInput
+                    multiline
+                    source="teaser"
+                    validate={required()}
+                    resettable
+                />
+                <CheckboxGroupInput
+                    source="notifications"
+                    choices={[
+                        { id: 12, name: 'Ray Hakt' },
+                        { id: 31, name: 'Ann Gullar' },
+                        { id: 42, name: 'Sean Phonee' },
+                    ]}
+                />
+                <ImageInput
+                    multiple
+                    source="pictures"
+                    accept={{ 'image/*': ['.jpeg', '.png', '.jpg'] }}
+                    helperText=""
+                >
+                    <ImageField source="src" title="title" />
+                </ImageInput>
+                <CanAccess action="edit" resource="posts.authors">
+                    <ArrayInput source="authors">
+                        <SimpleFormIterator inline>
+                            <ReferenceInput source="user_id" reference="users">
+                                <AutocompleteInput helperText={false} />
+                            </ReferenceInput>
+                            <FormDataConsumer>
+                                {({ scopedFormData }) =>
+                                    scopedFormData && scopedFormData.user_id ? (
+                                        <SelectInput
+                                            source="source"
+                                            choices={[
+                                                {
+                                                    id: 'headwriter',
+                                                    name: 'Head Writer',
+                                                },
+                                                {
+                                                    id: 'proofreader',
+                                                    name: 'Proof reader',
+                                                },
+                                                {
+                                                    id: 'cowriter',
+                                                    name: 'Co-Writer',
+                                                },
+                                            ]}
+                                            helperText={false}
+                                        />
+                                    ) : null
+                                }
+                            </FormDataConsumer>
                         </SimpleFormIterator>
                     </ArrayInput>
-                    <DateInput
-                        source="published_at"
-                        options={{ locale: 'pt' }}
-                    />
-                    <SelectInput
-                        create={
-                            <CreateCategory
-                                // Added on the component because we have to update the choices
-                                // ourselves as we don't use a ReferenceInput
-                                onAddChoice={choice => categories.push(choice)}
-                            />
-                        }
-                        allowEmpty
-                        resettable
-                        source="category"
-                        choices={categories}
-                    />
-                    <NumberInput
-                        source="average_note"
-                        validate={[required(), number(), minValue(0)]}
-                    />
-                    <BooleanInput source="commentable" defaultValue />
-                    <TextInput disabled source="views" />
-                </FormTab>
-                <FormTab label="post.form.comments">
-                    <ReferenceManyField
+                </CanAccess>
+            </TabbedForm.Tab>
+            <TabbedForm.Tab label="post.form.body">
+                <RichTextInput
+                    source="body"
+                    label={false}
+                    validate={required()}
+                    fullWidth
+                />
+            </TabbedForm.Tab>
+            <TabbedForm.Tab label="post.form.miscellaneous">
+                <TagReferenceInput
+                    reference="tags"
+                    source="tags"
+                    label="Tags"
+                />
+                <ArrayInput source="backlinks">
+                    <SimpleFormIterator>
+                        <DateInput source="date" />
+                        <TextInput source="url" validate={required()} />
+                    </SimpleFormIterator>
+                </ArrayInput>
+                <DateInput source="published_at" />
+                <SelectInput
+                    create={
+                        <CreateCategory
+                            // Added on the component because we have to update the choices
+                            // ourselves as we don't use a ReferenceInput
+                            onAddChoice={choice => categories.push(choice)}
+                        />
+                    }
+                    resettable
+                    source="category"
+                    choices={categories}
+                />
+                <NumberInput
+                    source="average_note"
+                    validate={[required(), number(), minValue(0)]}
+                />
+                <BooleanInput source="commentable" defaultValue />
+                <TextInput InputProps={{ disabled: true }} source="views" />
+                <ArrayInput source="pictures">
+                    <SimpleFormIterator>
+                        <TextInput source="url" defaultValue="" />
+                        <ArrayInput source="metas.authors">
+                            <SimpleFormIterator>
+                                <TextInput source="name" defaultValue="" />
+                            </SimpleFormIterator>
+                        </ArrayInput>
+                    </SimpleFormIterator>
+                </ArrayInput>
+            </TabbedForm.Tab>
+            <TabbedForm.Tab
+                label="post.form.comments"
+                count={
+                    <ReferenceManyCount
                         reference="comments"
                         target="post_id"
-                        addLabel={false}
-                        fullWidth
-                    >
-                        <Datagrid>
-                            <DateField source="created_at" />
-                            <TextField source="author.name" />
-                            <TextField source="body" />
+                        sx={{ lineHeight: 'inherit' }}
+                    />
+                }
+            >
+                <ReferenceManyField reference="comments" target="post_id">
+                    <DataTable>
+                        <DataTable.Col source="created_at" field={DateField} />
+                        <DataTable.Col source="author.name" />
+                        <DataTable.Col source="body" />
+                        <DataTable.Col>
                             <EditButton />
-                        </Datagrid>
-                    </ReferenceManyField>
-                </FormTab>
-            </TabbedForm>
-        </Edit>
-    );
-};
+                        </DataTable.Col>
+                    </DataTable>
+                </ReferenceManyField>
+            </TabbedForm.Tab>
+        </TabbedForm>
+    </Edit>
+);
 
 export default PostEdit;

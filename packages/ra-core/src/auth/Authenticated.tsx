@@ -1,12 +1,7 @@
-import { cloneElement, ReactElement, FunctionComponent } from 'react';
+import * as React from 'react';
+import { ReactNode } from 'react';
 
-import useAuthenticated from './useAuthenticated';
-
-interface Props {
-    children: ReactElement<any>;
-    authParams?: object;
-    location?: object; // kept for backwards compatibility, unused
-}
+import { useAuthenticated } from './useAuthenticated';
 
 /**
  * Restrict access to children to authenticated users.
@@ -15,37 +10,46 @@ interface Props {
  * Use it to decorate your custom page components to require
  * authentication.
  *
- * You can set additional `authParams` at will if your authProvider
- * requires it.
- *
- * @see useAuthenticated
+ * @see useAuthState
  *
  * @example
- *     import { Authenticated } from 'react-admin';
+ * import { Admin, CustomRoutes, Authenticated } from 'react-admin';
  *
- *     const CustomRoutes = [
- *         <Route path="/foo" render={() =>
+ * const customRoutes = [
+ *     <Route
+ *         path="/foo"
+ *         element={
  *             <Authenticated authParams={{ foo: 'bar' }}>
  *                 <Foo />
  *             </Authenticated>
- *         } />
- *     ];
- *     const App = () => (
- *         <Admin customRoutes={customRoutes}>
- *             ...
- *         </Admin>
- *     );
+ *         }
+ *     />
+ * ];
+ * const App = () => (
+ *     <Admin>
+ *         <CustomRoutes>{customRoutes}</CustomRoutes>
+ *     </Admin>
+ * );
  */
-const Authenticated: FunctionComponent<Props> = ({
-    authParams,
-    children,
-    location, // kept for backwards compatibility, unused
-    ...rest
-}) => {
-    useAuthenticated(authParams);
-    // render the child even though the useAuthenticated() call isn't finished (optimistic rendering)
-    // the above hook will log out if the authProvider doesn't validate that the user is authenticated
-    return cloneElement(children, rest);
+export const Authenticated = (props: AuthenticatedProps) => {
+    const { authParams, loading = null, children } = props;
+
+    // this hook will redirect to login if the user is not authenticated
+    const { isPending, isError } = useAuthenticated({ params: authParams });
+
+    if (isPending || isError) {
+        return loading;
+    }
+
+    return <>{children}</>;
 };
 
-export default Authenticated;
+export interface AuthenticatedProps {
+    children: ReactNode;
+    authParams?: object;
+    loading?: ReactNode;
+    /**
+     * @deprecated Authenticated now never renders children when not authenticated.
+     */
+    requireAuth?: boolean;
+}

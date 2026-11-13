@@ -1,11 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import {
+    useQuery,
+    UseQueryOptions,
+    QueryObserverResult,
+} from '@tanstack/react-query';
+
 import useAuthProvider from './useAuthProvider';
 import { UserIdentity } from '../types';
-import { useSafeSetState } from '../util/hooks';
+import { useEvent } from '../util';
 
-const defaultIdentity = {
+const defaultIdentity: UserIdentity = {
     id: '',
-    fullName: null,
+};
+const defaultQueryParams = {
+    staleTime: 5 * 60 * 1000,
 };
 
 /**
@@ -13,21 +21,20 @@ const defaultIdentity = {
  *
  * The return value updates according to the call state:
  *
- * - mount: { loading: true, loaded: false }
- * - success: { identity: Identity, loading: false, loaded: true }
- * - error: { error: Error, loading: false, loaded: true }
+ * - mount: { isPending: true }
+ * - success: { identity, refetch: () => {}, isPending: false }
+ * - error: { error: Error, isPending: false }
  *
  * The implementation is left to the authProvider.
  *
- * @returns The current user identity. Destructure as { identity, error, loading, loaded }.
+ * @returns The current user identity. Destructure as { isPending, identity, error, refetch }.
  *
  * @example
- *
  * import { useGetIdentity, useGetOne } from 'react-admin';
  *
  * const PostDetail = ({ id }) => {
- *     const { data: post, loading: postLoading } = useGetOne('posts', id);
- *     const { identity, loading: identityLoading } = useGetIdentity();
+ *     const { data: post, isPending: postLoading } = useGetOne('posts', { id });
+ *     const { identity, isPending: identityLoading } = useGetIdentity();
  *     if (postLoading || identityLoading) return <>Loading...</>;
  *     if (!post.lockedBy || post.lockedBy === identity.id) {
  *         // post isn't locked, or is locked by me
@@ -38,49 +45,78 @@ const defaultIdentity = {
  *     }
  * }
  */
-const useGetIdentity = () => {
-    const [state, setState] = useSafeSetState<State>({
-        loading: true,
-        loaded: false,
-    });
+export const useGetIdentity = <ErrorType extends Error = Error>(
+    options: UseGetIdentityOptions<ErrorType> = defaultQueryParams
+): UseGetIdentityResult<ErrorType> => {
     const authProvider = useAuthProvider();
+    const { onSuccess, onError, onSettled, ...queryOptions } = options;
+
+    const result = useQuery({
+        queryKey: ['auth', 'getIdentity'],
+        queryFn: async ({ signal }) => {
+            if (
+                authProvider &&
+                typeof authProvider.getIdentity === 'function'
+            ) {
+                return authProvider.getIdentity({ signal });
+            } else {
+                return defaultIdentity;
+            }
+        },
+        ...queryOptions,
+    });
+
+    const onSuccessEvent = useEvent(onSuccess ?? noop);
+    const onErrorEvent = useEvent(onError ?? noop);
+    const onSettledEvent = useEvent(onSettled ?? noop);
+
     useEffect(() => {
-        if (authProvider && typeof authProvider.getIdentity === 'function') {
-            const callAuthProvider = async () => {
-                try {
-                    const identity = await authProvider.getIdentity();
-                    setState({
-                        loading: false,
-                        loaded: true,
-                        identity: identity || defaultIdentity,
-                    });
-                } catch (error) {
-                    setState({
-                        loading: false,
-                        loaded: true,
-                        error,
-                    });
-                }
-            };
-            callAuthProvider();
-        } else {
-            // fallback for pre-3.9 authProviders, which had no getIdentity method
-            // FIXME to be removed for the next major
-            setState({
-                loading: false,
-                loaded: true,
-                identity: defaultIdentity,
-            });
-        }
-    }, [authProvider, setState]);
-    return state;
+        if (result.data === undefined || result.isFetching) return;
+        onSuccessEvent(result.data);
+    }, [onSuccessEvent, result.data, result.isFetching]);
+
+    useEffect(() => {
+        if (result.error == null || result.isFetching) return;
+        onErrorEvent(result.error);
+    }, [onErrorEvent, result.error, result.isFetching]);
+
+    useEffect(() => {
+        if (result.status === 'pending' || result.isFetching) return;
+        onSettledEvent(result.data, result.error);
+    }, [
+        onSettledEvent,
+        result.data,
+        result.error,
+        result.status,
+        result.isFetching,
+    ]);
+
+    return useMemo(
+        () => ({
+            ...result,
+            identity: result.data,
+        }),
+        [result]
+    );
 };
 
-interface State {
-    loading: boolean;
-    loaded: boolean;
-    identity?: UserIdentity;
-    error?: any;
+export interface UseGetIdentityOptions<ErrorType extends Error = Error>
+    extends Omit<
+        UseQueryOptions<UserIdentity, ErrorType>,
+        'queryKey' | 'queryFn'
+    > {
+    onSuccess?: (data: UserIdentity) => void;
+    onError?: (err: Error) => void;
+    onSettled?: (data?: UserIdentity, error?: Error | null) => void;
 }
 
+export type UseGetIdentityResult<ErrorType = Error> = QueryObserverResult<
+    UserIdentity,
+    ErrorType
+> & {
+    identity: UserIdentity | undefined;
+};
+
 export default useGetIdentity;
+
+const noop = () => {};

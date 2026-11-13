@@ -1,49 +1,63 @@
-import { render } from '@testing-library/react';
 import * as React from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import expect from 'expect';
-import { TestContext } from 'ra-test';
-import { ThemeProvider } from '@material-ui/core';
-import { createMuiTheme } from '@material-ui/core/styles';
-import CreateButton from './CreateButton';
+import {
+    Basic,
+    AccessControl,
+    Label,
+    WithTooltip,
+} from './CreateButton.stories';
 
 const invalidButtonDomProps = {
-    basePath: '',
-    handleSubmit: jest.fn(),
-    handleSubmitWithRedirect: jest.fn(),
-    invalid: false,
-    onSave: jest.fn(),
-    pristine: false,
-    record: { id: 123, foo: 'bar' },
     redirect: 'list',
-    resource: 'posts',
-    saving: false,
-    submitOnEnter: true,
-    undoable: false,
+    resource: 'books',
 };
 
 describe('<CreateButton />', () => {
     it('should render a button with no DOM errors', () => {
         const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-        const theme = createMuiTheme({
-            props: {
-                MuiWithWidth: {
-                    initialWidth: 'sm',
-                },
-            },
-        });
-
-        const { getByLabelText } = render(
-            <TestContext>
-                <ThemeProvider theme={theme}>
-                    <CreateButton {...invalidButtonDomProps} />
-                </ThemeProvider>
-            </TestContext>
-        );
+        render(<Basic buttonProps={invalidButtonDomProps} />);
 
         expect(spy).not.toHaveBeenCalled();
-        expect(getByLabelText('ra.action.create').tagName).toEqual('A');
+        expect(screen.getByLabelText('Create').tagName).toEqual('A');
+        expect(screen.getByLabelText('Create').getAttribute('href')).toEqual(
+            '/books/create'
+        );
 
         spy.mockRestore();
+    });
+
+    it('should only render when users have the right to create', async () => {
+        render(<AccessControl />);
+        await screen.findByText('War and Peace');
+        expect(screen.queryByLabelText('Create')).toBeNull();
+        fireEvent.click(screen.getByLabelText('Allow creating books'));
+        await screen.findByLabelText('Create');
+    });
+
+    it('should provide a default label', async () => {
+        render(<Label translations="default" />);
+        await screen.findByText('Create');
+        fireEvent.click(screen.getByText('English', { selector: 'button' }));
+        fireEvent.click(await screen.findByText('Français'));
+        await screen.findByText('Créer');
+    });
+
+    it('should allow resource specific default title', async () => {
+        render(<Label translations="resource specific" />);
+        await screen.findByText('New book');
+        fireEvent.click(screen.getByText('English', { selector: 'button' }));
+        fireEvent.click(await screen.findByText('Français'));
+        await screen.findByText('Nouveau livre');
+    });
+
+    it('should allow wrapping in a tooltip', async () => {
+        render(<WithTooltip />);
+        const user = userEvent.setup();
+        const button = await screen.findByLabelText('Create book');
+        await user.hover(button);
+        await screen.findByText('Create book');
     });
 });

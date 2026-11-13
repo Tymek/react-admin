@@ -1,21 +1,124 @@
 import * as React from 'react';
-import { FunctionComponent } from 'react';
-import PropTypes from 'prop-types';
-import TextField, { TextFieldProps } from '@material-ui/core/TextField';
-import MenuItem from '@material-ui/core/MenuItem';
-import { makeStyles } from '@material-ui/core/styles';
-import classnames from 'classnames';
-import { useInput, useTranslate, FieldTitle, InputProps } from 'ra-core';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { MenuItem, TextField, type TextFieldProps } from '@mui/material';
+import clsx from 'clsx';
+import { useInput, useTranslate, FieldTitle } from 'ra-core';
 
-import sanitizeInputRestProps from './sanitizeInputRestProps';
-import InputHelperText from './InputHelperText';
+import type { CommonInputProps } from './CommonInputProps';
+import { sanitizeInputRestProps } from './sanitizeInputRestProps';
+import { InputHelperText } from './InputHelperText';
 
-const useStyles = makeStyles(
-    theme => ({
-        input: { width: theme.spacing(16) },
-    }),
-    { name: 'RaNullableBooleanInput' }
-);
+export const NullableBooleanInput = (inProps: NullableBooleanInputProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const {
+        className,
+        format = getStringFromBoolean,
+        helperText,
+        label,
+        margin,
+        onBlur,
+        onChange,
+        parse = getBooleanFromString,
+        resource,
+        disabled,
+        readOnly,
+        source,
+        validate,
+        variant,
+        nullLabel = 'ra.boolean.null',
+        falseLabel = 'ra.boolean.false',
+        trueLabel = 'ra.boolean.true',
+        ...rest
+    } = props;
+
+    const translate = useTranslate();
+
+    const {
+        field,
+        fieldState: { error, invalid },
+        id,
+        isRequired,
+    } = useInput({
+        format,
+        parse,
+        onBlur,
+        onChange,
+        resource,
+        source,
+        validate,
+        disabled,
+        readOnly,
+        ...rest,
+    });
+    const renderHelperText = helperText !== false || invalid;
+    return (
+        <StyledTextField
+            id={id}
+            size="small"
+            {...field}
+            className={clsx(
+                'ra-input',
+                `ra-input-${source}`,
+                NullableBooleanInputClasses.input,
+                className
+            )}
+            select
+            disabled={disabled || readOnly}
+            readOnly={readOnly}
+            margin={margin}
+            label={
+                label !== '' && label !== false ? (
+                    <FieldTitle
+                        label={label}
+                        source={source}
+                        resource={resource}
+                        isRequired={isRequired}
+                    />
+                ) : null
+            }
+            error={invalid}
+            helperText={
+                renderHelperText ? (
+                    <InputHelperText
+                        error={error?.message}
+                        helperText={helperText}
+                    />
+                ) : null
+            }
+            variant={variant}
+            {...sanitizeInputRestProps(rest)}
+        >
+            <MenuItem value="">{translate(nullLabel)}</MenuItem>
+            <MenuItem value="false">{translate(falseLabel)}</MenuItem>
+            <MenuItem value="true">{translate(trueLabel)}</MenuItem>
+        </StyledTextField>
+    );
+};
+
+const PREFIX = 'RaNullableBooleanInput';
+
+export const NullableBooleanInputClasses = {
+    input: `${PREFIX}-input`,
+};
+
+const StyledTextField = styled(TextField, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    minWidth: theme.spacing(20),
+    [theme.breakpoints.down('sm')]: {
+        [`&.${NullableBooleanInputClasses.input}`]: {
+            width: '100%',
+        },
+    },
+}));
 
 const getBooleanFromString = (value: string): boolean | null => {
     if (value === 'true') return true;
@@ -29,97 +132,28 @@ const getStringFromBoolean = (value?: boolean | null): string => {
     return '';
 };
 
-export type NullableBooleanInputProps = InputProps<TextFieldProps> &
-    Omit<TextFieldProps, 'label' | 'helperText'> & {
+export type NullableBooleanInputProps = CommonInputProps &
+    Omit<TextFieldProps, 'label' | 'helperText' | 'readOnly'> & {
         nullLabel?: string;
         falseLabel?: string;
         trueLabel?: string;
     };
 
-const NullableBooleanInput: FunctionComponent<NullableBooleanInputProps> = props => {
-    const {
-        className,
-        classes: classesOverride,
-        format = getStringFromBoolean,
-        helperText,
-        label,
-        margin = 'dense',
-        onBlur,
-        onChange,
-        onFocus,
-        options,
-        parse = getBooleanFromString,
-        resource,
-        source,
-        validate,
-        variant = 'filled',
-        nullLabel = 'ra.boolean.null',
-        falseLabel = 'ra.boolean.false',
-        trueLabel = 'ra.boolean.true',
-        ...rest
-    } = props;
-    const classes = useStyles(props);
-    const translate = useTranslate();
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaNullableBooleanInput: 'root' | 'input';
+    }
 
-    const {
-        id,
-        input,
-        isRequired,
-        meta: { error, submitError, touched },
-    } = useInput({
-        format,
-        onBlur,
-        onChange,
-        onFocus,
-        parse,
-        resource,
-        source,
-        validate,
-        ...rest,
-    });
+    interface ComponentsPropsList {
+        RaNullableBooleanInput: Partial<NullableBooleanInputProps>;
+    }
 
-    return (
-        <TextField
-            id={id}
-            {...input}
-            select
-            margin={margin}
-            label={
-                <FieldTitle
-                    label={label}
-                    source={source}
-                    resource={resource}
-                    isRequired={isRequired}
-                />
-            }
-            error={!!(touched && (error || submitError))}
-            helperText={
-                <InputHelperText
-                    touched={touched}
-                    error={error || submitError}
-                    helperText={helperText}
-                />
-            }
-            className={classnames(classes.input, className)}
-            variant={variant}
-            {...options}
-            {...sanitizeInputRestProps(rest)}
-        >
-            <MenuItem value="">{translate(nullLabel)}</MenuItem>
-            <MenuItem value="false">{translate(falseLabel)}</MenuItem>
-            <MenuItem value="true">{translate(trueLabel)}</MenuItem>
-        </TextField>
-    );
-};
-
-NullableBooleanInput.propTypes = {
-    label: PropTypes.string,
-    options: PropTypes.object,
-    resource: PropTypes.string,
-    source: PropTypes.string,
-    nullLabel: PropTypes.string,
-    falseLabel: PropTypes.string,
-    trueLabel: PropTypes.string,
-};
-
-export default NullableBooleanInput;
+    interface Components {
+        RaNullableBooleanInput?: {
+            defaultProps?: ComponentsPropsList['RaNullableBooleanInput'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaNullableBooleanInput'];
+        };
+    }
+}

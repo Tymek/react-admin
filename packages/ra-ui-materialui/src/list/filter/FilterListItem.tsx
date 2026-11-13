@@ -1,26 +1,32 @@
 import * as React from 'react';
-import { memo, isValidElement, ReactElement } from 'react';
+import { isElement } from 'react-is';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { memo, type ReactNode } from 'react';
 import {
     IconButton,
     ListItem,
+    ListItemButton,
+    ListItemIcon,
+    type ListItemProps,
     ListItemText,
-    ListItemSecondaryAction,
-} from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import CancelIcon from '@material-ui/icons/CancelOutlined';
-import { useTranslate, useListFilterContext } from 'ra-core';
-import { shallowEqual } from 'react-redux';
-import matches from 'lodash/matches';
-import pickBy from 'lodash/pickBy';
+} from '@mui/material';
+import CancelIcon from '@mui/icons-material/CancelOutlined';
+import {
+    useTranslate,
+    useListFilterContext,
+    shallowEqual,
+    useEvent,
+} from 'ra-core';
+import matches from 'lodash/matches.js';
+import pickBy from 'lodash/pickBy.js';
 
-const useStyles = makeStyles(theme => ({
-    listItem: {
-        paddingLeft: '2em',
-    },
-    listItemText: {
-        margin: 0,
-    },
-}));
+const arePropsEqual = (prevProps, nextProps) =>
+    prevProps.label === nextProps.label &&
+    shallowEqual(prevProps.value, nextProps.value);
 
 /**
  * Button to enable/disable a list filter.
@@ -35,8 +41,8 @@ const useStyles = makeStyles(theme => ({
  * @example
  *
  * import * as React from 'react';
- * import { Card, CardContent } from '@material-ui/core';
- * import MailIcon from '@material-ui/icons/MailOutline';
+ * import { Card, CardContent } from '@mui/material';
+ * import MailIcon from '@mui/icons-material/MailOutlineOutlined';
  * import { FilterList, FilterListItem } from 'react-admin';
  *
  * const FilterSidebar = () => (
@@ -69,8 +75,8 @@ const useStyles = makeStyles(theme => ({
  *     startOfMonth,
  *     subMonths,
  * } from 'date-fns';
- * import { Card, CardContent } from '@material-ui/core';
- * import AccessTimeIcon from '@material-ui/icons/AccessTime';
+ * import { Card, CardContent } from '@mui/material';
+ * import AccessTimeIcon from '@mui/icons-material/AccessTime';
  * import { FilterList, FilterListItem } from 'react-admin';
  *
  * const FilterSidebar = () => (
@@ -144,67 +150,147 @@ const useStyles = makeStyles(theme => ({
  *     </Card>
  * );
  */
-const FilterListItem = (props: {
-    label: string | ReactElement;
-    value: any;
-}) => {
-    const { label, value } = props;
+export const FilterListItem = memo((inProps: FilterListItemProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const {
+        label,
+        value,
+        icon,
+        isSelected: getIsSelected = DefaultIsSelected,
+        toggleFilter: userToggleFilter = DefaultToggleFilter,
+        ...rest
+    } = props;
     const { filterValues, setFilters } = useListFilterContext();
     const translate = useTranslate();
-    const classes = useStyles(props);
+    const toggleFilter = useEvent(userToggleFilter);
 
+    // We can't wrap this function with useEvent as it is called in the render phase
+    const isSelected = getIsSelected(value, filterValues);
+
+    const handleClick = () => setFilters(toggleFilter(value, filterValues));
+
+    return (
+        <StyledListItem
+            disablePadding
+            disableGutters
+            secondaryAction={
+                isSelected ? (
+                    <IconButton
+                        size="small"
+                        onClick={event => {
+                            event.stopPropagation();
+                            handleClick();
+                        }}
+                    >
+                        <CancelIcon />
+                    </IconButton>
+                ) : null
+            }
+            {...rest}
+        >
+            <ListItemButton
+                onClick={handleClick}
+                selected={isSelected}
+                className={FilterListItemClasses.listItemButton}
+            >
+                {icon && (
+                    <ListItemIcon
+                        className={FilterListItemClasses.listItemIcon}
+                    >
+                        {icon}
+                    </ListItemIcon>
+                )}
+                <ListItemText
+                    primary={
+                        typeof label === 'string' && !isElement(label)
+                            ? translate(label, { _: label })
+                            : label
+                    }
+                    className={FilterListItemClasses.listItemText}
+                    data-selected={isSelected ? 'true' : 'false'}
+                />
+            </ListItemButton>
+        </StyledListItem>
+    );
+}, arePropsEqual);
+
+const DefaultIsSelected = (value, filters) =>
+    matches(pickBy(value, val => typeof val !== 'undefined'))(filters);
+
+const DefaultToggleFilter = (value, filters) => {
     const isSelected = matches(
         pickBy(value, val => typeof val !== 'undefined')
-    )(filterValues);
+    )(filters);
 
-    const addFilter = () => {
-        setFilters({ ...filterValues, ...value }, null, false);
-    };
-
-    const removeFilter = () => {
+    if (isSelected) {
         const keysToRemove = Object.keys(value);
-        const filters = Object.keys(filterValues).reduce(
+        return Object.keys(filters).reduce(
             (acc, key) =>
                 keysToRemove.includes(key)
                     ? acc
-                    : { ...acc, [key]: filterValues[key] },
+                    : { ...acc, [key]: filters[key] },
             {}
         );
+    }
 
-        setFilters(filters, null, false);
-    };
-
-    const toggleFilter = () => (isSelected ? removeFilter() : addFilter());
-
-    return (
-        <ListItem
-            button
-            onClick={toggleFilter}
-            selected={isSelected}
-            className={classes.listItem}
-        >
-            <ListItemText
-                primary={
-                    isValidElement(label)
-                        ? label
-                        : translate(label, { _: label })
-                }
-                className={classes.listItemText}
-                data-selected={isSelected ? 'true' : 'false'}
-            />
-            {isSelected && (
-                <ListItemSecondaryAction>
-                    <IconButton size="small" onClick={toggleFilter}>
-                        <CancelIcon />
-                    </IconButton>
-                </ListItemSecondaryAction>
-            )}
-        </ListItem>
-    );
+    return { ...filters, ...value };
 };
 
-const arePropsEqual = (prevProps, nextProps) =>
-    prevProps.label === nextProps.label &&
-    shallowEqual(prevProps.value, nextProps.value);
+const PREFIX = 'RaFilterListItem';
 
-export default memo(FilterListItem, arePropsEqual);
+export const FilterListItemClasses = {
+    listItemButton: `${PREFIX}-listItemButton`,
+    listItemText: `${PREFIX}-listItemText`,
+    listItemIcon: `${PREFIX}-listItemIcon`,
+};
+
+const StyledListItem = styled(ListItem, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    [`& .${FilterListItemClasses.listItemButton}`]: {
+        paddingRight: '2em',
+        paddingLeft: '2em',
+    },
+    [`& .${FilterListItemClasses.listItemText}`]: {
+        margin: 0,
+    },
+    [`& .${FilterListItemClasses.listItemIcon}`]: {
+        minWidth: 0,
+        marginRight: '0.5em',
+    },
+});
+
+export interface FilterListItemProps extends Omit<ListItemProps, 'value'> {
+    label: ReactNode;
+    value: any;
+    icon?: ReactNode;
+    toggleFilter?: (value: any, filters: any) => any;
+    isSelected?: (value: any, filters: any) => boolean;
+}
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaFilterListItem:
+            | 'root'
+            | 'listItemButton'
+            | 'listItemText'
+            | 'listItemIcon';
+    }
+
+    interface ComponentsPropsList {
+        RaFilterListItem: Partial<FilterListItemProps>;
+    }
+
+    interface Components {
+        RaFilterListItem?: {
+            defaultProps?: ComponentsPropsList['RaFilterListItem'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaFilterListItem'];
+        };
+    }
+}

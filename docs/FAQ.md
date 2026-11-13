@@ -6,10 +6,12 @@ title: "FAQ"
 # FAQ
 
 - [Can I have custom identifiers/primary keys for my resources?](#can-i-have-custom-identifiersprimary-keys-for-my-resources)
-- [I get warning about unique key for child in array](#i-get-warning-about-unique-key-for-child-in-array)
+- [I get a warning about unique key for child in array](#i-get-a-warning-about-unique-key-for-child-in-array)
 - [How can I customize forms depending on its inputs values?](#how-can-i-customize-forms-depending-on-its-inputs-values)
-- [UI in production build is empty or broke](#ui-in-production-build-is-empty-or-broke)
+- [UI in production build is empty or broken](#ui-in-production-build-is-empty-or-broken)
 - [My Resource is defined but not displayed on the Menu](#my-resource-is-defined-but-not-displayed-on-the-menu)
+- [I get an error about control being null](#i-get-an-error-about-control-being-null)
+- [I get an error about a hook that may be used only in the context of a Router component](#i-get-an-error-about-a-hook-that-may-be-used-only-in-the-context-of-a-router-component)
 
 ## Can I have custom identifiers/primary keys for my resources?
 
@@ -118,7 +120,7 @@ const dataProvider = {
 };
 ```
 
-## I get warning about unique key for child in array
+## I get a warning about unique key for child in array
 
 When displaying a `Datagrid` component, you get the following warning:
 
@@ -137,9 +139,9 @@ Some use cases:
 
 For all those cases, you can use the [`<FormDataConsumer>`](https://marmelab.com/react-admin/Inputs.html#linking-two-inputs) component.
 
-## UI in production build is empty or broke
+## UI in production build is empty or broken
 
-You have probably specified a version requirement for `@material-ui/core` that is incompatible with the one required by `react-admin`. As a consequence, npm bundled two copies of `material-ui` in your application, and `material-ui` doesn't work in that case.
+You have probably specified a version requirement for `@mui/material` that is incompatible with the one required by `react-admin`. As a consequence, npm bundled two copies of Material UI in your application, and doesn't work in that case.
 
 Please align your version requirement with the one of the `ra-ui-materialui` package.
 
@@ -147,7 +149,7 @@ See this [issue for more information](https://github.com/marmelab/react-admin/is
 
 ## My Resource is defined but not displayed on the Menu
 
-You can declare a resource without `list` prop, to manage reference for example:
+You may have declared a resource without `list` prop. But with the default menu, only resources with a `list` prop are shown.
 
 ```jsx
 <Admin>
@@ -155,17 +157,80 @@ You can declare a resource without `list` prop, to manage reference for example:
 </Admin>
 ```
 
-But with the default menu, resources without `list` prop aren't shown.
-
-In order to have a specific resource without `list` prop listed on the menu, you have to [write your own custom menu](./Theming.md#using-a-custom-menu).
+In order to have a specific resource without `list` prop listed on the menu, you have to [write your own custom menu](./Menu.md).
 
 ```jsx
- const MyMenu = ({ resources, onMenuClick, logout }) => (
-    <div>
-        {resources.map(resource => (
-            <MenuItemLink to={`/${resource.name}`} primaryText={resource.name} onClick={onMenuClick} />
-        ))}
-        <MenuItemLink to="/reference/create" primaryText="New Reference" onClick={onMenuClick} />
-    </div>
+import { Menu } from 'react-admin';
+
+export const MyMenu = () => (
+    <Menu>
+        <Menu.ResourceItems />
+        <Menu.Item to="/reference/create" primaryText="New Reference" />
+    </Menu>
 );
 ```
+
+## I get an error about control being null
+
+In a view that contains a form, you may get the following error:
+
+> Cannot read properties of null (reading 'control')
+
+This is most probably because you have multiple versions of the `react-hook-form` package installed, one being a direct dependency in your project and the other brought by react-admin.
+
+First, you can run `npm list react-hook-form` to check if you have duplicate versions.
+
+To dedupe the package you can run `npm dedupe react-hook-form` or `yarn dedupe react-hook-form`.
+
+You may also edit the lockfile manually.
+
+Finally, you can use yarn’s [resolutions](https://yarnpkg.com/configuration/manifest#resolutions) or npm’s [overrides](https://docs.npmjs.com/cli/v9/configuring-npm/package-json#overrides) in your `package.json` file:
+
+```json
+{
+  "resolutions": {
+    "react-hook-form": "7.54.2"
+  }
+}
+```
+
+## I get an error about a hook that may be used only in the context of a Router component
+
+When using custom routing configurations, you may encounter strange error messages like:
+
+> `useLocation()` may be used only in the context of a `<Router>` component
+
+or
+
+> `useNavigate()` may be used only in the context of a `<Router>` component
+
+or 
+
+> `useRoutes()` may be used only in the context of a `<Router>` component
+
+or 
+
+> `useHref()` may be used only in the context of a `<Router>` component.
+
+or
+
+> `<Route>` may be used only in the context of a `<Router>` component
+
+These errors can happen if you added `react-router` and/or `react-router-dom` to your dependencies, and didn't use the same version as react-admin. In that case, your application has two versions of react-router, and the calls you add can't see the react-admin routing context.
+
+You can use the `npm list react-router` and `npm list react-router-dom` commands to check which versions are installed.
+
+If there are duplicates, you need to make sure to use only the same version as react-admin. You can deduplicate them using yarn's [resolutions](https://yarnpkg.com/configuration/manifest#resolutions) or npm’s [overrides](https://docs.npmjs.com/cli/v9/configuring-npm/package-json#overrides).
+
+```js
+// in packages.json
+{
+    // ...
+  "resolutions": {
+    "react-router-dom": "6.7.0",
+    "react-router": "6.7.0"
+  }
+}
+```
+
+This may also happen inside a [Remix](https://remix.run/) application. See [Setting up react-admin for Remix](./Remix.md#setting-up-react-admin-in-remix) for instructions to overcome that problem.

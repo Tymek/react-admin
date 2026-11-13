@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { ReactNode, useCallback, useMemo, useState } from 'react';
-import { DataProvider } from 'ra-core';
+import { DataProvider } from 'react-admin';
 import {
     ResourceConfigurationMap,
     ResourceConfiguration,
@@ -13,9 +13,10 @@ export const ResourceConfigurationProvider = ({
     dataProvider,
     storageKey = STORAGE_KEY,
 }: ResourceConfigurationProviderProps) => {
-    const [resources, setInternalResources] = useState<
-        ResourceConfigurationMap
-    >(() => loadConfigurationsFromLocalStorage(storageKey));
+    const [resources, setInternalResources] =
+        useState<ResourceConfigurationMap>(() =>
+            loadConfigurationsFromLocalStorage(storageKey)
+        );
 
     const setResources = useCallback(
         (
@@ -26,7 +27,8 @@ export const ResourceConfigurationProvider = ({
             setInternalResources(prevState => {
                 const newState = value(prevState);
 
-                if (newState != undefined) { // eslint-disable-line
+                // eslint-disable-next-line
+                if (newState != undefined) {
                     window.localStorage.setItem(
                         storageKey,
                         JSON.stringify(newState)

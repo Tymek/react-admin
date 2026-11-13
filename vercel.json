@@ -1,0 +1,9 @@
+{
+    "$schema": "https://openapi.vercel.sh/vercel.json",
+    "git": {
+        "deploymentEnabled": {
+            "gh-pages": false
+        }
+    },
+    "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"master\" ]"
+}

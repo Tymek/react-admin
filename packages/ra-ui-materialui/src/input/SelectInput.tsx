@@ -1,28 +1,38 @@
 import * as React from 'react';
-import { useCallback } from 'react';
-import PropTypes from 'prop-types';
-import get from 'lodash/get';
-import MenuItem from '@material-ui/core/MenuItem';
-import { TextFieldProps } from '@material-ui/core/TextField';
-import { makeStyles } from '@material-ui/core/styles';
 import {
+    type ReactNode,
+    useCallback,
+    useEffect,
+    type ChangeEvent,
+} from 'react';
+import clsx from 'clsx';
+import { MenuItem, type TextFieldProps } from '@mui/material';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import {
+    useChoicesContext,
     useInput,
     FieldTitle,
     useTranslate,
-    ChoicesInputProps,
+    type ChoicesProps,
     useChoices,
-    warning,
+    type RaRecord,
+    useGetRecordRepresentation,
+    useSupportCreateSuggestion,
+    type SupportCreateSuggestionOptions,
 } from 'ra-core';
 
-import ResettableTextField from './ResettableTextField';
-import InputHelperText from './InputHelperText';
-import sanitizeInputRestProps from './sanitizeInputRestProps';
-import Labeled from './Labeled';
-import { LinearProgress } from '../layout';
+import type { CommonInputProps } from './CommonInputProps';
 import {
-    useSupportCreateSuggestion,
-    SupportCreateSuggestionOptions,
-} from './useSupportCreateSuggestion';
+    ResettableTextField,
+    ResettableTextFieldStyles,
+} from './ResettableTextField';
+import { InputHelperText } from './InputHelperText';
+import { sanitizeInputRestProps } from './sanitizeInputRestProps';
+import { LoadingInput } from './LoadingInput';
 
 /**
  * An Input component for a select box, using an array of objects for the options
@@ -57,15 +67,18 @@ import {
  * const optionRenderer = choice => `${choice.first_name} ${choice.last_name}`;
  * <SelectInput source="author_id" choices={choices} optionText={optionRenderer} />
  *
- * `optionText` also accepts a React Element, that will be cloned and receive
- * the related choice as the `record` prop. You can use Field components there.
+ * `optionText` also accepts a React Element, that can access
+ * the related choice through the `useRecordContext` hook. You can use Field components there.
  * @example
  * const choices = [
  *    { id: 123, first_name: 'Leo', last_name: 'Tolstoi' },
  *    { id: 456, first_name: 'Jane', last_name: 'Austen' },
  * ];
- * const FullNameField = ({ record }) => <span>{record.first_name} {record.last_name}</span>;
- * <SelectInput source="gender" choices={choices} optionText={<FullNameField />}/>
+ * const FullNameField = () => {
+ *     const record = useRecordContext();
+ *     return <span>{record.first_name} {record.last_name}</span>;
+ * }
+ * <SelectInput source="author" choices={choices} optionText={<FullNameField />}/>
  *
  * The choices are translated by default, so you can use translation identifiers as choices:
  * @example
@@ -78,8 +91,6 @@ import {
  * the choice to be translated. In that case, set the `translateChoice` prop to false.
  * @example
  * <SelectInput source="gender" choices={choices} translateChoice={false}/>
- *
- * The object passed as `options` props is passed to the material-ui <Select> component
  *
  * You can disable some choices by providing a `disableValue` field which name is `disabled` by default
  * @example
@@ -98,93 +109,137 @@ import {
  * <SelectInput source="gender" choices={choices} disableValue="not_available" />
  *
  */
-export const SelectInput = (props: SelectInputProps) => {
+export const SelectInput = (inProps: SelectInputProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
-        allowEmpty,
-        choices = [],
-        classes: classesOverride,
+        choices: choicesProp,
         className,
         create,
         createLabel,
         createValue,
-        disableValue,
-        emptyText,
-        emptyValue,
+        createHintValue,
+        defaultValue,
+        disableValue = 'disabled',
+        emptyText = '',
+        emptyValue = '',
         format,
+        filter,
         helperText,
+        isFetching: isFetchingProp,
+        isLoading: isLoadingProp,
+        isPending: isPendingProp,
         label,
-        loaded,
-        loading,
+        margin = 'dense',
         onBlur,
         onChange,
         onCreate,
-        onFocus,
-        options,
         optionText,
         optionValue,
         parse,
-        resource,
-        source,
+        resource: resourceProp,
+        source: sourceProp,
         translateChoice,
         validate,
         ...rest
     } = props;
     const translate = useTranslate();
-    const classes = useStyles(props);
 
-    warning(
-        source === undefined,
-        `If you're not wrapping the SelectInput inside a ReferenceInput, you must provide the source prop`
-    );
+    useEffect(() => {
+        if (emptyValue == null) {
+            throw new Error(
+                `emptyValue being set to null or undefined is not supported. Use parse to turn the empty string into null.`
+            );
+        }
+    }, [emptyValue]);
 
-    warning(
-        choices === undefined,
-        `If you're not wrapping the SelectInput inside a ReferenceInput, you must provide the choices prop`
-    );
-
-    const { getChoiceText, getChoiceValue } = useChoices({
-        optionText,
-        optionValue,
-        translateChoice,
+    const {
+        allChoices,
+        isPending,
+        error: fetchError,
+        source,
+        resource,
+        isFromReference,
+    } = useChoicesContext({
+        choices: choicesProp,
+        isLoading: isLoadingProp,
+        isFetching: isFetchingProp,
+        isPending: isPendingProp,
+        resource: resourceProp,
+        source: sourceProp,
     });
 
-    const { id, input, isRequired, meta } = useInput({
+    if (source === undefined) {
+        throw new Error(
+            `If you're not wrapping the SelectInput inside a ReferenceInput, you must provide the source prop`
+        );
+    }
+
+    if (!isPending && !fetchError && allChoices === undefined) {
+        throw new Error(
+            `If you're not wrapping the SelectInput inside a ReferenceInput, you must provide the choices prop`
+        );
+    }
+
+    const getRecordRepresentation = useGetRecordRepresentation(resource);
+    const { getChoiceText, getChoiceValue, getDisableValue } = useChoices({
+        optionText:
+            optionText ??
+            (isFromReference ? getRecordRepresentation : undefined),
+        optionValue,
+        disableValue,
+        translateChoice: translateChoice ?? !isFromReference,
+        createValue,
+        createHintValue,
+    });
+    const { field, fieldState, id, isRequired } = useInput({
+        defaultValue,
+        parse,
         format,
         onBlur,
         onChange,
-        onFocus,
-        parse,
         resource,
         source,
         validate,
         ...rest,
     });
 
-    const { touched, error, submitError } = meta;
+    const { error, invalid } = fieldState;
 
     const renderEmptyItemOption = useCallback(() => {
-        return React.isValidElement(emptyText)
-            ? React.cloneElement(emptyText)
-            : emptyText === ''
-            ? ' ' // em space, forces the display of an empty line of normal height
-            : translate(emptyText, { _: emptyText });
+        return typeof emptyText === 'string'
+            ? emptyText === ''
+                ? ' ' // em space, forces the display of an empty line of normal height
+                : translate(emptyText, { _: emptyText })
+            : emptyText;
     }, [emptyText, translate]);
 
-    const renderMenuItemOption = useCallback(choice => getChoiceText(choice), [
-        getChoiceText,
-    ]);
+    const renderMenuItemOption = useCallback(
+        choice => getChoiceText(choice),
+        [getChoiceText]
+    );
 
     const handleChange = useCallback(
-        async (event: React.ChangeEvent<HTMLSelectElement>, newItem) => {
-            if (newItem) {
-                const value = getChoiceValue(newItem);
-                input.onChange(value);
-                return;
+        async (
+            eventOrChoice: ChangeEvent<HTMLInputElement> | RaRecord | ''
+        ) => {
+            if (typeof eventOrChoice === 'string') {
+                if (eventOrChoice === '') {
+                    // called  by the reset button
+                    field.onChange(emptyValue);
+                }
+            } else if (eventOrChoice?.target) {
+                // We might receive an event from the mui component
+                // In this case, it will be the choice id
+                field.onChange(eventOrChoice);
+            } else {
+                // Or we might receive a choice directly, for instance a newly created one
+                field.onChange(getChoiceValue(eventOrChoice));
             }
-
-            input.onChange(event);
         },
-        [input, getChoiceValue]
+        [field, getChoiceValue, emptyValue]
     );
 
     const {
@@ -195,60 +250,100 @@ export const SelectInput = (props: SelectInputProps) => {
         create,
         createLabel,
         createValue,
+        createHintValue,
         handleChange,
         onCreate,
+        optionText,
     });
-    if (loading) {
+
+    const createItem = create || onCreate ? getCreateItem() : null;
+
+    const renderMenuItem = useCallback(
+        choice => {
+            return choice ? (
+                <MenuItem
+                    key={getChoiceValue(choice)}
+                    value={getChoiceValue(choice)}
+                    disabled={getDisableValue(choice)}
+                >
+                    {renderMenuItemOption(
+                        !!createItem && choice?.id === createItem.id
+                            ? createItem
+                            : choice
+                    )}
+                </MenuItem>
+            ) : null;
+        },
+        [getChoiceValue, getDisableValue, renderMenuItemOption, createItem]
+    );
+
+    if (isPending) {
         return (
-            <Labeled
-                id={id}
-                label={label}
-                source={source}
-                resource={resource}
-                className={className}
-                isRequired={isRequired}
-                meta={meta}
-                input={input}
-            >
-                <LinearProgress />
-            </Labeled>
-        );
-    }
-
-    const createItem = getCreateItem();
-
-    return (
-        <>
-            <ResettableTextField
-                id={id}
-                {...input}
-                onChange={handleChangeWithCreateSupport}
-                select
+            <LoadingInput
                 label={
                     label !== '' &&
                     label !== false && (
                         <FieldTitle
                             label={label}
                             source={source}
-                            resource={resource}
+                            resource={resourceProp}
                             isRequired={isRequired}
                         />
                     )
                 }
-                className={`${classes.input} ${className}`}
-                clearAlwaysVisible
-                error={!!(touched && (error || submitError))}
+                sx={props.sx}
                 helperText={
                     <InputHelperText
-                        touched={touched}
-                        error={error || submitError}
+                        error={error?.message}
                         helperText={helperText}
                     />
                 }
-                {...options}
+                variant={props.variant}
+                size={props.size}
+                margin={props.margin}
+                fullWidth={props.fullWidth}
+            />
+        );
+    }
+
+    let finalChoices = fetchError ? [] : allChoices;
+    if (create || onCreate) {
+        finalChoices = [...finalChoices, createItem];
+    }
+    const renderHelperText = !!fetchError || helperText !== false || invalid;
+
+    return (
+        <>
+            <StyledResettableTextField
+                id={id}
+                {...field}
+                className={clsx('ra-input', `ra-input-${source}`, className)}
+                onChange={handleChangeWithCreateSupport}
+                select
+                label={
+                    label !== '' && label !== false ? (
+                        <FieldTitle
+                            label={label}
+                            source={source}
+                            resource={resourceProp}
+                            isRequired={isRequired}
+                        />
+                    ) : null
+                }
+                clearAlwaysVisible
+                error={!!fetchError || invalid}
+                helperText={
+                    renderHelperText ? (
+                        <InputHelperText
+                            error={error?.message || fetchError?.message}
+                            helperText={helperText}
+                        />
+                    ) : null
+                }
+                margin={margin}
                 {...sanitizeRestProps(rest)}
             >
-                {allowEmpty ? (
+                {!isRequired && (
                     <MenuItem
                         value={emptyValue}
                         key="null"
@@ -257,61 +352,15 @@ export const SelectInput = (props: SelectInputProps) => {
                     >
                         {renderEmptyItemOption()}
                     </MenuItem>
-                ) : null}
-                {choices.map(choice => (
-                    <MenuItem
-                        key={getChoiceValue(choice)}
-                        value={getChoiceValue(choice)}
-                        disabled={get(choice, disableValue)}
-                    >
-                        {renderMenuItemOption(choice)}
-                    </MenuItem>
-                ))}
-                {onCreate || create ? (
-                    <MenuItem value={createItem.id} key={createItem.id}>
-                        {createItem.name}
-                    </MenuItem>
-                ) : null}
-            </ResettableTextField>
+                )}
+                {finalChoices.map(renderMenuItem)}
+            </StyledResettableTextField>
             {createElement}
         </>
     );
 };
 
-SelectInput.propTypes = {
-    allowEmpty: PropTypes.bool,
-    emptyText: PropTypes.oneOfType([PropTypes.string, PropTypes.element]),
-    emptyValue: PropTypes.any,
-    choices: PropTypes.arrayOf(PropTypes.object),
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    label: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
-    options: PropTypes.object,
-    optionText: PropTypes.oneOfType([
-        PropTypes.string,
-        PropTypes.func,
-        PropTypes.element,
-    ]).isRequired,
-    optionValue: PropTypes.string.isRequired,
-    disableValue: PropTypes.string,
-    resettable: PropTypes.bool,
-    resource: PropTypes.string,
-    source: PropTypes.string,
-    translateChoice: PropTypes.bool,
-};
-
-SelectInput.defaultProps = {
-    emptyText: '',
-    emptyValue: '',
-    options: {},
-    optionText: 'name',
-    optionValue: 'id',
-    translateChoice: true,
-    disableValue: 'disabled',
-};
-
 const sanitizeRestProps = ({
-    addLabel,
     afterSubmit,
     allowNull,
     beforeSubmit,
@@ -320,6 +369,9 @@ const sanitizeRestProps = ({
     crudGetMatching,
     crudGetOne,
     data,
+    field,
+    fieldState,
+    formState,
     filter,
     filterToQuery,
     formatOnBlur,
@@ -336,6 +388,7 @@ const sanitizeRestProps = ({
     setFilter,
     setPagination,
     setSort,
+    shouldUnregister,
     sort,
     subscription,
     type,
@@ -345,16 +398,44 @@ const sanitizeRestProps = ({
     ...rest
 }: any) => sanitizeInputRestProps(rest);
 
-const useStyles = makeStyles(
-    theme => ({
-        input: {
-            minWidth: theme.spacing(20),
-        },
-    }),
-    { name: 'RaSelectInput' }
-);
+const PREFIX = 'RaSelectInput';
 
-export interface SelectInputProps
-    extends ChoicesInputProps<TextFieldProps>,
-        Omit<SupportCreateSuggestionOptions, 'handleChange'>,
-        Omit<TextFieldProps, 'label' | 'helperText'> {}
+const StyledResettableTextField = styled(ResettableTextField, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    ...ResettableTextFieldStyles,
+    minWidth: theme.spacing(20),
+    '& .MuiFilledInput-root': { paddingRight: 0 },
+}));
+
+export type SelectInputProps = Omit<CommonInputProps, 'source'> &
+    ChoicesProps &
+    Omit<SupportCreateSuggestionOptions, 'handleChange'> &
+    Omit<TextFieldProps, 'label' | 'helperText' | 'classes' | 'onChange'> & {
+        emptyText?: ReactNode;
+        emptyValue?: any;
+        resettable?: boolean;
+        // Source is optional as AutocompleteInput can be used inside a ReferenceInput that already defines the source
+        source?: string;
+        onChange?: (event: ChangeEvent<HTMLInputElement> | RaRecord) => void;
+    };
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaSelectInput: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaSelectInput: Partial<SelectInputProps>;
+    }
+
+    interface Components {
+        RaSelectInput?: {
+            defaultProps?: ComponentsPropsList['RaSelectInput'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaSelectInput'];
+        };
+    }
+}

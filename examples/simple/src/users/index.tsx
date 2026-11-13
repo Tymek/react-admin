@@ -1,4 +1,4 @@
-import PeopleIcon from '@material-ui/icons/People';
+import PeopleIcon from '@mui/icons-material/People';
 import UserCreate from './UserCreate';
 import UserEdit from './UserEdit';
 import UserList from './UserList';
@@ -10,4 +10,5 @@ export default {
     edit: UserEdit,
     show: UserShow,
     icon: PeopleIcon,
+    recordRepresentation: record => `${record.name} (${record.role})`,
 };

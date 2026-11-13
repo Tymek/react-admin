@@ -1,45 +1,39 @@
 import * as React from 'react';
-import { FC } from 'react';
-import inflection from 'inflection';
-import { Card, CardContent } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import LocalOfferIcon from '@material-ui/icons/LocalOfferOutlined';
-import BarChartIcon from '@material-ui/icons/BarChart';
-import AttachMoneyIcon from '@material-ui/icons/AttachMoney';
+import { Card, CardContent } from '@mui/material';
+import LocalOfferIcon from '@mui/icons-material/LocalOfferOutlined';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import {
     FilterList,
     FilterListItem,
     FilterLiveSearch,
+    SavedQueriesList,
     useGetList,
 } from 'react-admin';
 
 import { Category } from '../types';
+import { humanize } from 'inflection';
 
-const useStyles = makeStyles(theme => ({
-    root: {
-        [theme.breakpoints.up('sm')]: {
-            width: '15em',
-            marginRight: '1em',
-            overflow: 'initial',
-        },
-        [theme.breakpoints.down('sm')]: {
-            display: 'none',
-        },
-    },
-}));
+const Aside = () => {
+    const { data } = useGetList<Category>('categories', {
+        pagination: { page: 1, perPage: 100 },
+        sort: { field: 'name', order: 'ASC' },
+    });
 
-const Aside: FC = () => {
-    const { data, ids } = useGetList<Category>(
-        'categories',
-        { page: 1, perPage: 100 },
-        { field: 'name', order: 'ASC' },
-        {}
-    );
-    const classes = useStyles();
     return (
-        <Card className={classes.root}>
-            <CardContent>
-                <FilterLiveSearch />
+        <Card
+            sx={{
+                display: { xs: 'none', md: 'block' },
+                order: -1,
+                width: '15em',
+                mr: 2,
+                alignSelf: 'flex-start',
+            }}
+        >
+            <CardContent sx={{ pt: 1 }}>
+                <FilterLiveSearch hiddenLabel />
+
+                <SavedQueriesList />
 
                 <FilterList
                     label="resources.products.filters.sales"
@@ -121,13 +115,12 @@ const Aside: FC = () => {
                     label="resources.products.filters.categories"
                     icon={<LocalOfferIcon />}
                 >
-                    {ids &&
-                        data &&
-                        ids.map((id: any) => (
+                    {data &&
+                        data.map((record: any) => (
                             <FilterListItem
-                                label={inflection.humanize(data[id].name)}
-                                key={data[id].id}
-                                value={{ category_id: data[id].id }}
+                                label={humanize(record.name)}
+                                key={record.id}
+                                value={{ category_id: record.id }}
                             />
                         ))}
                 </FilterList>

@@ -1,40 +1,87 @@
 import * as React from 'react';
-import { render } from '@testing-library/react';
-import { TestContext } from 'ra-test';
+import { render, screen, waitFor } from '@testing-library/react';
+import {
+    CoreAdminContext,
+    ResourceContextProvider,
+    testDataProvider,
+    useListContext,
+} from 'ra-core';
+import { ThemeProvider, createTheme } from '@mui/material';
 
-import ArrayField from './ArrayField';
-import NumberField from './NumberField';
-import TextField from './TextField';
-import Datagrid from '../list/datagrid/Datagrid';
+import { ArrayField } from './ArrayField';
+import { NumberField } from './NumberField';
+import { TextField } from './TextField';
+import { Datagrid, SimpleList } from '../list';
+import { ListContext } from './ArrayField.stories';
 
 describe('<ArrayField />', () => {
+    const sort = { field: 'id', order: 'ASC' };
+
     const DummyIterator = props => (
-        <Datagrid {...props}>
+        <Datagrid {...props} sort={sort}>
             <NumberField source="id" />
             <TextField source="foo" />
         </Datagrid>
     );
 
+    const Wrapper = ({ children }) => (
+        <ThemeProvider theme={createTheme()}>
+            <CoreAdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    {children}
+                </ResourceContextProvider>
+            </CoreAdminContext>
+        </ThemeProvider>
+    );
+
     it('should not fail for empty records', () => {
-        const { queryByText } = render(
-            <TestContext>
-                <ArrayField source="arr" resource="posts" record={{ id: 123 }}>
+        render(
+            <Wrapper>
+                <ArrayField
+                    // @ts-expect-error source prop does not have a valid value
+                    source="arr"
+                    record={{ id: 123 }}
+                >
                     <DummyIterator />
                 </ArrayField>
-            </TestContext>
+            </Wrapper>
         );
-
-        // Test the datagrid know about the fields
-        expect(queryByText('resources.posts.fields.id')).not.toBeNull();
-        expect(queryByText('resources.posts.fields.foo')).not.toBeNull();
     });
 
-    it('should render the underlying iterator component', () => {
+    it('should not fail when value is null', () => {
+        render(
+            <Wrapper>
+                <ArrayField source="arr" record={{ id: 123, arr: null }}>
+                    <DummyIterator />
+                </ArrayField>
+            </Wrapper>
+        );
+    });
+
+    it('should render the alternative empty component', () => {
         const { queryByText } = render(
-            <TestContext>
+            <Wrapper>
                 <ArrayField
                     source="arr"
-                    resource="posts"
+                    record={{
+                        id: 123,
+                        arr: [],
+                    }}
+                >
+                    <Datagrid empty={<div>No posts</div>}>
+                        <NumberField source="id" />
+                    </Datagrid>
+                </ArrayField>
+            </Wrapper>
+        );
+        expect(queryByText('No posts')).not.toBeNull();
+    });
+
+    it('should render the <Datagrid> iterator component', () => {
+        const { queryByText } = render(
+            <Wrapper>
+                <ArrayField
+                    source="arr"
                     record={{
                         id: 123,
                         arr: [
@@ -45,7 +92,7 @@ describe('<ArrayField />', () => {
                 >
                     <DummyIterator />
                 </ArrayField>
-            </TestContext>
+            </Wrapper>
         );
 
         // Test the datagrid know about the fields
@@ -58,5 +105,91 @@ describe('<ArrayField />', () => {
 
         expect(queryByText('baz')).not.toBeNull();
         expect(queryByText('456')).not.toBeNull();
+    });
+
+    it('should render the <SimpleList> iterator component', () => {
+        const { queryByText } = render(
+            <Wrapper>
+                <ArrayField
+                    source="arr"
+                    record={{
+                        id: 123,
+                        arr: [
+                            { id: 123, foo: 'bar' },
+                            { id: 456, foo: 'baz' },
+                        ],
+                    }}
+                >
+                    <SimpleList
+                        primaryText={record => record.foo}
+                        secondaryText={record => record.id}
+                    />
+                </ArrayField>
+            </Wrapper>
+        );
+
+        // Test the fields values
+        expect(queryByText('bar')).not.toBeNull();
+        expect(queryByText('123')).not.toBeNull();
+
+        expect(queryByText('baz')).not.toBeNull();
+        expect(queryByText('456')).not.toBeNull();
+    });
+
+    it('should create a ListContext with working callbacks', async () => {
+        render(<ListContext />);
+        screen.getByText('War and Peace');
+        screen.getByText('Filter by title').click();
+        await waitFor(() => {
+            expect(screen.queryByText('War and Peace')).toBeNull();
+        });
+        const chip = screen.getByText('Resurrection');
+        expect(
+            (chip.parentNode as HTMLElement).className.includes(
+                'MuiChip-colorDefault'
+            )
+        ).toBeTruthy();
+        chip.click();
+        await waitFor(() => {
+            expect(
+                (chip.parentNode as HTMLElement).className.includes(
+                    'MuiChip-colorPrimary'
+                )
+            ).toBeTruthy();
+        });
+    });
+
+    it('should expose getData with the full list', async () => {
+        const ListContextWatcher = () => {
+            const { getData } = useListContext();
+            const [count, setCount] = React.useState<number | null>(null);
+
+            React.useEffect(() => {
+                if (!getData) return;
+                getData().then(records => setCount(records.length));
+            }, [getData]);
+
+            return count !== null ? <span>count:{count}</span> : null;
+        };
+
+        render(
+            <Wrapper>
+                <ArrayField
+                    source="arr"
+                    perPage={1}
+                    record={{
+                        id: 123,
+                        arr: [
+                            { id: 1, foo: 'bar' },
+                            { id: 2, foo: 'baz' },
+                        ],
+                    }}
+                >
+                    <ListContextWatcher />
+                </ArrayField>
+            </Wrapper>
+        );
+
+        await screen.findByText('count:2');
     });
 });

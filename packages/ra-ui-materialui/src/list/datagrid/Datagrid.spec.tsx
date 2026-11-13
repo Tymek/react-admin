@@ -1,30 +1,61 @@
 import * as React from 'react';
-import { fireEvent } from '@testing-library/react';
-import { ListContextProvider } from 'ra-core';
-import { renderWithRedux } from 'ra-test';
-import Datagrid from './Datagrid';
+import {
+    render,
+    screen,
+    fireEvent,
+    waitFor,
+    within,
+} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import {
+    CoreAdminContext,
+    testDataProvider,
+    ListContextProvider,
+    useRecordContext,
+    ResourceContextProvider,
+} from 'ra-core';
+import { ThemeProvider, createTheme } from '@mui/material';
 
-const TitleField = ({ record }: any): JSX.Element => (
-    <span>{record.title}</span>
+import { Datagrid } from './Datagrid';
+import {
+    AccessControl,
+    Expand,
+    FullApp,
+    SelectAllButton,
+    Standalone,
+} from './Datagrid.stories';
+
+const TitleField = () => {
+    const record = useRecordContext();
+    return <span>{record?.title}</span>;
+};
+
+const Wrapper = ({ children, listContext }) => (
+    <ThemeProvider theme={createTheme()}>
+        <CoreAdminContext dataProvider={testDataProvider()}>
+            <ResourceContextProvider value={listContext.resource}>
+                <ListContextProvider value={listContext}>
+                    {children}
+                </ListContextProvider>
+            </ResourceContextProvider>
+        </CoreAdminContext>
+    </ThemeProvider>
 );
-
 describe('<Datagrid />', () => {
-    const defaultData = {
-        1: { id: 1, title: 'title 1' },
-        2: { id: 2, title: 'title 2' },
-        3: { id: 3, title: 'title 3' },
-        4: { id: 4, title: 'title 4' },
-    };
+    const defaultData = [
+        { id: 1, title: 'title 1' },
+        { id: 2, title: 'title 2' },
+        { id: 3, title: 'title 3' },
+        { id: 4, title: 'title 4' },
+    ];
 
     const contextValue = {
         resource: 'posts',
-        basePath: '',
         data: defaultData,
-        ids: [1, 2, 3, 4],
-        loaded: true,
-        loading: false,
+        isFetching: false,
+        isLoading: false,
         selectedIds: [],
-        currentSort: { field: 'title', order: 'ASC' },
+        sort: { field: 'title', order: 'ASC' },
         onToggleItem: jest.fn(),
         onSelect: jest.fn(),
     };
@@ -35,14 +66,14 @@ describe('<Datagrid />', () => {
     });
 
     it('should call onToggleItem when the shift key is not pressed', () => {
-        const { queryAllByRole } = renderWithRedux(
-            <ListContextProvider value={contextValue}>
-                <Datagrid hasBulkActions>
+        render(
+            <Wrapper listContext={contextValue}>
+                <Datagrid>
                     <TitleField />
                 </Datagrid>
-            </ListContextProvider>
+            </Wrapper>
         );
-        fireEvent.click(queryAllByRole('checkbox')[1]);
+        fireEvent.click(screen.queryAllByRole('checkbox')[1]);
         expect(contextValue.onToggleItem).toHaveBeenCalledWith(1);
         expect(contextValue.onSelect).toHaveBeenCalledTimes(0);
     });
@@ -56,30 +87,113 @@ describe('<Datagrid />', () => {
             ids: [],
         };
 
-        const { queryByText } = renderWithRedux(
-            <ListContextProvider value={emptyData}>
-                <Datagrid empty={<Empty />} hasBulkActions>
+        const { rerender } = render(
+            <Wrapper listContext={emptyData}>
+                <Datagrid empty={<Empty />}>
                     <TitleField />
                 </Datagrid>
-            </ListContextProvider>
+            </Wrapper>
         );
 
-        expect(queryByText('No records to show')).toBeTruthy();
+        expect(screen.queryByText('No records to show')).toBeTruthy();
+
+        const undefinedData = {
+            ...contextValue,
+            data: undefined,
+            ids: [],
+        };
+
+        rerender(
+            <Wrapper listContext={undefinedData}>
+                <Datagrid empty={<Empty />}>
+                    <TitleField />
+                </Datagrid>
+            </Wrapper>
+        );
+
+        expect(screen.queryByText('No records to show')).toBeTruthy();
+    });
+
+    it('should not allow to expand all rows when `expandSingle` prop is true', () => {
+        render(
+            <Wrapper listContext={contextValue}>
+                <Datagrid expand={<div>Expanded panel</div>} expandSingle>
+                    <TitleField />
+                </Datagrid>
+            </Wrapper>
+        );
+        expect(screen.queryAllByTestId('ExpandMoreIcon')).toHaveLength(
+            defaultData.length
+        );
+    });
+
+    it('should let keyboard users toggle the expand panel', async () => {
+        render(<Expand />);
+        const [, firstRowCheckbox] = await screen.findAllByRole('checkbox');
+        firstRowCheckbox.focus();
+        await userEvent.tab({ shift: true });
+        expect(
+            screen.getAllByRole('button', { name: 'ra.action.expand' })[1]
+        ).toHaveFocus();
+        await userEvent.keyboard('{Enter}');
+        await screen.findByTestId('ExpandPanel');
+    });
+
+    it('should accept a custom bulkActionsToolbar', async () => {
+        render(<SelectAllButton onlyDisplay="custom" />);
+        fireEvent.click(await screen.findByLabelText('ra.action.select_all'));
+        expect(screen.queryByText('Select all records')).not.toBeNull();
+    });
+
+    it('should not display the bulk actions toolbar when when `bulkActionsToolbar` prop is false', async () => {
+        render(<SelectAllButton onlyDisplay="disabled" />);
+        fireEvent.click(await screen.findByLabelText('ra.action.select_all'));
+        expect(screen.queryByText('Select All')).toBeNull();
+    });
+
+    describe('row selection', () => {
+        it('should reveal bulk delete button by default on row selection', async () => {
+            render(<FullApp />);
+            const checkboxes = await screen.findAllByRole('checkbox');
+            fireEvent.click(checkboxes[1]);
+            await screen.findByLabelText('Delete');
+            await screen.findByText('1 item selected');
+            fireEvent.click(checkboxes[2]);
+            await screen.findByText('2 items selected');
+        });
+        it('should reveal select all button when selecting the entire page', async () => {
+            render(<FullApp perPage={5} />);
+            const checkboxes = await screen.findAllByRole('checkbox');
+            fireEvent.click(checkboxes[0]);
+            const selectAllButton = await screen.findByText('Select all');
+            selectAllButton.click();
+            await screen.findByText('7 items selected');
+        });
+        it('should only unselect the current page records', async () => {
+            render(<FullApp perPage={5} />);
+            const checkboxes = await screen.findAllByRole('checkbox');
+            fireEvent.click(checkboxes[0]);
+            const selectAllButton = await screen.findByText('Select all');
+            selectAllButton.click();
+            await screen.findByText('7 items selected');
+            fireEvent.click(checkboxes[0]);
+            await screen.findByText('2 items selected');
+        });
     });
 
     describe('selecting items with the shift key', () => {
         it('should call onSelect with the correct ids when the last selection is after the first', () => {
             const Test = ({ selectedIds = [] }) => (
-                <ListContextProvider value={{ ...contextValue, selectedIds }}>
-                    <Datagrid hasBulkActions>
+                <Wrapper listContext={{ ...contextValue, selectedIds }}>
+                    <Datagrid>
                         <TitleField />
                     </Datagrid>
-                </ListContextProvider>
+                </Wrapper>
             );
-            const { queryAllByRole, rerender } = renderWithRedux(<Test />);
-            const checkboxes = queryAllByRole('checkbox');
+            const { rerender } = render(<Test />);
+            const checkboxes = screen.queryAllByRole('checkbox');
             fireEvent.click(checkboxes[1]);
-            rerender(<Test selectedIds={[1]} />);
+            rerender(<Test selectedIds={[1] as never[]} />);
             fireEvent.click(checkboxes[3], {
                 shiftKey: true,
                 checked: true,
@@ -90,16 +204,16 @@ describe('<Datagrid />', () => {
 
         it('should call onSelect with the correct ids when the last selection is before the first', () => {
             const Test = ({ selectedIds = [] }) => (
-                <ListContextProvider value={{ ...contextValue, selectedIds }}>
-                    <Datagrid hasBulkActions>
+                <Wrapper listContext={{ ...contextValue, selectedIds }}>
+                    <Datagrid>
                         <TitleField />
                     </Datagrid>
-                </ListContextProvider>
+                </Wrapper>
             );
-            const { queryAllByRole, rerender } = renderWithRedux(<Test />);
-            const checkboxes = queryAllByRole('checkbox');
+            const { rerender } = render(<Test />);
+            const checkboxes = screen.queryAllByRole('checkbox');
             fireEvent.click(checkboxes[3], { checked: true });
-            rerender(<Test selectedIds={[3]} />);
+            rerender(<Test selectedIds={[3] as never[]} />);
             fireEvent.click(checkboxes[1], {
                 shiftKey: true,
                 checked: true,
@@ -110,45 +224,41 @@ describe('<Datagrid />', () => {
 
         it('should call onSelect with the correct ids when unselecting items', () => {
             const Test = ({ selectedIds = [] }) => (
-                <ListContextProvider value={{ ...contextValue, selectedIds }}>
-                    <Datagrid hasBulkActions>
+                <Wrapper listContext={{ ...contextValue, selectedIds }}>
+                    <Datagrid>
                         <TitleField />
                     </Datagrid>
-                </ListContextProvider>
+                </Wrapper>
             );
-            const { queryAllByRole, rerender } = renderWithRedux(
-                <Test selectedIds={[1, 2, 4]} />
+            const { rerender } = render(
+                <Test selectedIds={[1, 2, 4] as never[]} />
             );
-            const checkboxes = queryAllByRole('checkbox');
+            const checkboxes = screen.queryAllByRole('checkbox');
             fireEvent.click(checkboxes[3], { checked: true });
-            rerender(<Test selectedIds={[1, 2, 4, 3]} />);
+            rerender(<Test selectedIds={[1, 2, 4, 3] as never[]} />);
             fireEvent.click(checkboxes[4], { shiftKey: true });
             expect(contextValue.onToggleItem).toHaveBeenCalledTimes(1);
             expect(contextValue.onSelect).toHaveBeenCalledWith([1, 2]);
         });
 
         it('should call onToggeItem when the last selected id is not in the ids', () => {
-            const Test = ({
-                selectedIds = [],
-                ids = [1, 2, 3, 4],
-                data = defaultData,
-            }: any) => (
-                <ListContextProvider
-                    value={{ ...contextValue, selectedIds, ids, data }}
-                >
-                    <Datagrid hasBulkActions>
+            const Test = ({ selectedIds = [], data = defaultData }: any) => (
+                <Wrapper listContext={{ ...contextValue, selectedIds, data }}>
+                    <Datagrid>
                         <TitleField />
                     </Datagrid>
-                </ListContextProvider>
+                </Wrapper>
             );
-            const { queryAllByRole, rerender } = renderWithRedux(<Test />);
-            fireEvent.click(queryAllByRole('checkbox')[1], { checked: true });
+            const { rerender } = render(<Test />);
+            fireEvent.click(screen.queryAllByRole('checkbox')[1], {
+                checked: true,
+            });
 
             // Simulate page change
-            const newData = { 5: { id: 5, title: 'title 5' } };
-            rerender(<Test ids={[5]} selectedIds={[1]} data={newData} />);
+            const newData = [{ id: 5, title: 'title 5' }];
+            rerender(<Test selectedIds={[1]} data={newData} />);
 
-            fireEvent.click(queryAllByRole('checkbox')[1], {
+            fireEvent.click(screen.queryAllByRole('checkbox')[1], {
                 checked: true,
                 shiftKey: true,
             });
@@ -159,16 +269,16 @@ describe('<Datagrid />', () => {
 
         it('should not extend selection when selectedIds is cleared', () => {
             const Test = ({ selectedIds = [] }) => (
-                <ListContextProvider value={{ ...contextValue, selectedIds }}>
-                    <Datagrid hasBulkActions>
+                <Wrapper listContext={{ ...contextValue, selectedIds }}>
+                    <Datagrid>
                         <TitleField />
                     </Datagrid>
-                </ListContextProvider>
+                </Wrapper>
             );
-            const { queryAllByRole, rerender } = renderWithRedux(<Test />);
-            const checkboxes = queryAllByRole('checkbox');
+            const { rerender } = render(<Test />);
+            const checkboxes = screen.queryAllByRole('checkbox');
             fireEvent.click(checkboxes[1], { checked: true });
-            rerender(<Test selectedIds={[1]} />);
+            rerender(<Test selectedIds={[1] as never[]} />);
 
             // Simulate unselecting all items
             rerender(<Test />);
@@ -184,20 +294,18 @@ describe('<Datagrid />', () => {
 
         it('should respect isRowSelectable when calling onSelect', () => {
             const Test = ({ selectedIds = [] }) => (
-                <ListContextProvider value={{ ...contextValue, selectedIds }}>
-                    <Datagrid
-                        isRowSelectable={record => record.id !== 2}
-                        hasBulkActions
-                    >
+                <Wrapper listContext={{ ...contextValue, selectedIds }}>
+                    <Datagrid isRowSelectable={record => record.id !== 2}>
                         <TitleField />
                     </Datagrid>
-                </ListContextProvider>
+                </Wrapper>
             );
-            const { queryAllByRole, rerender } = renderWithRedux(<Test />);
-            const checkboxes = queryAllByRole('checkbox');
-            fireEvent.click(checkboxes[1], { checked: true });
-            rerender(<Test selectedIds={[1]} />);
-            fireEvent.click(checkboxes[2], {
+            render(<Test />);
+            const checkboxes = screen.queryAllByRole('checkbox');
+            expect(checkboxes.length).toBe(5); // 1 for the header, 4 for the rows
+            fireEvent.click(checkboxes[1], { checked: true }); // first row, id = 1
+            fireEvent.click(checkboxes[3], {
+                // third row, id = 3
                 shiftKey: true,
                 checked: true,
             });
@@ -207,31 +315,81 @@ describe('<Datagrid />', () => {
 
         it('should not use as last selected the item that was unselected', () => {
             const Test = ({ selectedIds = [] }) => (
-                <ListContextProvider value={{ ...contextValue, selectedIds }}>
-                    <Datagrid hasBulkActions>
+                <Wrapper listContext={{ ...contextValue, selectedIds }}>
+                    <Datagrid>
                         <TitleField />
                     </Datagrid>
-                </ListContextProvider>
+                </Wrapper>
             );
-            const { queryAllByRole, rerender } = renderWithRedux(<Test />);
-            const checkboxes = queryAllByRole('checkbox');
+            const { rerender } = render(<Test />);
+            const checkboxes = screen.queryAllByRole('checkbox');
             fireEvent.click(checkboxes[1], { checked: true });
             expect(contextValue.onToggleItem).toHaveBeenCalledWith(1);
 
-            rerender(<Test selectedIds={[1]} />);
+            rerender(<Test selectedIds={[1] as never[]} />);
             fireEvent.click(checkboxes[2], { shiftKey: true, checked: true });
             expect(contextValue.onSelect).toHaveBeenCalledWith([1, 2]);
 
-            rerender(<Test selectedIds={[1, 2]} />);
+            rerender(<Test selectedIds={[1, 2] as never[]} />);
             fireEvent.click(checkboxes[2]);
             expect(contextValue.onToggleItem).toHaveBeenCalledWith(2);
 
-            rerender(<Test selectedIds={[1]} />);
+            rerender(<Test selectedIds={[1] as never[]} />);
             fireEvent.click(checkboxes[4], { shiftKey: true, checked: true });
             expect(contextValue.onToggleItem).toHaveBeenCalledWith(4);
 
             expect(contextValue.onToggleItem).toHaveBeenCalledTimes(3);
             expect(contextValue.onSelect).toHaveBeenCalledTimes(1);
         });
+    });
+
+    it('should display a message when there is no result', () => {
+        render(
+            <Wrapper listContext={{ ...contextValue, data: [], total: 0 }}>
+                <Datagrid>
+                    <TitleField />
+                </Datagrid>
+            </Wrapper>
+        );
+        expect(screen.queryByText('ra.navigation.no_results')).not.toBeNull();
+    });
+
+    describe('Access control', () => {
+        it('should not show row selection when there is no delete permissions', async () => {
+            render(<AccessControl />);
+            await screen.findByText('War and Peace');
+            expect(screen.queryAllByLabelText('Select this row')).toHaveLength(
+                0
+            );
+        });
+        it('should show row selection when user has delete permissions', async () => {
+            render(<AccessControl allowedAction="delete" />);
+            await screen.findByText('War and Peace');
+            await waitFor(() =>
+                expect(
+                    screen.queryAllByLabelText('Select this row')
+                ).toHaveLength(7)
+            );
+        });
+    });
+    it('should correctly select items after initial item selection followed by whole page selection', async () => {
+        render(<Standalone />);
+        await waitFor(() =>
+            expect(screen.getAllByText('The Lord of the Rings').length).toEqual(
+                2
+            )
+        );
+        fireEvent.click(
+            await within(
+                (
+                    await screen.findAllByText('The Lord of the Rings')
+                )[1].closest('tr')
+            ).findByLabelText('Select this row')
+        );
+        await screen.findByText('1 item selected');
+        expect(screen.queryByText('Select all')).toBeNull();
+        fireEvent.click(await screen.findByLabelText('Select all'));
+        await screen.findByText('7 items selected');
+        expect(screen.queryByText('Select all')).toBeNull();
     });
 });

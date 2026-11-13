@@ -1,11 +1,10 @@
 import * as React from 'react';
-import { useMemo } from 'react';
-import { Record, useRecordContext } from 'ra-core';
-import PropTypes from 'prop-types';
-import Typography, { TypographyProps } from '@material-ui/core/Typography';
+import { useMemo, ReactNode } from 'react';
+import { useRecordContext } from 'ra-core';
+import Typography, { TypographyProps } from '@mui/material/Typography';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import { FieldProps } from './types';
 
 /**
  * Field using a render function
@@ -14,10 +13,11 @@ import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
  * <FunctionField
  *     source="last_name" // used for sorting
  *     label="Name"
- *     render={record => record && `${record.first_name} ${record.last_name}`}
+ *     render={record => `${record.first_name} ${record.last_name}`}
  * />
  */
-const FunctionField = <RecordType extends Record = Record>(
+
+export const FunctionField = <RecordType extends Record<string, any> = any>(
     props: FunctionFieldProps<RecordType>
 ) => {
     const { className, source = '', render, ...rest } = props;
@@ -38,22 +38,10 @@ const FunctionField = <RecordType extends Record = Record>(
     );
 };
 
-FunctionField.defaultProps = {
-    addLabel: true,
-};
-
-FunctionField.propTypes = {
-    // @ts-ignore
-    ...Typography.propTypes,
-    ...fieldPropTypes,
-    render: PropTypes.func.isRequired,
-};
-
-export interface FunctionFieldProps<RecordType extends Record = Record>
-    extends PublicFieldProps,
-        InjectedFieldProps<RecordType>,
-        TypographyProps {
-    render: (record?: RecordType, source?: string) => any;
+export interface FunctionFieldProps<
+    RecordType extends Record<string, any> = any,
+> extends Omit<FieldProps<RecordType>, 'source'>,
+        Omit<TypographyProps, 'textAlign'> {
+    source?: string;
+    render: (record: RecordType, source?: string) => ReactNode;
 }
-
-export default FunctionField;

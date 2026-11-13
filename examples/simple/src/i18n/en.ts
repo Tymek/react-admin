@@ -13,33 +13,29 @@ export const messages = {
         posts: {
             name: 'Post |||| Posts',
             fields: {
-                average_note: 'Average note',
-                body: 'Body',
-                comments: 'Comments',
-                commentable: 'Commentable',
                 commentable_short: 'Com.',
-                created_at: 'Created at',
+                commentable: 'Commentable',
                 notifications: 'Notifications recipients',
                 nb_view: 'Nb views',
+                nb_comments: 'Nb comments',
                 password: 'Password (if protected post)',
                 pictures: 'Related Pictures',
-                published_at: 'Published at',
-                teaser: 'Teaser',
-                tags: 'Tags',
-                title: 'Title',
-                views: 'Views',
-                authors: 'Authors',
+            },
+            notifications: {
+                created: 'Post created |||| %{smart_count} posts created',
+                updated: 'Post updated |||| %{smart_count} posts updated',
+                deleted: 'Post deleted |||| %{smart_count} posts deleted',
             },
         },
         comments: {
             name: 'Comment |||| Comments',
             fields: {
-                body: 'Body',
-                created_at: 'Created at',
-                post_id: 'Posts',
-                author: {
-                    name: 'Author',
-                },
+                post_id: 'Post',
+            },
+            notifications: {
+                created: 'Comment created |||| %{smart_count} comments created',
+                updated: 'Comment updated |||| %{smart_count} comments updated',
+                deleted: 'Comment deleted |||| %{smart_count} comments deleted',
             },
         },
         users: {
@@ -47,6 +43,11 @@ export const messages = {
             fields: {
                 name: 'Name',
                 role: 'Role',
+            },
+            notifications: {
+                created: 'User created |||| %{smart_count} users created',
+                updated: 'User updated |||| %{smart_count} users updated',
+                deleted: 'User deleted |||| %{smart_count} users deleted',
             },
         },
     },
@@ -82,9 +83,6 @@ export const messages = {
         form: {
             summary: 'Summary',
             security: 'Security',
-        },
-        edit: {
-            title: 'User "%{title}"',
         },
         action: {
             save_and_add: 'Save and Add',

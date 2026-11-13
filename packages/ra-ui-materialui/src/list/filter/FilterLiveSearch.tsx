@@ -1,11 +1,10 @@
 import * as React from 'react';
-import { FC, ChangeEvent, memo, useMemo } from 'react';
-import { InputAdornment } from '@material-ui/core';
-import SearchIcon from '@material-ui/icons/Search';
-import { Form } from 'react-final-form';
-import { useTranslate, useListFilterContext } from 'ra-core';
+import { memo } from 'react';
+import SearchIcon from '@mui/icons-material/Search';
+import { InputAdornment, type Theme, type SxProps } from '@mui/material';
+import { FilterLiveForm, useTranslate } from 'ra-core';
 
-import TextInput from '../../input/TextInput';
+import { TextInput, TextInputProps } from '../../input';
 
 /**
  * Form and search input for doing a full-text search filter.
@@ -22,50 +21,44 @@ import TextInput from '../../input/TextInput';
  *     </Card>
  * );
  */
-const FilterLiveSearch: FC<{ source?: string }> = props => {
-    const { source = 'q', ...rest } = props;
-    const { filterValues, setFilters } = useListFilterContext();
+export const FilterLiveSearch = memo((props: FilterLiveSearchProps) => {
     const translate = useTranslate();
 
-    const onSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-        if (event.target) {
-            setFilters({ ...filterValues, [source]: event.target.value }, null);
-        } else {
-            const { [source]: _, ...filters } = filterValues;
-            setFilters(filters, null);
-        }
-    };
-
-    const initialValues = useMemo(
-        () => ({
-            [source]: filterValues[source],
-        }),
-        [filterValues, source]
-    );
-
-    const onSubmit = () => undefined;
+    const {
+        source = 'q',
+        label = translate('ra.action.search'),
+        placeholder,
+        ...rest
+    } = props;
 
     return (
-        <Form initialValues={initialValues} onSubmit={onSubmit}>
-            {() => (
-                <TextInput
-                    resettable
-                    helperText={false}
-                    source={source}
-                    label={translate('ra.action.search')}
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <SearchIcon color="disabled" />
-                            </InputAdornment>
-                        ),
-                    }}
-                    onChange={onSearchChange}
-                    {...rest}
-                />
-            )}
-        </Form>
+        <FilterLiveForm>
+            <TextInput
+                resettable
+                helperText={false}
+                source={source}
+                InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <SearchIcon color="disabled" />
+                        </InputAdornment>
+                    ),
+                }}
+                size="small"
+                label={rest.hiddenLabel ? false : label}
+                placeholder={
+                    placeholder ?? (rest.hiddenLabel ? label : undefined)
+                }
+                {...rest}
+            />
+        </FilterLiveForm>
     );
-};
+});
 
-export default memo(FilterLiveSearch);
+export interface FilterLiveSearchProps extends Omit<TextInputProps, 'source'> {
+    source?: string;
+    sx?: SxProps<Theme>;
+    label?: string;
+    fullWidth?: boolean;
+    variant?: 'filled' | 'outlined';
+}

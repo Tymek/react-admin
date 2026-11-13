@@ -1,30 +1,82 @@
 import * as React from 'react';
 import expect from 'expect';
-import { waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { Routes, Route } from 'react-router-dom';
 
-import Authenticated from './Authenticated';
-import AuthContext from './AuthContext';
-import { renderWithRedux } from 'ra-test';
-import { showNotification } from '../actions/notificationActions';
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router-dom';
+import { memoryStore } from '../store';
+import { CoreAdminContext } from '../core';
+import { useNotificationContext } from '../notification';
+import { Authenticated } from './Authenticated';
+import { TestMemoryRouter, useLocation } from '../routing';
 
 describe('<Authenticated>', () => {
     const Foo = () => <div>Foo</div>;
 
-    it('should render its child by default', async () => {
-        const { dispatch, queryByText } = renderWithRedux(
-            <Authenticated>
-                <Foo />
-            </Authenticated>
+    it('should not render its child while loading', async () => {
+        const authProvider = {
+            checkAuth: new Promise(() => {}),
+        } as any;
+
+        render(
+            <CoreAdminContext authProvider={authProvider}>
+                <Authenticated loading={<div>Loading</div>}>
+                    <Foo />
+                </Authenticated>
+            </CoreAdminContext>
         );
-        expect(queryByText('Foo')).not.toBeNull();
+        await screen.findByText('Loading');
+    });
+
+    it('should not render its child when checkAuth raises an error', async () => {
+        const NeverDisplayedComponent = jest.fn(() => (
+            <div>It should not be called</div>
+        ));
+
+        const authProvider = {
+            checkAuth: jest.fn().mockRejectedValue(undefined),
+            logout: jest.fn().mockResolvedValue(undefined),
+        } as any;
+
+        render(
+            <CoreAdminContext authProvider={authProvider}>
+                <Authenticated>
+                    <NeverDisplayedComponent />
+                </Authenticated>
+            </CoreAdminContext>
+        );
+
+        // Ensure that the NeverDisplayedComponent is not called
         await waitFor(() => {
-            expect(dispatch).toHaveBeenCalledTimes(0);
+            // Ensure that checkAuth and logout were called as expected
+            expect(authProvider.checkAuth).toHaveBeenCalled();
+            expect(authProvider.logout).toHaveBeenCalled();
+            expect(NeverDisplayedComponent).toHaveBeenCalledTimes(0);
         });
     });
 
-    it('should logout, redirect to login and show a notification after a tick if the auth fails', async () => {
+    it('should render its child when authenticated', async () => {
+        const authProvider = {
+            login: () => Promise.reject('bad method'),
+            logout: () => Promise.reject('bad method'),
+            checkAuth: jest.fn().mockResolvedValueOnce(''),
+            checkError: () => Promise.reject('bad method'),
+            getPermissions: () => Promise.reject('bad method'),
+        };
+        const store = memoryStore();
+        const reset = jest.spyOn(store, 'reset');
+
+        render(
+            <CoreAdminContext authProvider={authProvider} store={store}>
+                <Authenticated>
+                    <Foo />
+                </Authenticated>
+            </CoreAdminContext>
+        );
+        await screen.findByText('Foo');
+        expect(reset).toHaveBeenCalledTimes(0);
+    });
+
+    it('should logout, redirect to login and show a notification if the auth fails', async () => {
         const authProvider = {
             login: jest.fn().mockResolvedValue(''),
             logout: jest.fn().mockResolvedValue(''),
@@ -32,36 +84,62 @@ describe('<Authenticated>', () => {
             checkError: jest.fn().mockResolvedValue(''),
             getPermissions: jest.fn().mockResolvedValue(''),
         };
+        const store = memoryStore();
+        const reset = jest.spyOn(store, 'reset');
 
-        const history = createMemoryHistory();
-
-        const { dispatch } = renderWithRedux(
-            <Router history={history}>
-                <AuthContext.Provider value={authProvider}>
-                    <Authenticated>
-                        <Foo />
-                    </Authenticated>
-                </AuthContext.Provider>
-            </Router>
-        );
-        await waitFor(() => {
-            expect(authProvider.checkAuth.mock.calls[0][0]).toEqual({});
-            expect(authProvider.logout.mock.calls[0][0]).toEqual({});
-            expect(dispatch).toHaveBeenCalledTimes(2);
-            expect(dispatch.mock.calls[0][0]).toEqual(
-                showNotification('ra.auth.auth_check_error', 'warning', {
-                    messageArgs: {},
-                    undoable: false,
-                })
+        const Login = () => {
+            const location = useLocation();
+            return (
+                <div aria-label="nextPathname">
+                    {(location.state as any).nextPathname}
+                </div>
             );
-            expect(dispatch.mock.calls[1][0]).toEqual({
-                type: 'RA/CLEAR_STATE',
+        };
+
+        let notificationsSpy;
+        const Notification = () => {
+            const { notifications } = useNotificationContext();
+            React.useEffect(() => {
+                notificationsSpy = notifications;
+            }, [notifications]);
+            return null;
+        };
+
+        render(
+            <TestMemoryRouter>
+                <CoreAdminContext authProvider={authProvider} store={store}>
+                    <Notification />
+                    <Routes>
+                        <Route
+                            path="/"
+                            element={
+                                <Authenticated>
+                                    <Foo />
+                                </Authenticated>
+                            }
+                        />
+                        <Route path="/login" element={<Login />} />
+                    </Routes>
+                </CoreAdminContext>
+            </TestMemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(authProvider.checkAuth.mock.calls[0][0]).toEqual({
+                signal: expect.anything(),
             });
-            expect(history.location.pathname).toEqual('/login');
-            expect(history.location.state).toEqual({
-                nextPathname: '/',
-                nextSearch: '',
-            });
+            expect(authProvider.logout.mock.calls[0][0]).toEqual({});
+            expect(reset).toHaveBeenCalledTimes(1);
+            expect(notificationsSpy).toEqual([
+                {
+                    message: 'ra.auth.auth_check_error',
+                    type: 'error',
+                    notificationOptions: {},
+                },
+            ]);
+            expect(screen.getByLabelText('nextPathname').innerHTML).toEqual(
+                '/'
+            );
         });
     });
 });

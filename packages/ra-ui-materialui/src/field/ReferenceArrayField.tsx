@@ -1,22 +1,23 @@
 import * as React from 'react';
-import { Children, cloneElement, FC, memo, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import { makeStyles } from '@material-ui/core/styles';
 import {
-    ListContextProvider,
     useListContext,
-    ListControllerProps,
-    useReferenceArrayFieldController,
-    SortPayload,
-    FilterPayload,
-    ResourceContextProvider,
-    useRecordContext,
+    ReferenceArrayFieldBase,
+    type RaRecord,
+    ReferenceArrayFieldBaseProps,
+    genericMemo,
 } from 'ra-core';
+import {
+    type ComponentsOverrides,
+    styled,
+    type SxProps,
+    type Theme,
+    useThemeProps,
+} from '@mui/material/styles';
 
-import { fieldPropTypes, PublicFieldProps, InjectedFieldProps } from './types';
-import { ClassesOverride } from '../types';
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
+import type { FieldProps } from './types';
 import { LinearProgress } from '../layout';
+import { SingleFieldList } from '../list/SingleFieldList';
+import { Offline } from '../Offline';
 
 /**
  * A container component that fetches records from another resource specified
@@ -74,136 +75,133 @@ import { LinearProgress } from '../layout';
  *    ...
  * </ReferenceArrayField>
  */
-const ReferenceArrayField: FC<ReferenceArrayFieldProps> = props => {
-    const {
-        basePath,
-        children,
-        filter,
-        page = 1,
-        perPage,
-        reference,
-        resource,
-        sort,
-        source,
-    } = props;
-    const record = useRecordContext(props);
-
-    if (React.Children.count(children) !== 1) {
-        throw new Error(
-            '<ReferenceArrayField> only accepts a single child (like <Datagrid>)'
-        );
-    }
-    const controllerProps = useReferenceArrayFieldController({
-        basePath,
-        filter,
-        page,
-        perPage,
-        record,
-        reference,
-        resource,
-        sort,
-        source,
+export const ReferenceArrayField = <
+    RecordType extends RaRecord = RaRecord,
+    ReferenceRecordType extends RaRecord = RaRecord,
+>(
+    inProps: ReferenceArrayFieldProps<RecordType, ReferenceRecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
     });
+    const {
+        pagination,
+        children,
+        className,
+        sx,
+        render,
+        offline = defaultOffline,
+        ...controllerProps
+    } = props;
     return (
-        <ResourceContextProvider value={reference}>
-            <ListContextProvider value={controllerProps}>
-                <PureReferenceArrayFieldView {...props} {...controllerProps} />
-            </ListContextProvider>
-        </ResourceContextProvider>
+        <ReferenceArrayFieldBase {...controllerProps}>
+            <PureReferenceArrayFieldView<RecordType, ReferenceRecordType>
+                className={className}
+                offline={offline}
+                pagination={pagination}
+                render={render}
+                sx={sx}
+            >
+                {children}
+            </PureReferenceArrayFieldView>
+        </ReferenceArrayFieldBase>
     );
 };
 
-ReferenceArrayField.propTypes = {
-    ...fieldPropTypes,
-    addLabel: PropTypes.bool,
-    basePath: PropTypes.string,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    children: PropTypes.element.isRequired,
-    label: PropTypes.string,
-    record: PropTypes.any,
-    reference: PropTypes.string.isRequired,
-    resource: PropTypes.string,
-    sortBy: PropTypes.string,
-    sortByOrder: fieldPropTypes.sortByOrder,
-    source: PropTypes.string.isRequired,
-};
+const defaultOffline = <Offline variant="inline" />;
 
-ReferenceArrayField.defaultProps = {
-    addLabel: true,
-};
+export interface ReferenceArrayFieldProps<
+    RecordType extends RaRecord = RaRecord,
+    ReferenceRecordType extends RaRecord = RaRecord,
+> extends ReferenceArrayFieldBaseProps<RecordType, ReferenceRecordType>,
+        ReferenceArrayFieldViewProps<RecordType, ReferenceRecordType>,
+        FieldProps<RecordType> {}
 
-export interface ReferenceArrayFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps {
-    children: ReactElement;
-    classes?: ClassesOverride<typeof useStyles>;
-    filter?: FilterPayload;
-    page?: number;
-    pagination?: ReactElement;
-    perPage?: number;
-    reference: string;
-    resource?: string;
-    sort?: SortPayload;
+export interface ReferenceArrayFieldViewProps<
+    RecordType extends RaRecord = RaRecord,
+    ReferenceRecordType extends RaRecord = RaRecord,
+> extends Omit<
+        ReferenceArrayFieldBaseProps<RecordType, ReferenceRecordType>,
+        'source' | 'reference'
+    > {
+    offline?: React.ReactNode;
+    pagination?: React.ReactNode;
+    className?: string;
+    sx?: SxProps<Theme>;
 }
 
-const useStyles = makeStyles(
-    theme => ({
-        progress: { marginTop: theme.spacing(2) },
-    }),
-    { name: 'RaReferenceArrayField' }
-);
+export const ReferenceArrayFieldView = <
+    RecordType extends RaRecord = RaRecord,
+    ReferenceRecordType extends RaRecord = RaRecord,
+>(
+    props: ReferenceArrayFieldViewProps<RecordType, ReferenceRecordType>
+) => {
+    const { children, render, offline, pagination, className, sx } = props;
+    const listContext = useListContext();
 
-export interface ReferenceArrayFieldViewProps
-    extends Omit<
-            ReferenceArrayFieldProps,
-            'basePath' | 'resource' | 'page' | 'perPage'
-        >,
-        ListControllerProps {
-    classes?: ClassesOverride<typeof useStyles>;
-}
+    const { isPaused, isPending, isPlaceholderData, total } = listContext;
 
-export const ReferenceArrayFieldView: FC<ReferenceArrayFieldViewProps> = props => {
-    const {
-        children,
-        pagination,
-        className,
-        resource,
-        reference,
-        ...rest
-    } = props;
-    const classes = useStyles(props);
-    const { loaded } = useListContext(props);
+    const shouldRenderPending = isPending && !isPaused;
+    const shouldRenderOffline =
+        isPaused &&
+        (isPending || isPlaceholderData) &&
+        offline !== undefined &&
+        offline !== false;
 
-    if (!loaded) {
-        return <LinearProgress className={classes.progress} />;
+    return (
+        <Root className={className} sx={sx}>
+            {shouldRenderPending ? (
+                <LinearProgress
+                    className={ReferenceArrayFieldClasses.progress}
+                />
+            ) : shouldRenderOffline ? (
+                offline
+            ) : (
+                <span>
+                    {(render ? render(listContext) : children) || (
+                        <SingleFieldList />
+                    )}
+                    {pagination && total !== undefined ? pagination : null}
+                </span>
+            )}
+        </Root>
+    );
+};
+
+const PREFIX = 'RaReferenceArrayField';
+
+export const ReferenceArrayFieldClasses = {
+    progress: `${PREFIX}-progress`,
+};
+
+const Root = styled('span', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    display: 'block',
+    [`& .${ReferenceArrayFieldClasses.progress}`]: {
+        marginTop: theme.spacing(2),
+    },
+}));
+
+const PureReferenceArrayFieldView = genericMemo(ReferenceArrayFieldView);
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaReferenceArrayField: 'root' | 'progress';
     }
 
-    return (
-        <>
-            {cloneElement(Children.only(children), {
-                ...sanitizeFieldRestProps(rest),
-                className,
-                resource,
-            })}{' '}
-            {pagination &&
-                props.total !== undefined &&
-                cloneElement(pagination, sanitizeFieldRestProps(rest))}
-        </>
-    );
-};
+    interface ComponentsPropsList {
+        RaReferenceArrayField: Partial<ReferenceArrayFieldProps>;
+    }
 
-ReferenceArrayFieldView.propTypes = {
-    basePath: PropTypes.string,
-    classes: PropTypes.any,
-    className: PropTypes.string,
-    data: PropTypes.any,
-    ids: PropTypes.array,
-    loaded: PropTypes.bool,
-    children: PropTypes.element.isRequired,
-    reference: PropTypes.string.isRequired,
-};
-
-const PureReferenceArrayFieldView = memo(ReferenceArrayFieldView);
-
-export default ReferenceArrayField;
+    interface Components {
+        RaReferenceArrayField?: {
+            defaultProps?: ComponentsPropsList['RaReferenceArrayField'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaReferenceArrayField'];
+        };
+    }
+}

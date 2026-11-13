@@ -1,48 +1,42 @@
 import * as React from 'react';
-import { FC } from 'react';
-import PropTypes from 'prop-types';
-import get from 'lodash/get';
-import { makeStyles } from '@material-ui/core/styles';
-import Typography from '@material-ui/core/Typography';
-import classnames from 'classnames';
-import { useRecordContext } from 'ra-core';
+import {
+    type ComponentsOverrides,
+    styled,
+    type SxProps,
+    type Theme,
+    useThemeProps,
+} from '@mui/material/styles';
+import { Box, Typography } from '@mui/material';
+import get from 'lodash/get.js';
+import {
+    type ExtractRecordPaths,
+    type HintedString,
+    useFieldValue,
+    useTranslate,
+} from 'ra-core';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import type { FieldProps } from './types';
 
-const useStyles = makeStyles(
-    {
-        list: {
-            display: 'flex',
-            listStyleType: 'none',
-        },
-        image: {
-            margin: '0.5rem',
-            maxHeight: '10rem',
-        },
-    },
-    { name: 'RaImageField' }
-);
+export const ImageField = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: ImageFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { className, emptyText, src, title, ...rest } = props;
+    const sourceValue = useFieldValue(props);
+    const titleValue =
+        useFieldValue({
+            ...props,
+            // @ts-ignore We ignore here because title might be a custom label or undefined instead of a field name
+            source: title,
+        })?.toString() ?? title;
+    const translate = useTranslate();
 
-export interface ImageFieldProps extends PublicFieldProps, InjectedFieldProps {
-    src?: string;
-    title?: string;
-    classes?: object;
-}
-
-const ImageField: FC<ImageFieldProps> = props => {
-    const {
-        className,
-        classes: classesOverride,
-        emptyText,
-        source,
-        src,
-        title,
-        ...rest
-    } = props;
-    const record = useRecordContext(props);
-    const sourceValue = get(record, source);
-    const classes = useStyles(props);
     if (!sourceValue) {
         return emptyText ? (
             <Typography
@@ -51,63 +45,104 @@ const ImageField: FC<ImageFieldProps> = props => {
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {emptyText}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
         ) : (
-            <div className={className} {...sanitizeFieldRestProps(rest)} />
+            <Typography
+                component="div"
+                className={className}
+                {...sanitizeFieldRestProps(rest)}
+            />
         );
     }
 
     if (Array.isArray(sourceValue)) {
         return (
-            <ul
-                className={classnames(classes.list, className)}
-                {...sanitizeFieldRestProps(rest)}
-            >
-                {sourceValue.map((file, index) => {
-                    const fileTitleValue = get(file, title) || title;
-                    const srcValue = get(file, src) || title;
+            <Root className={className} {...sanitizeFieldRestProps(rest)}>
+                <ul className={ImageFieldClasses.list}>
+                    {sourceValue.map((file, index) => {
+                        const fileTitleValue = title
+                            ? get(file, title, title)
+                            : title;
+                        const srcValue = src ? get(file, src, title) : title;
 
-                    return (
-                        <li key={index}>
-                            <img
-                                alt={fileTitleValue}
-                                title={fileTitleValue}
-                                src={srcValue}
-                                className={classes.image}
-                            />
-                        </li>
-                    );
-                })}
-            </ul>
+                        return (
+                            <li key={index}>
+                                <img
+                                    alt={fileTitleValue}
+                                    title={fileTitleValue}
+                                    src={srcValue}
+                                    className={ImageFieldClasses.image}
+                                />
+                            </li>
+                        );
+                    })}
+                </ul>
+            </Root>
         );
     }
 
-    const titleValue = get(record, title) || title;
-
     return (
-        <div className={className} {...sanitizeFieldRestProps(rest)}>
+        <Root className={className} {...sanitizeFieldRestProps(rest)}>
             <img
                 title={titleValue}
                 alt={titleValue}
-                src={sourceValue}
-                className={classes.image}
+                src={sourceValue?.toString()}
+                className={ImageFieldClasses.image}
             />
-        </div>
+        </Root>
     );
 };
 
 // What? TypeScript loses the displayName if we don't set it explicitly
 ImageField.displayName = 'ImageField';
 
-ImageField.defaultProps = {
-    addLabel: true,
+const PREFIX = 'RaImageField';
+
+export const ImageFieldClasses = {
+    list: `${PREFIX}-list`,
+    image: `${PREFIX}-image`,
 };
 
-ImageField.propTypes = {
-    ...fieldPropTypes,
-    src: PropTypes.string,
-    title: PropTypes.string,
-};
+const Root = styled(Box, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    [`& .${ImageFieldClasses.list}`]: {
+        display: 'flex',
+        listStyleType: 'none',
+    },
+    [`& .${ImageFieldClasses.image}`]: {
+        margin: '0.25rem',
+        width: 200,
+        height: 100,
+        objectFit: 'contain',
+    },
+});
 
-export default ImageField;
+export interface ImageFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType> {
+    src?: string;
+    title?: HintedString<ExtractRecordPaths<RecordType>>;
+    sx?: SxProps<Theme>;
+}
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaImageField: 'root' | 'list' | 'image';
+    }
+
+    interface ComponentsPropsList {
+        RaImageField: Partial<ImageFieldProps>;
+    }
+
+    interface Components {
+        RaImageField?: {
+            defaultProps?: ComponentsPropsList['RaImageField'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaImageField'];
+        };
+    }
+}

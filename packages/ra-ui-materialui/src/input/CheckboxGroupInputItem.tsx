@@ -1,50 +1,64 @@
 import * as React from 'react';
-import FormControlLabel from '@material-ui/core/FormControlLabel';
-import Checkbox from '@material-ui/core/Checkbox';
-import { makeStyles } from '@material-ui/core/styles';
-import { useChoices } from 'ra-core';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import {
+    Checkbox,
+    type CheckboxProps,
+    FormControlLabel,
+    type FormControlLabelProps,
+} from '@mui/material';
+import { type ChoicesProps, useChoices } from 'ra-core';
+import { useSwitchBaseInputRefProps } from './useSwitchBaseInputRefProps';
 
-const useStyles = makeStyles(
-    {
-        checkbox: {
-            height: 32,
-        },
-    },
-    { name: 'RaCheckboxGroupInputItem' }
-);
-
-const CheckboxGroupInputItem = props => {
+export const CheckboxGroupInputItem = (
+    inProps: CheckboxGroupInputItemProps
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
-        classes: classesOverride,
         id,
         choice,
+        className,
+        fullWidth,
         onChange,
         optionText,
         optionValue,
         options,
         translateChoice,
         value,
+        labelPlacement,
+        inputRef,
+        disableValue = 'disabled',
         ...rest
     } = props;
-    const classes = useStyles(props);
-    const { getChoiceText, getChoiceValue } = useChoices({
+
+    const { getChoiceText, getChoiceValue, getDisableValue } = useChoices({
         optionText,
         optionValue,
         translateChoice,
+        disableValue,
     });
 
     const choiceName = getChoiceText(choice);
+    const disabled = getDisableValue(choice);
+    const checkboxProps = useSwitchBaseInputRefProps(inputRef, options ?? {});
 
     return (
-        <FormControlLabel
+        <StyledFormControlLabel
             htmlFor={`${id}_${getChoiceValue(choice)}`}
             key={getChoiceValue(choice)}
             onChange={onChange}
+            className={className}
             control={
                 <Checkbox
                     id={`${id}_${getChoiceValue(choice)}`}
                     color="primary"
-                    className={classes.checkbox}
+                    className={CheckboxGroupInputItemClasses.checkbox}
                     checked={
                         value
                             ? value.find(v => v == getChoiceValue(choice)) !== // eslint-disable-line eqeqeq
@@ -52,13 +66,59 @@ const CheckboxGroupInputItem = props => {
                             : false
                     }
                     value={String(getChoiceValue(choice))}
-                    {...options}
-                    {...rest}
+                    disabled={disabled}
+                    {...checkboxProps}
                 />
             }
             label={choiceName}
+            labelPlacement={labelPlacement}
+            {...rest}
         />
     );
 };
 
-export default CheckboxGroupInputItem;
+export interface CheckboxGroupInputItemProps
+    extends Omit<FormControlLabelProps, 'control' | 'label'>,
+        Pick<
+            ChoicesProps,
+            'optionValue' | 'optionText' | 'translateChoice' | 'disableValue'
+        > {
+    choice: any;
+    value: any;
+    fullWidth?: boolean;
+    options?: CheckboxProps;
+}
+
+const PREFIX = 'RaCheckboxGroupInputItem';
+
+export const CheckboxGroupInputItemClasses = {
+    checkbox: `${PREFIX}-checkbox`,
+};
+
+const StyledFormControlLabel = styled(FormControlLabel, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    [`& .${CheckboxGroupInputItemClasses.checkbox}`]: {
+        height: 32,
+    },
+});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaCheckboxGroupInputItem: 'root' | 'checkbox';
+    }
+
+    interface ComponentsPropsList {
+        RaCheckboxGroupInputItem: Partial<CheckboxGroupInputItemProps>;
+    }
+
+    interface Components {
+        RaCheckboxGroupInputItem?: {
+            defaultProps?: ComponentsPropsList['RaCheckboxGroupInputItem'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaCheckboxGroupInputItem'];
+        };
+    }
+}

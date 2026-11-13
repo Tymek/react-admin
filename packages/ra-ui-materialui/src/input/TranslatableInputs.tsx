@@ -1,13 +1,20 @@
 import * as React from 'react';
-import { ReactElement, ReactNode } from 'react';
+import {
+    ComponentsOverrides,
+    SxProps,
+    type Theme,
+    styled,
+} from '@mui/material/styles';
+import { StackProps, useThemeProps } from '@mui/material';
+import type { ReactElement, ReactNode } from 'react';
 import {
     TranslatableContextProvider,
     useTranslatable,
     UseTranslatableOptions,
 } from 'ra-core';
+import clsx from 'clsx';
 import { TranslatableInputsTabs } from './TranslatableInputsTabs';
 import { TranslatableInputsTabContent } from './TranslatableInputsTabContent';
-import { makeStyles } from '@material-ui/core/styles';
 
 /**
  * Provides a way to edit multiple languages for any input passed as children.
@@ -29,7 +36,7 @@ import { makeStyles } from '@material-ui/core/styles';
  * <TranslatableInputs locales={['en', 'fr']}>
  *     <TextInput source="title" />
  *     <RichTextInput source="description" />
- * </Translatable>
+ * </TranslatableInputs>
  *
  * @example <caption>With a custom language selector</caption>
  * <TranslatableInputs
@@ -37,7 +44,7 @@ import { makeStyles } from '@material-ui/core/styles';
  *     locales={['en', 'fr']}
  * >
  *     <TextInput source="title" />
- * </Translatable>
+ * </TranslatableInputs>
  *
  * const MyLanguageSelector = () => {
  *     const {
@@ -57,24 +64,37 @@ import { makeStyles } from '@material-ui/core/styles';
  *     );
  * }
  *
- * * @param props The component props
- * * @param {string} props.defaultLocale The locale selected by default. Default to 'en'.
- * * @param {string[]} props.locales An array of the possible locales. For example: `['en', 'fr'].
- * * @param {ReactElement} props.selector The element responsible for selecting a locale. Defaults to Material UI tabs.
+ * @param props The component props
+ * @param {string} props.defaultLocale The locale selected by default. Default to 'en'.
+ * @param {string[]} props.locales An array of the possible locales. For example: `['en', 'fr'].
+ * @param {ReactElement} props.selector The element responsible for selecting a locale. Defaults to Material UI tabs.
  */
-export const TranslatableInputs = (props: TranslatableProps): ReactElement => {
+export const TranslatableInputs = (inProps: TranslatableInputsProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
+        className,
         defaultLocale,
+        fullWidth,
         locales,
         groupKey = '',
         selector = <TranslatableInputsTabs groupKey={groupKey} />,
         children,
+        margin,
+        sx,
+        StackProps = {},
     } = props;
     const context = useTranslatable({ defaultLocale, locales });
-    const classes = useStyles(props);
 
     return (
-        <div className={classes.root}>
+        <Root
+            className={clsx(className, TranslatableInputsClasses.root, {
+                [TranslatableInputsClasses.fullWidth]: fullWidth,
+            })}
+            sx={sx}
+        >
             <TranslatableContextProvider value={context}>
                 {selector}
                 {locales.map(locale => (
@@ -82,28 +102,62 @@ export const TranslatableInputs = (props: TranslatableProps): ReactElement => {
                         key={locale}
                         locale={locale}
                         groupKey={groupKey}
+                        margin={margin}
+                        {...StackProps}
                     >
                         {children}
                     </TranslatableInputsTabContent>
                 ))}
             </TranslatableContextProvider>
-        </div>
+        </Root>
     );
 };
 
-export interface TranslatableProps extends UseTranslatableOptions {
+export interface TranslatableInputsProps extends UseTranslatableOptions {
+    className?: string;
     selector?: ReactElement;
     children: ReactNode;
+    fullWidth?: boolean;
     groupKey?: string;
+    margin?: 'none' | 'normal' | 'dense';
+    sx?: SxProps<Theme>;
+    StackProps?: StackProps;
 }
 
-const useStyles = makeStyles(
-    theme => ({
-        root: {
-            flexGrow: 1,
-            marginTop: theme.spacing(1),
-            marginBottom: theme.spacing(0.5),
-        },
-    }),
-    { name: 'RaTranslatableInputs' }
-);
+const PREFIX = 'RaTranslatableInputs';
+
+export const TranslatableInputsClasses = {
+    root: `${PREFIX}-root`,
+    fullWidth: `${PREFIX}-fullWidth`,
+};
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    flexGrow: 1,
+    marginTop: theme.spacing(1),
+    marginBottom: theme.spacing(0.5),
+
+    [`&.${TranslatableInputsClasses.fullWidth}`]: {
+        width: '100%',
+    },
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaTranslatableInputs: 'root' | 'fullWidth';
+    }
+
+    interface ComponentsPropsList {
+        RaTranslatableInputs: Partial<TranslatableInputsProps>;
+    }
+
+    interface Components {
+        RaTranslatableInputs?: {
+            defaultProps?: ComponentsPropsList['RaTranslatableInputs'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaTranslatableInputs'];
+        };
+    }
+}

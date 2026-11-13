@@ -1,22 +1,14 @@
 import * as React from 'react';
-import { FC, memo } from 'react';
-import PropTypes from 'prop-types';
-import get from 'lodash/get';
-import Typography, { TypographyProps } from '@material-ui/core/Typography';
-import { useRecordContext } from 'ra-core';
+import { Typography, TypographyProps } from '@mui/material';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { useFieldValue, useTranslate, genericMemo } from 'ra-core';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
-
-const toLocaleStringSupportsLocales = (() => {
-    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toLocaleString
-    try {
-        new Date().toLocaleString('i');
-    } catch (error) {
-        return error instanceof RangeError;
-    }
-    return false;
-})();
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import { FieldProps } from './types';
 
 /**
  * Display a date value as a locale string.
@@ -42,21 +34,35 @@ const toLocaleStringSupportsLocales = (() => {
  * // renders the record { id: 1234, new Date('2012-11-07') } as
  * <span>mercredi 7 novembre 2012</span>
  */
-export const DateField: FC<DateFieldProps> = memo<DateFieldProps>(props => {
+const DateFieldImpl = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: DateFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
     const {
         className,
         emptyText,
         locales,
         options,
         showTime = false,
-        source,
+        showDate = true,
+        transform = defaultTransform,
         ...rest
     } = props;
-    const record = useRecordContext(props);
-    if (!record) {
-        return null;
+    const translate = useTranslate();
+
+    if (!showTime && !showDate) {
+        throw new Error(
+            '<DateField> cannot have showTime and showDate false at the same time'
+        );
     }
-    const value = get(record, source);
+
+    const value = useFieldValue(props);
     if (value == null || value === '') {
         return emptyText ? (
             <Typography
@@ -65,55 +71,102 @@ export const DateField: FC<DateFieldProps> = memo<DateFieldProps>(props => {
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {emptyText}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
         ) : null;
     }
 
-    const date = value instanceof Date ? value : new Date(value);
-    const dateString = showTime
-        ? toLocaleStringSupportsLocales
-            ? date.toLocaleString(locales, options)
-            : date.toLocaleString()
-        : toLocaleStringSupportsLocales
-        ? date.toLocaleDateString(locales, options)
-        : date.toLocaleDateString();
+    const date = transform(value);
+
+    let dateString = '';
+    if (date) {
+        if (showTime && showDate) {
+            dateString = toLocaleStringSupportsLocales
+                ? date.toLocaleString(locales, options)
+                : date.toLocaleString();
+        } else if (showDate) {
+            // If input is a date string (e.g. '2022-02-15') without time and time zone,
+            // force timezone to UTC to fix issue with people in negative time zones
+            // who may see a different date when calling toLocaleDateString().
+            const dateOptions =
+                options ??
+                (typeof value === 'string' && value.length <= 10
+                    ? { timeZone: 'UTC' }
+                    : undefined);
+            dateString = toLocaleStringSupportsLocales
+                ? date.toLocaleDateString(locales, dateOptions)
+                : date.toLocaleDateString();
+        } else if (showTime) {
+            dateString = toLocaleStringSupportsLocales
+                ? date.toLocaleTimeString(locales, options)
+                : date.toLocaleTimeString();
+        }
+    }
 
     return (
-        <Typography
+        <StyledTypography
             component="span"
             variant="body2"
             className={className}
             {...sanitizeFieldRestProps(rest)}
         >
             {dateString}
-        </Typography>
+        </StyledTypography>
     );
-});
-
-DateField.defaultProps = {
-    addLabel: true,
 };
+DateFieldImpl.displayName = 'DateFieldImpl';
 
-DateField.propTypes = {
-    // @ts-ignore
-    ...Typography.propTypes,
-    ...fieldPropTypes,
-    locales: PropTypes.oneOfType([
-        PropTypes.string,
-        PropTypes.arrayOf(PropTypes.string),
-    ]),
-    options: PropTypes.object,
-    showTime: PropTypes.bool,
-};
+export const DateField = genericMemo(DateFieldImpl);
 
-export interface DateFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps,
-        TypographyProps {
-    locales?: string | string[];
-    options?: object;
+export interface DateFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType>,
+        Omit<TypographyProps, 'textAlign'> {
+    locales?: Intl.LocalesArgument;
+    options?: Intl.DateTimeFormatOptions;
     showTime?: boolean;
+    showDate?: boolean;
+    transform?: (value: any) => Date;
 }
 
-export default DateField;
+const defaultTransform = value =>
+    value instanceof Date
+        ? value
+        : typeof value === 'string' || typeof value === 'number'
+          ? new Date(value)
+          : undefined;
+
+const toLocaleStringSupportsLocales = (() => {
+    // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toLocaleString
+    try {
+        new Date().toLocaleString('i');
+    } catch (error) {
+        return error instanceof RangeError;
+    }
+    return false;
+})();
+
+const PREFIX = 'RaDateField';
+const StyledTypography = styled(Typography, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<DateFieldProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

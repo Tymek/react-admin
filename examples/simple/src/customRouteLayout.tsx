@@ -1,42 +1,35 @@
 import * as React from 'react';
-import {
-    useGetList,
-    useAuthenticated,
-    Datagrid,
-    TextField,
-    Title,
-} from 'react-admin';
+import { useGetList, useAuthenticated, DataTable, Title } from 'react-admin';
 
-const currentSort = { field: 'published_at', order: 'DESC' };
+const sort = { field: 'published_at', order: 'DESC' } as const;
 
-const CustomRouteLayout = () => {
+const CustomRouteLayout = ({ title = 'Posts' }) => {
     useAuthenticated();
 
-    const { ids, data, total, loaded } = useGetList(
-        'posts',
-        { page: 1, perPage: 10 },
-        currentSort
-    );
+    const { data, total, isPending } = useGetList('posts', {
+        pagination: { page: 1, perPage: 10 },
+        sort,
+    });
 
-    return loaded ? (
+    return !isPending ? (
         <div>
             <Title title="Example Admin" />
-            <h1>Posts</h1>
+            <h1>{title}</h1>
             <p>
                 Found <span className="total">{total}</span> posts !
             </p>
-            <Datagrid
-                basePath="/posts"
-                currentSort={currentSort}
+            <DataTable
+                sort={sort}
                 data={data}
-                ids={ids}
-                loaded={loaded}
+                isPending={isPending}
                 total={total}
                 rowClick="edit"
+                bulkActionButtons={false}
+                resource="posts"
             >
-                <TextField source="id" sortable={false} />
-                <TextField source="title" sortable={false} />
-            </Datagrid>
+                <DataTable.Col source="id" disableSort />
+                <DataTable.Col source="title" disableSort />
+            </DataTable>
         </div>
     ) : null;
 };

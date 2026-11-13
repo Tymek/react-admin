@@ -1,13 +1,14 @@
 import * as React from 'react';
-import { TitleProps, useTranslate } from 'react-admin';
+import { useTranslate, useRecordContext } from 'react-admin';
 
-export default ({ record }: TitleProps) => {
+export default () => {
     const translate = useTranslate();
+    const record = useRecordContext();
     return (
-        <span>
+        <>
             {record
                 ? translate('post.edit.title', { title: record.title })
                 : ''}
-        </span>
+        </>
     );
 };

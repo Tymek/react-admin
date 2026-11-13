@@ -1,20 +1,27 @@
-import Filter, { FilterProps } from './Filter';
-import FilterButton from './FilterButton';
-import FilterForm from './FilterForm';
-import FilterFormInput from './FilterFormInput';
-import FilterList from './FilterList';
-import FilterListItem from './FilterListItem';
-import FilterLiveSearch from './FilterLiveSearch';
-
+export * from './Filter';
+export * from './FilterButton';
 export * from './FilterButtonMenuItem';
+export * from './FilterForm';
+export * from './FilterFormInput';
+export * from './FilterList';
+export * from './FilterListItem';
+export * from './FilterListSection';
+export * from './FilterLiveSearch';
+export * from './AddSavedQueryDialog';
+export * from './AddSavedQueryIconButton';
+export * from './RemoveSavedQueryDialog';
+export * from './RemoveSavedQueryIconButton';
+export * from './SavedQueriesList';
+export * from './SavedQueryFilterListItem';
+/**
+ * @deprecated Import from `ra-core` or `react-admin` instead
+ * FIXME: remove the re-export in v6
+ */
 export {
-    Filter,
-    FilterButton,
-    FilterForm,
-    FilterFormInput,
-    FilterList,
-    FilterListItem,
-    FilterLiveSearch,
-};
-
-export type { FilterProps };
+    FilterContext,
+    useSavedQueries,
+    type SavedQuery,
+    extractValidSavedQueries,
+    areValidSavedQueries,
+    isValidSavedQuery,
+} from 'ra-core';

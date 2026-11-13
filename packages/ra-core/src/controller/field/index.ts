@@ -1,23 +1,13 @@
-import ReferenceArrayFieldController from './ReferenceArrayFieldController';
-import ReferenceFieldController from './ReferenceFieldController';
-import ReferenceManyFieldController from './ReferenceManyFieldController';
-import getResourceLinkPath, { LinkToType } from './getResourceLinkPath';
-import useReferenceArrayFieldController from './useReferenceArrayFieldController';
-import useReferenceManyFieldController from './useReferenceManyFieldController';
-import { ListControllerProps } from '../useListController';
-
-// kept for backwards compatibility
-// deprecated to be removed in 4.0
-export type ReferenceArrayProps = ListControllerProps;
-export type ReferenceManyProps = ListControllerProps;
-
-export type { LinkToType };
-
-export {
-    useReferenceArrayFieldController,
-    ReferenceArrayFieldController,
-    ReferenceFieldController,
-    getResourceLinkPath,
-    useReferenceManyFieldController,
-    ReferenceManyFieldController,
-};
+export * from './ArrayFieldBase';
+export * from './ReferenceOneFieldBase';
+export * from './ReferenceFieldBase';
+export * from './ReferenceFieldContext';
+export * from './ReferenceManyCountBase';
+export * from './ReferenceManyFieldBase';
+export * from './ReferenceArrayFieldBase';
+export * from './types';
+export * from './useReferenceArrayFieldController';
+export * from './useReferenceFieldController';
+export * from './useReferenceManyFieldController';
+export * from './useReferenceOneFieldController';
+export * from './sanitizeFieldRestProps';

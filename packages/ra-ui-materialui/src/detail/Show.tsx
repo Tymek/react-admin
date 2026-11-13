@@ -1,31 +1,21 @@
 import * as React from 'react';
-import { ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import {
-    ShowContextProvider,
-    ResourceContextProvider,
-    useCheckMinimumRequiredProps,
-    useShowController,
-} from 'ra-core';
+import { ShowBase, RaRecord, ShowBaseProps } from 'ra-core';
+import { useThemeProps } from '@mui/material/styles';
 
-import { ShowProps } from '../types';
-import { ShowView } from './ShowView';
+import { ShowView, ShowViewProps } from './ShowView';
+import { Loading } from '../layout';
 
 /**
  * Page component for the Show view
  *
- * The `<Show>` component renders the page title and actions,
- * fetches the record from the data provider.
- * It is not responsible for rendering the actual form -
- * that's the job of its child component (usually `<SimpleShowLayout>`),
- * to which it passes the `record` as prop.
+ * The `<Show>` component handles the headless logic of the Show page:
+ * - it calls useShowController to fetch the record from the data provider,
+ * - it creates a ShowContext and a RecordContext,
+ * - it computes the default page title
+ * - it renders the page layout with the correct title and actions
  *
- * The <Show> component accepts the following props:
- *
- * - actions
- * - aside
- * - component
- * - title
+ * `<Show>` is not responsible for rendering the actual page -
+ * that's the job of its child component (usually `<SimpleShowLayout>`).
  *
  * @example
  *
@@ -33,8 +23,8 @@ import { ShowView } from './ShowView';
  * import * as React from "react";
  * import { Show, SimpleShowLayout, TextField } from 'react-admin';
  *
- * export const PostShow = (props) => (
- *     <Show {...props}>
+ * export const PostShow = () => (
+ *     <Show>
  *         <SimpleShowLayout>
  *             <TextField source="title" />
  *         </SimpleShowLayout>
@@ -53,38 +43,70 @@ import { ShowView } from './ShowView';
  *     </Admin>
  * );
  * export default App;
+ *
+ * @typedef {(showContext: Object) => ReactNode} RenderProp
+ * @param {ShowProps} inProps
+ * @param {RenderProp} inProps.render A function rendering the page content, receive the show context as its argument.
+ * @param {ReactNode|false} inProps.actions An element to display above the page content, or false to disable actions.
+ * @param {string} inProps.className A className to apply to the page content.
+ * @param {ElementType} inProps.component The component to use as root component (div by default).
+ * @param {boolean} inProps.emptyWhileLoading Do not display the page content while loading the initial data.
+ * @param {string} inProps.id The id of the resource to display (grabbed from the route params if not defined).
+ * @param {Object} inProps.queryClient Options to pass to the react-query useQuery hook.
+ * @param {string} inProps.resource The resource to fetch from the data provider (grabbed from the ResourceContext if not defined).
+ * @param {Object} inProps.sx Custom style object.
+ * @param {ElementType|string} inProps.title The title of the page. Defaults to `#{resource} #${id}`.
+ *
+ * @see ShowView for the actual rendering
  */
-export const Show = (
-    props: ShowProps & { children: ReactElement }
-): ReactElement => {
-    useCheckMinimumRequiredProps('Show', ['children'], props);
-    const controllerProps = useShowController(props);
-    const body = (
-        <ShowContextProvider value={controllerProps}>
-            <ShowView {...props} {...controllerProps} />
-        </ShowContextProvider>
-    );
-    return props.resource ? (
-        // support resource override via props
-        <ResourceContextProvider value={props.resource}>
-            {body}
-        </ResourceContextProvider>
-    ) : (
-        body
+export const Show = <RecordType extends RaRecord = any>(
+    inProps: ShowProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
+    const {
+        id,
+        resource,
+        queryOptions,
+        disableAuthentication,
+        authLoading = defaultAuthLoading,
+        loading,
+        error,
+        redirectOnError,
+        ...rest
+    } = props;
+
+    if (!props.render && !props.children) {
+        throw new Error(
+            '<Show> requires either a `render` prop or `children` prop'
+        );
+    }
+
+    return (
+        <ShowBase<RecordType>
+            id={id}
+            disableAuthentication={disableAuthentication}
+            queryOptions={queryOptions}
+            resource={resource}
+            authLoading={authLoading}
+            loading={loading}
+            // When an error component is provided, don't redirect by default so ShowView can display it in the ShowView container
+            redirectOnError={redirectOnError ?? (error ? false : undefined)}
+            // Disable offline support from ShowBase as it is handled by ShowView to keep the ShowView container
+            offline={false}
+        >
+            <ShowView error={error} {...rest} />
+        </ShowBase>
     );
 };
 
-Show.propTypes = {
-    actions: PropTypes.oneOfType([PropTypes.element, PropTypes.bool]),
-    aside: PropTypes.element,
-    children: PropTypes.element,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    hasCreate: PropTypes.bool,
-    hasEdit: PropTypes.bool,
-    hasList: PropTypes.bool,
-    hasShow: PropTypes.bool,
-    id: PropTypes.any.isRequired,
-    resource: PropTypes.string,
-    title: PropTypes.node,
-};
+export interface ShowProps<RecordType extends RaRecord = any>
+    extends ShowBaseProps<RecordType>,
+        Omit<ShowViewProps, 'children' | 'render'> {}
+
+const defaultAuthLoading = <Loading />;
+
+const PREFIX = 'RaShow'; // Types declared in ShowView.

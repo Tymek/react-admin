@@ -1,143 +1,199 @@
 import * as React from 'react';
-import { Children, cloneElement, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import { useDispatch, useSelector } from 'react-redux';
-import { Drawer, DrawerProps, useMediaQuery, Theme } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import lodashGet from 'lodash/get';
-import { setSidebarVisibility, ReduxState, useLocale } from 'ra-core';
-import { ClassesOverride } from '../types';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import clsx from 'clsx';
+import {
+    Drawer,
+    type DrawerProps,
+    useMediaQuery,
+    type Theme,
+    useScrollTrigger,
+} from '@mui/material';
+import lodashGet from 'lodash/get.js';
+import { useLocale } from 'ra-core';
+
+import { useSidebarState } from './useSidebarState';
+
+export const Sidebar = (inProps: SidebarProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { appBarAlwaysOn, children, closedSize, size, ...rest } = props;
+    const isXSmall = useMediaQuery<Theme>(theme =>
+        theme.breakpoints.down('sm')
+    );
+    const [open, setOpen] = useSidebarState();
+    useLocale(); // force redraw on locale change
+    const trigger = useScrollTrigger();
+
+    const toggleSidebar = () => setOpen(!open);
+
+    return isXSmall ? (
+        <StyledDrawer
+            variant="temporary"
+            open={open}
+            onClose={toggleSidebar}
+            classes={SidebarClasses}
+            {...rest}
+        >
+            {children}
+        </StyledDrawer>
+    ) : (
+        <StyledDrawer
+            variant="permanent"
+            open={open}
+            onClose={toggleSidebar}
+            classes={SidebarClasses}
+            className={clsx(
+                trigger && !appBarAlwaysOn
+                    ? SidebarClasses.appBarCollapsed
+                    : '',
+                open ? OPEN_CLASS : CLOSED_CLASS
+            )}
+            {...rest}
+        >
+            <div className={SidebarClasses.fixed}>{children}</div>
+        </StyledDrawer>
+    );
+};
+
+export interface SidebarProps extends DrawerProps {
+    appBarAlwaysOn?: boolean;
+    children: React.ReactNode;
+    closedSize?: number;
+    size?: number;
+}
+
+const PREFIX = 'RaSidebar';
+
+export const SidebarClasses = {
+    docked: `${PREFIX}-docked`,
+    paper: `${PREFIX}-paper`,
+    paperAnchorLeft: `${PREFIX}-paperAnchorLeft`,
+    paperAnchorRight: `${PREFIX}-paperAnchorRight`,
+    paperAnchorTop: `${PREFIX}-paperAnchorTop`,
+    paperAnchorBottom: `${PREFIX}-paperAnchorBottom`,
+    paperAnchorDockedLeft: `${PREFIX}-paperAnchorDockedLeft`,
+    paperAnchorDockedTop: `${PREFIX}-paperAnchorDockedTop`,
+    paperAnchorDockedRight: `${PREFIX}-paperAnchorDockedRight`,
+    paperAnchorDockedBottom: `${PREFIX}-paperAnchorDockedBottom`,
+    modal: `${PREFIX}-modal`,
+    fixed: `${PREFIX}-fixed`,
+    appBarCollapsed: `${PREFIX}-appBarCollapsed`,
+};
+
+const OPEN_CLASS = `${PREFIX}-open`;
+const CLOSED_CLASS = `${PREFIX}-closed`;
+
+const StyledDrawer = styled(Drawer, {
+    name: PREFIX,
+    slot: 'Root',
+    overridesResolver: (props, styles) => styles.root,
+    shouldForwardProp: () => true,
+})(({ open, theme }) => ({
+    height: 'calc(100vh - 3em)',
+    marginTop: 0,
+    transition: theme.transitions.create('margin', {
+        easing: theme.transitions.easing.easeOut,
+        duration: theme.transitions.duration.enteringScreen,
+    }),
+    [`&.${SidebarClasses.appBarCollapsed}`]: {
+        // compensate the margin of the Layout appFrame instead of removing it in the Layout
+        // because otherwise, the appFrame content without margin may revert the scrollTrigger,
+        // leading to a visual jiggle
+        marginTop: theme.spacing(-6),
+        [theme.breakpoints.down('sm')]: {
+            marginTop: theme.spacing(-7),
+        },
+        transition: theme.transitions.create('margin', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+        }),
+    },
+    [`& .${SidebarClasses.docked}`]: {},
+    [`& .${SidebarClasses.paper}`]: {},
+    [`& .${SidebarClasses.paperAnchorLeft}`]: {},
+    [`& .${SidebarClasses.paperAnchorRight}`]: {},
+    [`& .${SidebarClasses.paperAnchorTop}`]: {},
+    [`& .${SidebarClasses.paperAnchorBottom}`]: {},
+    [`& .${SidebarClasses.paperAnchorDockedLeft}`]: {},
+    [`& .${SidebarClasses.paperAnchorDockedTop}`]: {},
+    [`& .${SidebarClasses.paperAnchorDockedRight}`]: {},
+    [`& .${SidebarClasses.paperAnchorDockedBottom}`]: {},
+    [`& .${SidebarClasses.modal}`]: {},
+
+    [`& .${SidebarClasses.fixed}`]: {
+        position: 'fixed',
+        height: 'calc(100vh - 3em)',
+        overflowX: 'hidden',
+        // hide scrollbar
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none',
+        '&::-webkit-scrollbar': {
+            display: 'none',
+        },
+    },
+
+    [`& .MuiPaper-root`]: {
+        position: 'relative',
+        width: open
+            ? lodashGet(theme, 'sidebar.width', DRAWER_WIDTH)
+            : lodashGet(theme, 'sidebar.closedWidth', CLOSED_DRAWER_WIDTH),
+        transition: theme.transitions.create('width', {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+        }),
+        backgroundColor: 'transparent',
+        borderRight: 'none',
+        [theme.breakpoints.only('xs')]: {
+            marginTop: 0,
+            height: '100vh',
+            position: 'inherit',
+            backgroundColor: (theme.vars || theme).palette.background.default,
+        },
+        [theme.breakpoints.up('md')]: {
+            border: 'none',
+        },
+        zIndex: 'inherit',
+    },
+}));
 
 export const DRAWER_WIDTH = 240;
 export const CLOSED_DRAWER_WIDTH = 55;
 
-const Sidebar = (props: SidebarProps) => {
-    const {
-        children,
-        closedSize,
-        size,
-        classes: classesOverride,
-        ...rest
-    } = props;
-    const dispatch = useDispatch();
-    const isXSmall = useMediaQuery<Theme>(theme =>
-        theme.breakpoints.down('xs')
-    );
-    const isSmall = useMediaQuery<Theme>(theme => theme.breakpoints.down('sm'));
-    const open = useSelector<ReduxState, boolean>(
-        state => state.admin.ui.sidebarOpen
-    );
-    useLocale(); // force redraw on locale change
-    const handleClose = () => dispatch(setSidebarVisibility(false));
-    const toggleSidebar = () => dispatch(setSidebarVisibility(!open));
-    const { drawerPaper, ...classes } = useStyles({ ...props, open });
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaSidebar:
+            | 'root'
+            | 'docked'
+            | 'paper'
+            | 'paperAnchorLeft'
+            | 'paperAnchorRight'
+            | 'paperAnchorTop'
+            | 'paperAnchorBottom'
+            | 'paperAnchorDockedLeft'
+            | 'paperAnchorDockedTop'
+            | 'paperAnchorDockedRight'
+            | 'paperAnchorDockedBottom'
+            | 'modal'
+            | 'fixed'
+            | 'appBarCollapsed';
+    }
 
-    return isXSmall ? (
-        <Drawer
-            variant="temporary"
-            open={open}
-            PaperProps={{
-                className: drawerPaper,
-            }}
-            onClose={toggleSidebar}
-            classes={classes}
-            {...rest}
-        >
-            {cloneElement(Children.only(children), {
-                onMenuClick: handleClose,
-            })}
-        </Drawer>
-    ) : isSmall ? (
-        <Drawer
-            variant="permanent"
-            open={open}
-            PaperProps={{
-                className: drawerPaper,
-            }}
-            onClose={toggleSidebar}
-            classes={classes}
-            {...rest}
-        >
-            {cloneElement(Children.only(children), {
-                onMenuClick: handleClose,
-            })}
-        </Drawer>
-    ) : (
-        <Drawer
-            variant="permanent"
-            open={open}
-            PaperProps={{
-                className: drawerPaper,
-            }}
-            onClose={toggleSidebar}
-            classes={classes}
-            {...rest}
-        >
-            {cloneElement(Children.only(children), {
-                onMenuClick: defaultOnMenuClick,
-            })}
-        </Drawer>
-    );
-};
+    interface ComponentsPropsList {
+        RaSidebar: Partial<SidebarProps>;
+    }
 
-Sidebar.propTypes = {
-    children: PropTypes.node.isRequired,
-};
-
-const defaultOnMenuClick = () => null;
-
-const useStyles = makeStyles(
-    theme => ({
-        root: {},
-        docked: {},
-        paper: {},
-        paperAnchorLeft: {},
-        paperAnchorRight: {},
-        paperAnchorTop: {},
-        paperAnchorBottom: {},
-        paperAnchorDockedLeft: {},
-        paperAnchorDockedTop: {},
-        paperAnchorDockedRight: {},
-        paperAnchorDockedBottom: {},
-        modal: {},
-        drawerPaper: {
-            position: 'relative',
-            height: '100%',
-            overflowX: 'hidden',
-            width: (props: { open?: boolean }) =>
-                props.open
-                    ? lodashGet(theme, 'sidebar.width', DRAWER_WIDTH)
-                    : lodashGet(
-                          theme,
-                          'sidebar.closedWidth',
-                          CLOSED_DRAWER_WIDTH
-                      ),
-            transition: theme.transitions.create('width', {
-                easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.leavingScreen,
-            }),
-            backgroundColor: 'transparent',
-            borderRight: 'none',
-            [theme.breakpoints.only('xs')]: {
-                marginTop: 0,
-                height: '100vh',
-                position: 'inherit',
-                backgroundColor: theme.palette.background.default,
-            },
-            [theme.breakpoints.up('md')]: {
-                border: 'none',
-            },
-            zIndex: 'inherit',
-        },
-    }),
-    { name: 'RaSidebar' }
-);
-
-export interface SidebarProps extends DrawerProps {
-    children: ReactElement;
-    closedSize?: number;
-    classes: ClassesOverride<typeof useStyles>;
-    size?: number;
+    interface Components {
+        RaSidebar?: {
+            defaultProps?: ComponentsPropsList['RaSidebar'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaSidebar'];
+        };
+    }
 }
-
-export default Sidebar;

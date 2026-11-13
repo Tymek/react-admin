@@ -1,34 +1,23 @@
 import * as React from 'react';
 import { useListFilterContext, useGetIdentity } from 'react-admin';
-import { Switch, FormControlLabel } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
+import { Box, Switch, FormControlLabel } from '@mui/material';
 
-const useStyles = makeStyles(theme => ({
-    root: {
-        marginBottom: theme.spacing(1),
-        marginLeft: theme.spacing(1),
-    },
-}));
-
-export const OnlyMineInput = ({ alwaysOn }: { alwaysOn: boolean }) => {
-    const {
-        filterValues,
-        displayedFilters,
-        setFilters,
-    } = useListFilterContext();
+export const OnlyMineInput = (_: { alwaysOn: boolean; source: string }) => {
+    const { filterValues, displayedFilters, setFilters } =
+        useListFilterContext();
     const { identity } = useGetIdentity();
-    const classes = useStyles();
+
     const handleChange = () => {
         const newFilterValues = { ...filterValues };
         if (typeof filterValues.sales_id !== 'undefined') {
             delete newFilterValues.sales_id;
         } else {
-            newFilterValues.sales_id = identity && identity?.id;
+            newFilterValues.sales_id = identity?.id;
         }
         setFilters(newFilterValues, displayedFilters);
     };
     return (
-        <div className={classes.root}>
+        <Box sx={{ marginBottom: 1, marginLeft: 1 }}>
             <FormControlLabel
                 control={
                     <Switch
@@ -40,8 +29,6 @@ export const OnlyMineInput = ({ alwaysOn }: { alwaysOn: boolean }) => {
                 }
                 label="Only companies I manage"
             />
-        </div>
+        </Box>
     );
 };
-
-OnlyMineInput.defaultProps = { source: 'sales_id' };

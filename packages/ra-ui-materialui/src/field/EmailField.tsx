@@ -1,20 +1,29 @@
 import * as React from 'react';
-import { FC, AnchorHTMLAttributes, memo } from 'react';
-import get from 'lodash/get';
-import Typography from '@material-ui/core/Typography';
-import { Link } from '@material-ui/core';
-import { useRecordContext } from 'ra-core';
+import Typography from '@mui/material/Typography';
+import { Link, LinkProps } from '@mui/material';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { useFieldValue, useTranslate, genericMemo } from 'ra-core';
 
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import { FieldProps } from './types';
 
-// useful to prevent click bubbling in a datagrid with rowClick
-const stopPropagation = e => e.stopPropagation();
+const EmailFieldImpl = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: EmailFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
 
-const EmailField: FC<EmailFieldProps> = memo<EmailFieldProps>(props => {
-    const { className, source, emptyText, ...rest } = props;
-    const record = useRecordContext(props);
-    const value = get(record, source);
+    const { className, emptyText, ...rest } = props;
+    const value = useFieldValue(props);
+    const translate = useTranslate();
 
     if (value == null) {
         return emptyText ? (
@@ -24,32 +33,57 @@ const EmailField: FC<EmailFieldProps> = memo<EmailFieldProps>(props => {
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {emptyText}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
         ) : null;
     }
 
     return (
-        <Link
+        <StyledLink
             className={className}
             href={`mailto:${value}`}
             onClick={stopPropagation}
+            variant="body2"
             {...sanitizeFieldRestProps(rest)}
         >
             {value}
-        </Link>
+        </StyledLink>
     );
-});
-
-EmailField.defaultProps = {
-    addLabel: true,
 };
+EmailFieldImpl.displayName = 'EmailFieldImpl';
 
-EmailField.propTypes = fieldPropTypes;
+export const EmailField = genericMemo(EmailFieldImpl);
 
-export interface EmailFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps,
-        AnchorHTMLAttributes<HTMLAnchorElement> {}
+export interface EmailFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType>,
+        Omit<LinkProps, 'textAlign'> {}
 
-export default EmailField;
+// useful to prevent click bubbling in a Datagrid with rowClick
+const stopPropagation = e => e.stopPropagation();
+
+const PREFIX = 'RaEmailField';
+
+const StyledLink = styled(Link, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<EmailFieldProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

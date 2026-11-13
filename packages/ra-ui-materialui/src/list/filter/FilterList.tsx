@@ -1,7 +1,7 @@
+import { BoxProps, List } from '@mui/material';
 import * as React from 'react';
-import { FC } from 'react';
-import { Box, Typography, List } from '@material-ui/core';
-import { useTranslate } from 'ra-core';
+import { ReactNode } from 'react';
+import { FilterListSection } from './FilterListSection';
 
 /**
  * Header and container for a list of filter list items
@@ -16,8 +16,8 @@ import { useTranslate } from 'ra-core';
  * @example
  *
  * import * as React from 'react';
- * import { Card, CardContent } from '@material-ui/core';
- * import MailIcon from '@material-ui/icons/MailOutline';
+ * import { Card, CardContent } from '@mui/material';
+ * import MailIcon from '@mui/icons-material/MailOutlineOutlined';
  * import { FilterList, FilterListItem } from 'react-admin';
  *
  * const FilterSidebar = () => (
@@ -40,23 +40,18 @@ import { useTranslate } from 'ra-core';
  *     </Card>
  * );
  */
-const FilterList: FC<{ label: string; icon: React.ReactNode }> = ({
-    label,
-    icon,
-    children,
-}) => {
-    const translate = useTranslate();
+export const FilterList = (props: FilterListProps) => {
+    const { children, ...rest } = props;
     return (
-        <>
-            <Box mt={2} display="flex" alignItems="center">
-                <Box mr={1}>{icon}</Box>
-                <Typography variant="overline">{translate(label)}</Typography>
-            </Box>
+        <FilterListSection {...rest}>
             <List dense disablePadding>
                 {children}
             </List>
-        </>
+        </FilterListSection>
     );
 };
 
-export default FilterList;
+export interface FilterListProps extends BoxProps {
+    label: string;
+    icon: ReactNode;
+}

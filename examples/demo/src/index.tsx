@@ -1,32 +1,22 @@
-import 'react-app-polyfill/ie11';
-import 'react-app-polyfill/stable';
-import 'proxy-polyfill';
-import * as React from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 
-import dataProviderFactory from './dataProvider';
-import fakeServerFactory from './fakeServer';
 import App from './App';
+import fakeServerWorker from './fakeServer';
 
-/**
- * This demo can work with either a fake REST server, or a fake GraphQL server.
- *
- * To avoid bundling both libraries, the dataProvider and fake server factories
- * use the import() function, so they are asynchronous.
- */
-const prepareDataProvider = async () => {
-    const restoreFetch = await fakeServerFactory(
-        process.env.REACT_APP_DATA_PROVIDER || ''
-    );
-    const dataProvider = await dataProviderFactory(
-        process.env.REACT_APP_DATA_PROVIDER || ''
-    );
-    return { dataProvider, restoreFetch };
-};
+const container = document.getElementById('root');
+if (!container) {
+    throw new Error('No container found');
+}
+const root = createRoot(container);
 
-prepareDataProvider().then(({ dataProvider, restoreFetch }) => {
-    ReactDOM.render(
-        <App dataProvider={dataProvider} onUnmount={restoreFetch} />,
-        document.getElementById('root')
-    );
-});
+fakeServerWorker(process.env.REACT_APP_DATA_PROVIDER ?? '')
+    .then(worker =>
+        worker.start({
+            onUnhandledRequest: 'bypass',
+            quiet: true,
+            serviceWorker: { url: './mockServiceWorker.js' },
+        })
+    )
+    .then(() => {
+        root.render(<App />);
+    });

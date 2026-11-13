@@ -1,15 +1,16 @@
-import FakeRest from 'fakerest';
-import fetchMock from 'fetch-mock';
+import { MswAdapter, withDelay } from 'fakerest';
 import generateData from 'data-generator-retail';
 
 export default () => {
-    const data = generateData({ serializeDate: true });
-    const restServer = new FakeRest.FetchServer('http://localhost:4000');
+    const data = generateData();
+    const adapter = new MswAdapter({
+        baseUrl: 'https://demo.api.marmelab.com',
+        data,
+        loggingEnabled: true,
+        middlewares: [withDelay(300)],
+    });
     if (window) {
-        window.restServer = restServer; // give way to update data in the console
+        window.restServer = adapter.server; // give way to update data in the console
     }
-    restServer.init(data);
-    restServer.toggleLogging(); // logging is off by default, enable it
-    fetchMock.mock('begin:http://localhost:4000', restServer.getHandler());
-    return () => fetchMock.restore();
+    return adapter.getHandler();
 };

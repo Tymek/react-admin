@@ -1,9 +1,9 @@
 import * as React from 'react';
-import PropTypes from 'prop-types';
+import { ToolbarProps } from '@mui/material';
+import { useResourceDefinition } from 'ra-core';
 
 import TopToolbar from '../layout/TopToolbar';
 import { ListButton } from '../button';
-import { useCreateContext, useResourceDefinition } from 'ra-core';
 
 /**
  * Action Toolbar for the Create view
@@ -13,12 +13,12 @@ import { useCreateContext, useResourceDefinition } from 'ra-core';
  * use it in the `actions` prop to pass a custom component.
  *
  * @example
- *     import Button from '@material-ui/core/Button';
+ *     import Button from '@mui/material/Button';
  *     import { TopToolbar, Create, ListButton } from 'react-admin';
  *
- *     const PostCreateActions = ({ basePath }) => (
+ *     const PostCreateActions = () => (
  *         <TopToolbar>
- *             <ListButton basePath={basePath} />
+ *             <ListButton />
  *             // Add your custom actions here //
  *             <Button color="primary" onClick={customAction}>Custom Action</Button>
  *         </TopToolbar>
@@ -30,40 +30,28 @@ import { useCreateContext, useResourceDefinition } from 'ra-core';
  *         </Create>
  *     );
  */
-export const CreateActions = ({ className, ...rest }: CreateActionsProps) => {
-    const { basePath } = useCreateContext(rest);
-    const { hasList } = useResourceDefinition(rest);
+export const CreateActions = (props: CreateActionsProps) => {
+    const { hasList } = useResourceDefinition(props);
     return (
-        <TopToolbar className={className} {...sanitizeRestProps(rest)}>
-            {hasList && <ListButton basePath={basePath} />}
+        <TopToolbar {...sanitizeRestProps(props)}>
+            {hasList && <ListButton />}
         </TopToolbar>
     );
 };
 
 const sanitizeRestProps = ({
-    basePath = null,
-    className = null,
-    hasList = null,
-    resource = null,
+    hasCreate,
+    hasEdit,
+    hasList,
+    hasShow,
+    resource,
     ...rest
-}) => rest;
+}: CreateActionsProps) => rest;
 
-export interface CreateActionsProps {
-    basePath?: string;
-    className?: string;
+export interface CreateActionsProps extends ToolbarProps {
     hasCreate?: boolean;
     hasEdit?: boolean;
     hasList?: boolean;
     hasShow?: boolean;
     resource?: string;
 }
-
-CreateActions.propTypes = {
-    basePath: PropTypes.string,
-    className: PropTypes.string,
-    hasCreate: PropTypes.bool,
-    hasEdit: PropTypes.bool,
-    hasShow: PropTypes.bool,
-    hasList: PropTypes.bool,
-    resource: PropTypes.string,
-};

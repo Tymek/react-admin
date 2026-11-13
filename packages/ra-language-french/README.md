@@ -2,7 +2,7 @@
 
 French messages for [react-admin](https://github.com/marmelab/react-admin), the frontend framework for building admin applications on top of REST/GraphQL services.
 
-[![react-admin-demo](https://marmelab.com/react-admin/img/react-admin-demo-still.png)](https://vimeo.com/268958716)
+[![react-admin-demo](https://marmelab.com/react-admin/img/react-admin-demo-still.png)](https://www.youtube.com/watch?v=bJEo1O1oT6o)
 
 ## Installation
 
@@ -12,7 +12,8 @@ npm install --save ra-language-french
 
 ## Usage
 
-```js
+```jsx
+import { Admin } from 'react-admin';
 import frenchMessages from 'ra-language-french';
 import polyglotI18nProvider from 'ra-i18n-polyglot';
 
@@ -22,7 +23,7 @@ const messages = {
 const i18nProvider = polyglotI18nProvider(locale => messages[locale]);
 
 <Admin locale="fr" i18nProvider={i18nProvider}>
-  ...
+    ...
 </Admin>
 ```
 

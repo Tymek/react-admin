@@ -1,121 +1,141 @@
 import * as React from 'react';
-import { FC, memo } from 'react';
-import { SvgIconComponent } from '@material-ui/icons';
-import PropTypes from 'prop-types';
-import get from 'lodash/get';
-import classnames from 'classnames';
-import DoneIcon from '@material-ui/icons/Done';
-import ClearIcon from '@material-ui/icons/Clear';
-import { Tooltip, Typography } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import { TypographyProps } from '@material-ui/core/Typography';
-import { useTranslate, useRecordContext } from 'ra-core';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import DoneIcon from '@mui/icons-material/Done';
+import ClearIcon from '@mui/icons-material/Clear';
+import {
+    Tooltip,
+    Typography,
+    type TypographyProps,
+    SvgIcon,
+} from '@mui/material';
+import { useTranslate, useFieldValue, genericMemo } from 'ra-core';
+import type { FieldProps } from './types';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
 
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
+const BooleanFieldImpl = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: BooleanFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const {
+        className,
+        emptyText,
+        valueLabelTrue,
+        valueLabelFalse,
+        TrueIcon = DoneIcon,
+        FalseIcon = ClearIcon,
+        looseValue = false,
+        ...rest
+    } = props;
+    const translate = useTranslate();
+    const value = useFieldValue(props);
+    const isTruthyValue = value === true || (looseValue && value);
+    let ariaLabel = value ? valueLabelTrue : valueLabelFalse;
 
-const useStyles = makeStyles(
-    {
-        root: {
-            display: 'flex',
-        },
-    },
-    {
-        name: 'RaBooleanField',
+    if (!ariaLabel) {
+        ariaLabel = isTruthyValue ? 'ra.boolean.true' : 'ra.boolean.false';
     }
-);
 
-export const BooleanField: FC<BooleanFieldProps> = memo<BooleanFieldProps>(
-    props => {
-        const {
-            className,
-            classes: classesOverride,
-            emptyText,
-            source,
-            valueLabelTrue,
-            valueLabelFalse,
-            TrueIcon,
-            FalseIcon,
-            looseValue,
-            ...rest
-        } = props;
-        const record = useRecordContext(props);
-        const translate = useTranslate();
-        const classes = useStyles(props);
-        const value = get(record, source);
-        const isTruthyValue = value === true || (looseValue && value);
-        let ariaLabel = value ? valueLabelTrue : valueLabelFalse;
-
-        if (!ariaLabel) {
-            ariaLabel = isTruthyValue ? 'ra.boolean.true' : 'ra.boolean.false';
-        }
-
-        if (looseValue || value === false || value === true) {
-            return (
-                <Typography
-                    component="span"
-                    variant="body2"
-                    className={classnames(classes.root, className)}
-                    {...sanitizeFieldRestProps(rest)}
-                >
-                    <Tooltip title={translate(ariaLabel, { _: ariaLabel })}>
-                        {isTruthyValue ? (
-                            <span>
-                                <TrueIcon data-testid="true" fontSize="small" />
-                            </span>
-                        ) : (
-                            <span>
-                                <FalseIcon
-                                    data-testid="false"
-                                    fontSize="small"
-                                />
-                            </span>
-                        )}
-                    </Tooltip>
-                </Typography>
-            );
-        }
-
+    if (looseValue || value === false || value === true) {
         return (
-            <Typography
+            <StyledTypography
                 component="span"
                 variant="body2"
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {emptyText}
-            </Typography>
+                <Tooltip title={translate(ariaLabel, { _: ariaLabel })}>
+                    {isTruthyValue ? (
+                        TrueIcon ? (
+                            <TrueIcon
+                                data-testid="true"
+                                fontSize="small"
+                                className={classes.trueIcon}
+                            />
+                        ) : (
+                            <></>
+                        )
+                    ) : FalseIcon ? (
+                        <FalseIcon
+                            data-testid="false"
+                            fontSize="small"
+                            className={classes.falseIcon}
+                        />
+                    ) : (
+                        <></>
+                    )}
+                </Tooltip>
+            </StyledTypography>
         );
     }
-);
 
-BooleanField.defaultProps = {
-    addLabel: true,
-    TrueIcon: DoneIcon,
-    FalseIcon: ClearIcon,
-    looseValue: false,
+    return (
+        <Typography
+            component="span"
+            variant="body2"
+            className={className}
+            {...sanitizeFieldRestProps(rest)}
+        >
+            {emptyText && translate(emptyText, { _: emptyText })}
+        </Typography>
+    );
 };
+BooleanFieldImpl.displayName = 'BooleanFieldImpl';
 
-BooleanField.propTypes = {
-    // @ts-ignore
-    ...Typography.propTypes,
-    ...fieldPropTypes,
-    valueLabelFalse: PropTypes.string,
-    valueLabelTrue: PropTypes.string,
-    TrueIcon: PropTypes.elementType,
-    FalseIcon: PropTypes.elementType,
-    looseValue: PropTypes.bool,
-};
+export const BooleanField = genericMemo(BooleanFieldImpl);
 
-export interface BooleanFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps,
-        TypographyProps {
+export interface BooleanFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType>,
+        Omit<TypographyProps, 'textAlign'> {
     valueLabelTrue?: string;
     valueLabelFalse?: string;
-    TrueIcon?: SvgIconComponent;
-    FalseIcon?: SvgIconComponent;
+    TrueIcon?: typeof SvgIcon | null;
+    FalseIcon?: typeof SvgIcon | null;
     looseValue?: boolean;
 }
 
-export default BooleanField;
+const PREFIX = 'RaBooleanField';
+
+const classes = {
+    trueIcon: `${PREFIX}-trueIcon`,
+    falseIcon: `${PREFIX}-falseIcon`,
+};
+
+const StyledTypography = styled(Typography, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    display: 'inline-flex',
+    verticalAlign: 'middle',
+    lineHeight: 0,
+    [`& .${classes.trueIcon}`]: {},
+    [`& .${classes.falseIcon}`]: {},
+});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaBooleanField: 'root' | 'trueIcon' | 'falseIcon';
+    }
+
+    interface ComponentsPropsList {
+        RaBooleanField: Partial<BooleanFieldProps>;
+    }
+
+    interface Components {
+        RaBooleanField?: {
+            defaultProps?: ComponentsPropsList['RaBooleanField'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaBooleanField'];
+        };
+    }
+}

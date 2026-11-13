@@ -1,61 +1,50 @@
 import * as React from 'react';
-import { FC } from 'react';
-import { Typography } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import Inbox from '@material-ui/icons/Inbox';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { Typography } from '@mui/material';
+import Inbox from '@mui/icons-material/Inbox';
 import {
     useTranslate,
-    useListContext,
+    useResourceDefinition,
     useResourceContext,
     useGetResourceLabel,
 } from 'ra-core';
 
-import { ClassesOverride } from '../types';
 import { CreateButton } from '../button';
 
-const useStyles = makeStyles(
-    theme => ({
-        message: {
-            textAlign: 'center',
-            opacity: theme.palette.type === 'light' ? 0.5 : 0.8,
-            margin: '0 1em',
-            color:
-                theme.palette.type === 'light'
-                    ? 'inherit'
-                    : theme.palette.text.primary,
-        },
-        icon: {
-            width: '9em',
-            height: '9em',
-        },
-        toolbar: {
-            textAlign: 'center',
-            marginTop: '2em',
-        },
-    }),
-    { name: 'RaEmpty' }
-);
-
-const Empty: FC<EmptyProps> = props => {
-    const { basePath, hasCreate } = useListContext(props);
+export const Empty = (inProps: EmptyProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { className } = props;
+    const { hasCreate } = useResourceDefinition(props);
     const resource = useResourceContext(props);
-    const classes = useStyles(props);
+
     const translate = useTranslate();
 
     const getResourceLabel = useGetResourceLabel();
     const resourceName = translate(`resources.${resource}.forcedCaseName`, {
         smart_count: 0,
-        _: getResourceLabel(resource, 0),
+        _: resource ? getResourceLabel(resource, 0) : undefined,
     });
 
     const emptyMessage = translate('ra.page.empty', { name: resourceName });
     const inviteMessage = translate('ra.page.invite');
 
     return (
-        <>
-            <div className={classes.message}>
-                <Inbox className={classes.icon} />
-                <Typography variant="h4" paragraph>
+        <Root className={className}>
+            <div className={EmptyClasses.message}>
+                <Inbox className={EmptyClasses.icon} />
+                <Typography
+                    variant="h4"
+                    sx={{
+                        marginBottom: '16px',
+                    }}
+                >
                     {translate(`resources.${resource}.empty`, {
                         _: emptyMessage,
                     })}
@@ -69,17 +58,65 @@ const Empty: FC<EmptyProps> = props => {
                 )}
             </div>
             {hasCreate && (
-                <div className={classes.toolbar}>
-                    <CreateButton variant="contained" basePath={basePath} />
+                <div className={EmptyClasses.toolbar}>
+                    <CreateButton variant="contained" />
                 </div>
             )}
-        </>
+        </Root>
     );
 };
 
 export interface EmptyProps {
-    classes?: ClassesOverride<typeof useStyles>;
     resource?: string;
+    hasCreate?: boolean;
+    className?: string;
 }
 
-export default Empty;
+const PREFIX = 'RaEmpty';
+
+export const EmptyClasses = {
+    message: `${PREFIX}-message`,
+    icon: `${PREFIX}-icon`,
+    toolbar: `${PREFIX}-toolbar`,
+};
+
+const Root = styled('span', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    flex: 1,
+    [`& .${EmptyClasses.message}`]: {
+        textAlign: 'center',
+        margin: '0 1em',
+        color: (theme.vars || theme).palette.text.disabled,
+    },
+
+    [`& .${EmptyClasses.icon}`]: {
+        width: '9em',
+        height: '9em',
+    },
+
+    [`& .${EmptyClasses.toolbar}`]: {
+        textAlign: 'center',
+        marginTop: '2em',
+    },
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaEmpty: 'root' | 'message' | 'icon' | 'toolbar';
+    }
+
+    interface ComponentsPropsList {
+        RaEmpty: Partial<EmptyProps>;
+    }
+
+    interface Components {
+        RaEmpty?: {
+            defaultProps?: ComponentsPropsList['RaEmpty'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaEmpty'];
+        };
+    }
+}

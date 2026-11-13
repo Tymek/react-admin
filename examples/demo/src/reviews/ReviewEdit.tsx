@@ -1,17 +1,16 @@
 import * as React from 'react';
-import { FC } from 'react';
 import {
-    useEditController,
-    EditContextProvider,
+    EditBase,
     useTranslate,
     TextInput,
     SimpleForm,
     DateField,
-    EditProps,
+    Labeled,
+    useDefaultTitle,
+    useEditContext,
 } from 'react-admin';
-import { IconButton, Typography } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import CloseIcon from '@material-ui/icons/Close';
+import { Box, Grid, Stack, IconButton, Typography } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 
 import ProductReferenceField from '../products/ProductReferenceField';
 import CustomerReferenceField from '../visitors/CustomerReferenceField';
@@ -19,83 +18,83 @@ import StarRatingField from './StarRatingField';
 import ReviewEditToolbar from './ReviewEditToolbar';
 import { Review } from '../types';
 
-const useStyles = makeStyles(theme => ({
-    root: {
-        paddingTop: 40,
-    },
-    title: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        margin: '1em',
-    },
-    form: {
-        [theme.breakpoints.up('xs')]: {
-            width: 400,
-        },
-        [theme.breakpoints.down('xs')]: {
-            width: '100vw',
-            marginTop: -30,
-        },
-    },
-    inlineField: {
-        display: 'inline-block',
-        width: '50%',
-    },
-}));
-
-interface Props extends EditProps {
+interface ReviewEditProps {
+    id: Review['id'];
     onCancel: () => void;
 }
 
-const ReviewEdit: FC<Props> = ({ onCancel, ...props }) => {
-    const classes = useStyles();
-    const controllerProps = useEditController<Review>(props);
+const ReviewTitle = () => {
+    const appTitle = useDefaultTitle();
+    const { defaultTitle } = useEditContext();
+    return <title>{`${appTitle} - ${defaultTitle}`}</title>;
+};
+
+const ReviewEdit = ({ id, onCancel }: ReviewEditProps) => {
     const translate = useTranslate();
-    if (!controllerProps.record) {
-        return null;
-    }
     return (
-        <div className={classes.root}>
-            <div className={classes.title}>
-                <Typography variant="h6">
-                    {translate('resources.reviews.detail')}
-                </Typography>
-                <IconButton onClick={onCancel}>
-                    <CloseIcon />
-                </IconButton>
-            </div>
-            <EditContextProvider value={controllerProps}>
+        <EditBase id={id}>
+            <ReviewTitle />
+            <Box
+                sx={{
+                    pt: 5,
+                    width: { xs: '100vW', sm: 400 },
+                    mt: { xs: 2, sm: 1 },
+                }}
+            >
+                <Stack
+                    direction="row"
+                    sx={{
+                        p: 2,
+                    }}
+                >
+                    <Typography
+                        variant="h6"
+                        sx={{
+                            flex: '1',
+                        }}
+                    >
+                        {translate('resources.reviews.detail')}
+                    </Typography>
+                    <IconButton onClick={onCancel} size="small">
+                        <CloseIcon />
+                    </IconButton>
+                </Stack>
                 <SimpleForm
-                    className={classes.form}
-                    basePath={controllerProps.basePath}
-                    record={controllerProps.record}
-                    save={controllerProps.save}
-                    version={controllerProps.version}
-                    redirect="list"
-                    resource="reviews"
+                    sx={{ pt: 0, pb: 0 }}
                     toolbar={<ReviewEditToolbar />}
                 >
-                    <CustomerReferenceField
-                        formClassName={classes.inlineField}
-                    />
-                    <ProductReferenceField
-                        formClassName={classes.inlineField}
-                    />
-                    <DateField
-                        source="date"
-                        formClassName={classes.inlineField}
-                    />
-                    <StarRatingField formClassName={classes.inlineField} />
-                    <TextInput
-                        source="comment"
-                        rowsMax={15}
-                        multiline
-                        fullWidth
-                    />
+                    <Grid
+                        container
+                        rowSpacing={1}
+                        sx={{
+                            mb: 1,
+                        }}
+                    >
+                        <Grid size={{ xs: 6 }}>
+                            <Labeled source="customer_id">
+                                <CustomerReferenceField source="customer_id" />
+                            </Labeled>
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                            <Labeled label="resources.reviews.fields.product_id">
+                                <ProductReferenceField />
+                            </Labeled>
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                            <Labeled>
+                                <DateField source="date" />
+                            </Labeled>
+                        </Grid>
+                        <Grid size={{ xs: 6 }}>
+                            <Labeled label="resources.reviews.fields.rating">
+                                <StarRatingField />
+                            </Labeled>
+                        </Grid>
+                    </Grid>
+                    <TextInput source="comment" maxRows={15} multiline />
                 </SimpleForm>
-            </EditContextProvider>
-        </div>
+            </Box>
+        </EditBase>
     );
 };
 

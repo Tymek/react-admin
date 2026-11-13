@@ -1,8 +1,7 @@
 import * as React from 'react';
 import { Children, cloneElement, ReactElement, isValidElement } from 'react';
-import PropTypes from 'prop-types';
-import Tabs, { TabsProps } from '@material-ui/core/Tabs';
-import { useLocation, useRouteMatch } from 'react-router-dom';
+import Tabs, { TabsProps } from '@mui/material/Tabs';
+import { useParams } from 'ra-core';
 import { TabProps } from './Tab';
 
 export const TabbedShowLayoutTabs = ({
@@ -11,12 +10,11 @@ export const TabbedShowLayoutTabs = ({
     value,
     ...rest
 }: TabbedShowLayoutTabsProps) => {
-    const location = useLocation();
-    const match = useRouteMatch();
+    const params = useParams();
 
-    // The location pathname will contain the page path including the current tab path
-    // so we can use it as a way to determine the current tab
-    const tabValue = location.pathname;
+    // params will include eventual parameters from the root pathname and * for the remaining part
+    // which should match the tabs paths
+    const tabValue = params['*'];
 
     return (
         <Tabs
@@ -30,7 +28,7 @@ export const TabbedShowLayoutTabs = ({
                 // TabbedShowLayout hierarchy (ex: '/posts/create', '/posts/12', , '/posts/12/show')
                 // and the tab path.
                 // This will be used as the Tab's value
-                const tabPath = getTabFullPath(tab, index, match.url);
+                const tabPath = getShowLayoutTabFullPath(tab, index);
 
                 return cloneElement(tab, {
                     context: 'header',
@@ -42,16 +40,10 @@ export const TabbedShowLayoutTabs = ({
     );
 };
 
-export const getTabFullPath = (tab, index, baseUrl) =>
-    `${baseUrl}${
-        tab.props.path ? `/${tab.props.path}` : index > 0 ? `/${index}` : ''
-    }`.replace('//', '/'); // Because baseUrl can be a single / when on the first tab
+export const getShowLayoutTabFullPath = (tab, index) =>
+    `${tab.props.path ? `${tab.props.path}` : index > 0 ? index : ''}`;
 
 export interface TabbedShowLayoutTabsProps extends TabsProps {
     children?: ReactElement<TabProps>;
     syncWithLocation?: boolean;
 }
-
-TabbedShowLayoutTabs.propTypes = {
-    children: PropTypes.node,
-};

@@ -1,4 +1,4 @@
-import { stringify } from 'query-string';
+import { stringify } from '@marmelab/query-string';
 import { fetchUtils, DataProvider } from 'ra-core';
 
 /**
@@ -39,17 +39,25 @@ export default (
     countHeader: string = 'Content-Range'
 ): DataProvider => ({
     getList: (resource, params) => {
-        const { page, perPage } = params.pagination;
-        const { field, order } = params.sort;
+        const { page, perPage } = params.pagination || { page: 1, perPage: 10 };
+        const { field, order } = params.sort || { field: 'id', order: 'ASC' };
 
         const rangeStart = (page - 1) * perPage;
         const rangeEnd = page * perPage - 1;
 
-        const query = {
+        const query: {
+            sort: string;
+            range: string;
+            filter: string;
+            embed?: string;
+        } = {
             sort: JSON.stringify([field, order]),
             range: JSON.stringify([rangeStart, rangeEnd]),
             filter: JSON.stringify(params.filter),
         };
+        if (params.meta && params.meta.embed) {
+            query.embed = JSON.stringify(params.meta.embed);
+        }
         const url = `${apiUrl}/${resource}?${stringify(query)}`;
         const options =
             countHeader === 'Content-Range'
@@ -58,8 +66,9 @@ export default (
                       headers: new Headers({
                           Range: `${resource}=${rangeStart}-${rangeEnd}`,
                       }),
+                      signal: params?.signal,
                   }
-                : {};
+                : { signal: params?.signal };
 
         return httpClient(url, options).then(({ headers, json }) => {
             if (!headers.has(countHeader)) {
@@ -72,25 +81,39 @@ export default (
                 total:
                     countHeader === 'Content-Range'
                         ? parseInt(
-                              headers.get('content-range').split('/').pop(),
+                              headers.get('content-range')!.split('/').pop() ||
+                                  '',
                               10
                           )
-                        : parseInt(headers.get(countHeader.toLowerCase())),
+                        : parseInt(headers.get(countHeader.toLowerCase())!),
             };
         });
     },
 
-    getOne: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}/${params.id}`).then(({ json }) => ({
-            data: json,
-        })),
+    getOne: async (resource, params) => {
+        let query: string = '';
+        if (params.meta && params.meta.embed) {
+            query =
+                '?' + stringify({ embed: JSON.stringify(params.meta.embed) });
+        }
+        const { json } = await httpClient(
+            `${apiUrl}/${resource}/${encodeURIComponent(params.id)}${query}`,
+            { signal: params?.signal }
+        );
+        return { data: json };
+    },
 
     getMany: (resource, params) => {
-        const query = {
+        const query: { filter: string; embed?: string } = {
             filter: JSON.stringify({ id: params.ids }),
         };
+        if (params.meta && params.meta.embed) {
+            query.embed = JSON.stringify(params.meta.embed);
+        }
         const url = `${apiUrl}/${resource}?${stringify(query)}`;
-        return httpClient(url).then(({ json }) => ({ data: json }));
+        return httpClient(url, { signal: params?.signal }).then(({ json }) => ({
+            data: json,
+        }));
     },
 
     getManyReference: (resource, params) => {
@@ -100,7 +123,12 @@ export default (
         const rangeStart = (page - 1) * perPage;
         const rangeEnd = page * perPage - 1;
 
-        const query = {
+        const query: {
+            sort: string;
+            range: string;
+            filter: string;
+            embed?: string;
+        } = {
             sort: JSON.stringify([field, order]),
             range: JSON.stringify([(page - 1) * perPage, page * perPage - 1]),
             filter: JSON.stringify({
@@ -108,6 +136,9 @@ export default (
                 [params.target]: params.id,
             }),
         };
+        if (params.meta && params.meta.embed) {
+            query.embed = JSON.stringify(params.meta.embed);
+        }
         const url = `${apiUrl}/${resource}?${stringify(query)}`;
         const options =
             countHeader === 'Content-Range'
@@ -116,8 +147,9 @@ export default (
                       headers: new Headers({
                           Range: `${resource}=${rangeStart}-${rangeEnd}`,
                       }),
+                      signal: params?.signal,
                   }
-                : {};
+                : { signal: params?.signal };
 
         return httpClient(url, options).then(({ headers, json }) => {
             if (!headers.has(countHeader)) {
@@ -130,16 +162,17 @@ export default (
                 total:
                     countHeader === 'Content-Range'
                         ? parseInt(
-                              headers.get('content-range').split('/').pop(),
+                              headers.get('content-range')!.split('/').pop() ||
+                                  '',
                               10
                           )
-                        : parseInt(headers.get(countHeader.toLowerCase())),
+                        : parseInt(headers.get(countHeader.toLowerCase())!),
             };
         });
     },
 
     update: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}/${params.id}`, {
+        httpClient(`${apiUrl}/${resource}/${encodeURIComponent(params.id)}`, {
             method: 'PUT',
             body: JSON.stringify(params.data),
         }).then(({ json }) => ({ data: json })),
@@ -148,23 +181,23 @@ export default (
     updateMany: (resource, params) =>
         Promise.all(
             params.ids.map(id =>
-                httpClient(`${apiUrl}/${resource}/${id}`, {
+                httpClient(`${apiUrl}/${resource}/${encodeURIComponent(id)}`, {
                     method: 'PUT',
                     body: JSON.stringify(params.data),
                 })
             )
-        ).then(responses => ({ data: responses.map(({ json }) => json.id) })),
+        ).then(responses => ({
+            data: responses.map(({ json }) => json.id),
+        })),
 
     create: (resource, params) =>
         httpClient(`${apiUrl}/${resource}`, {
             method: 'POST',
             body: JSON.stringify(params.data),
-        }).then(({ json }) => ({
-            data: { ...params.data, id: json.id },
-        })),
+        }).then(({ json }) => ({ data: json })),
 
     delete: (resource, params) =>
-        httpClient(`${apiUrl}/${resource}/${params.id}`, {
+        httpClient(`${apiUrl}/${resource}/${encodeURIComponent(params.id)}`, {
             method: 'DELETE',
             headers: new Headers({
                 'Content-Type': 'text/plain',
@@ -175,7 +208,7 @@ export default (
     deleteMany: (resource, params) =>
         Promise.all(
             params.ids.map(id =>
-                httpClient(`${apiUrl}/${resource}/${id}`, {
+                httpClient(`${apiUrl}/${resource}/${encodeURIComponent(id)}`, {
                     method: 'DELETE',
                     headers: new Headers({
                         'Content-Type': 'text/plain',

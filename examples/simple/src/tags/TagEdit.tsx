@@ -1,46 +1,49 @@
 /* eslint react/jsx-key: off */
 import * as React from 'react';
+import { useParams } from 'react-router';
 import {
     Edit,
-    SimpleForm,
+    SimpleFormConfigurable,
     TextField,
     TextInput,
     required,
     List,
-    Datagrid,
+    DataTable,
     ResourceContextProvider,
     EditButton,
     TranslatableInputs,
+    ListActions,
 } from 'react-admin';
 
-const TagEdit = props => (
-    <>
-        <Edit {...props}>
-            <SimpleForm redirect="list" warnWhenUnsavedChanges>
-                <TextField source="id" />
-                <TranslatableInputs locales={['en', 'fr']}>
-                    <TextInput source="name" validate={[required()]} />
-                </TranslatableInputs>
-            </SimpleForm>
-        </Edit>
-        <ResourceContextProvider value="posts">
-            <List
-                hasCreate={false}
-                hasShow
-                hasEdit
-                hasList
-                basePath="/posts"
-                resource="posts"
-                filter={{ tags: [props.id] }}
-                title=" "
-            >
-                <Datagrid>
+const TagEdit = () => {
+    const { id } = useParams<'id'>();
+    return (
+        <>
+            <Edit redirect="list">
+                <SimpleFormConfigurable warnWhenUnsavedChanges>
                     <TextField source="id" />
-                    <TextField source="title" />
-                    <EditButton />
-                </Datagrid>
-            </List>
-        </ResourceContextProvider>
-    </>
-);
+                    <TranslatableInputs locales={['en', 'fr']}>
+                        <TextInput source="name" validate={[required()]} />
+                    </TranslatableInputs>
+                </SimpleFormConfigurable>
+            </Edit>
+            <ResourceContextProvider value="posts">
+                <List
+                    actions={<ListActions hasCreate={false} />}
+                    filter={{ tags: [id] }}
+                    title=" "
+                >
+                    <DataTable>
+                        <DataTable.Col source="id" />
+                        <DataTable.Col source="title" />
+                        <DataTable.Col>
+                            <EditButton />
+                        </DataTable.Col>
+                    </DataTable>
+                </List>
+            </ResourceContextProvider>
+        </>
+    );
+};
+
 export default TagEdit;

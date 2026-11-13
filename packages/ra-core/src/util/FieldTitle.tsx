@@ -1,36 +1,41 @@
 import * as React from 'react';
-import { FunctionComponent, ReactElement, memo } from 'react';
+import { ReactNode, memo } from 'react';
 
-import useTranslate from '../i18n/useTranslate';
-import getFieldLabelTranslationArgs from './getFieldLabelTranslationArgs';
+import { useTranslateLabel } from '../i18n';
 
-interface Props {
+export interface FieldTitleProps {
     isRequired?: boolean;
     resource?: string;
     source?: string;
-    label?: string | ReactElement;
+    label?: ReactNode;
 }
 
-export const FieldTitle: FunctionComponent<Props> = ({
-    resource,
-    source,
-    label,
-    isRequired,
-}) => {
-    const translate = useTranslate();
-    if (label && typeof label !== 'string') {
+export const FieldTitle = (props: FieldTitleProps) => {
+    const { source, label, resource, isRequired } = props;
+    const translateLabel = useTranslateLabel();
+
+    if (label === true) {
+        throw new Error(
+            'Label parameter must be a string, a ReactElement or false'
+        );
+    }
+
+    if (label === false || label === '') {
+        return null;
+    }
+
+    if (label != null && typeof label !== 'string') {
         return label;
     }
+
     return (
         <span>
-            {translate(
-                ...getFieldLabelTranslationArgs({
-                    label: label as string,
-                    resource,
-                    source,
-                })
-            )}
-            {isRequired && ' *'}
+            {translateLabel({
+                label,
+                resource,
+                source,
+            })}
+            {isRequired && <span aria-hidden="true">&thinsp;*</span>}
         </span>
     );
 };

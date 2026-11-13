@@ -1,128 +1,172 @@
 import * as React from 'react';
-import { FC } from 'react';
 import {
     Create,
-    CreateProps,
     DateInput,
     SimpleForm,
     TextInput,
     useTranslate,
     PasswordInput,
-    required,
     email,
+    useDefaultTitle,
+    useCreateContext,
 } from 'react-admin';
-import { AnyObject } from 'react-final-form';
-import { Typography, Box } from '@material-ui/core';
-import { makeStyles, Theme } from '@material-ui/core/styles';
-import { Styles } from '@material-ui/styles/withStyles';
+import { Box, Typography } from '@mui/material';
 
-export const styles: Styles<Theme, any> = {
-    first_name: { display: 'inline-block' },
-    last_name: { display: 'inline-block', marginLeft: 32 },
-    email: { width: 544 },
-    address: { maxWidth: 544 },
-    zipcode: { display: 'inline-block' },
-    city: { display: 'inline-block', marginLeft: 32 },
-    comment: {
-        maxWidth: '20em',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-    },
-    password: { display: 'inline-block' },
-    confirm_password: { display: 'inline-block', marginLeft: 32 },
-};
-
-const useStyles = makeStyles(styles);
-
-export const validatePasswords = ({
-    password,
-    confirm_password,
-}: AnyObject) => {
+export const validateForm = (
+    values: Record<string, any>
+): Record<string, any> => {
     const errors = {} as any;
-
-    if (password && confirm_password && password !== confirm_password) {
-        errors.confirm_password = [
-            'resources.customers.errors.password_mismatch',
-        ];
+    if (!values.first_name) {
+        errors.first_name = 'ra.validation.required';
     }
-
+    if (!values.last_name) {
+        errors.last_name = 'ra.validation.required';
+    }
+    if (!values.email) {
+        errors.email = 'ra.validation.required';
+    } else {
+        const error = email()(values.email);
+        if (error) {
+            errors.email = error;
+        }
+    }
+    if (values.password && values.password !== values.confirm_password) {
+        errors.confirm_password =
+            'resources.customers.errors.password_mismatch';
+    }
     return errors;
 };
 
-const VisitorCreate: FC<CreateProps> = props => {
-    const classes = useStyles(props);
-
+const VisitorTitle = () => {
+    const appTitle = useDefaultTitle();
+    const { defaultTitle } = useCreateContext();
     return (
-        <Create {...props}>
-            <SimpleForm validate={validatePasswords}>
-                <SectionTitle label="resources.customers.fieldGroups.identity" />
-                <TextInput
-                    autoFocus
-                    source="first_name"
-                    formClassName={classes.first_name}
-                    validate={requiredValidate}
-                />
-                <TextInput
-                    source="last_name"
-                    formClassName={classes.last_name}
-                    validate={requiredValidate}
-                />
-                <TextInput
-                    type="email"
-                    source="email"
-                    validation={{ email: true }}
-                    fullWidth
-                    formClassName={classes.email}
-                    validate={[required(), email()]}
-                />
-                <DateInput source="birthday" />
-                <Separator />
-                <SectionTitle label="resources.customers.fieldGroups.address" />
-                <TextInput
-                    source="address"
-                    formClassName={classes.address}
-                    multiline
-                    fullWidth
-                    helperText={false}
-                />
-                <TextInput
-                    source="zipcode"
-                    formClassName={classes.zipcode}
-                    helperText={false}
-                />
-                <TextInput
-                    source="city"
-                    formClassName={classes.city}
-                    helperText={false}
-                />
-                <Separator />
-                <SectionTitle label="resources.customers.fieldGroups.password" />
-                <PasswordInput
-                    source="password"
-                    formClassName={classes.password}
-                />
-                <PasswordInput
-                    source="confirm_password"
-                    formClassName={classes.confirm_password}
-                />
-            </SimpleForm>
-        </Create>
+        <>
+            <title>{`${appTitle} - ${defaultTitle}`}</title>
+            <span>{defaultTitle}</span>
+        </>
     );
 };
 
-const requiredValidate = [required()];
+const VisitorCreate = () => (
+    <Create title={<VisitorTitle />}>
+        <SimpleForm
+            sx={{ maxWidth: 500 }}
+            // Here for the GQL provider
+            defaultValues={{
+                birthday: new Date(),
+                first_seen: new Date(),
+                last_seen: new Date(),
+                has_ordered: false,
+                latest_purchase: new Date(),
+                has_newsletter: false,
+                groups: [],
+                nb_orders: 0,
+                total_spent: 0,
+            }}
+            validate={validateForm}
+        >
+            <SectionTitle label="resources.customers.fieldGroups.identity" />
+            <Box
+                sx={{
+                    display: { xs: 'block', sm: 'flex', width: '100%' },
+                }}
+            >
+                <Box
+                    sx={{
+                        flex: 1,
+                        mr: { xs: 0, sm: '0.5em' },
+                    }}
+                >
+                    <TextInput source="first_name" isRequired />
+                </Box>
+                <Box
+                    sx={{
+                        flex: 1,
+                        ml: { xs: 0, sm: '0.5em' },
+                    }}
+                >
+                    <TextInput source="last_name" isRequired />
+                </Box>
+            </Box>
+            <TextInput type="email" source="email" isRequired />
+            <DateInput source="birthday" />
+            <Separator />
+            <SectionTitle label="resources.customers.fieldGroups.address" />
+            <TextInput source="address" multiline helperText={false} />
+            <Box
+                sx={{
+                    display: { xs: 'block', sm: 'flex' },
+                }}
+            >
+                <Box
+                    sx={{
+                        flex: 2,
+                        mr: { xs: 0, sm: '0.5em' },
+                    }}
+                >
+                    <TextInput source="city" helperText={false} />
+                </Box>
+                <Box
+                    sx={{
+                        flex: 1,
+                        mr: { xs: 0, sm: '0.5em' },
+                    }}
+                >
+                    <TextInput source="stateAbbr" helperText={false} />
+                </Box>
+                <Box
+                    sx={{
+                        flex: 2,
+                    }}
+                >
+                    <TextInput source="zipcode" helperText={false} />
+                </Box>
+            </Box>
+            <Separator />
+            <SectionTitle label="resources.customers.fieldGroups.password" />
+            <Box
+                sx={{
+                    display: { xs: 'block', sm: 'flex' },
+                }}
+            >
+                <Box
+                    sx={{
+                        flex: 1,
+                        mr: { xs: 0, sm: '0.5em' },
+                    }}
+                >
+                    <PasswordInput source="password" />
+                </Box>
+                <Box
+                    sx={{
+                        flex: 1,
+                        ml: { xs: 0, sm: '0.5em' },
+                    }}
+                >
+                    <PasswordInput source="confirm_password" />
+                </Box>
+            </Box>
+        </SimpleForm>
+    </Create>
+);
 
 const SectionTitle = ({ label }: { label: string }) => {
     const translate = useTranslate();
 
     return (
         <Typography variant="h6" gutterBottom>
-            {translate(label)}
+            {translate(label as string)}
         </Typography>
     );
 };
 
-const Separator = () => <Box pt="1em" />;
+const Separator = () => (
+    <Box
+        sx={{
+            pt: '1em',
+        }}
+    />
+);
 
 export default VisitorCreate;

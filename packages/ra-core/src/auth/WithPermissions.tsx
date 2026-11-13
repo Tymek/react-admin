@@ -1,15 +1,10 @@
-import {
-    Children,
-    FunctionComponent,
-    ReactElement,
-    ComponentType,
-    createElement,
-} from 'react';
-import { Location } from 'history';
+import * as React from 'react';
+import { Children, ComponentType, createElement } from 'react';
 
 import warning from '../util/warning';
-import useAuthenticated from './useAuthenticated';
-import usePermissionsOptimized from './usePermissionsOptimized';
+import type { RouterLocation } from '../routing';
+import { useAuthenticated } from './useAuthenticated';
+import usePermissions from './usePermissions';
 
 export interface WithPermissionsChildrenParams {
     permissions: any;
@@ -17,13 +12,14 @@ export interface WithPermissionsChildrenParams {
 
 type WithPermissionsChildren = (
     params: WithPermissionsChildrenParams
-) => ReactElement;
+) => React.ReactNode;
 
-interface Props {
+export interface WithPermissionsProps {
     authParams?: object;
     children?: WithPermissionsChildren;
     component?: ComponentType<any>;
-    location?: Location;
+    loading?: ComponentType<any>;
+    location?: RouterLocation;
     render?: WithPermissionsChildren;
     staticContext?: object;
     [key: string]: any;
@@ -44,7 +40,7 @@ const isEmptyChildren = children => Children.count(children) === 0;
  * requires it.
  *
  * @example
- *     import { WithPermissions } from 'react-admin';
+ *     import { Admin, CustomRoutes, WithPermissions } from 'react-admin';
  *
  *     const Foo = ({ permissions }) => (
  *         {permissions === 'admin' ? <p>Sensitive data</p> : null}
@@ -52,27 +48,29 @@ const isEmptyChildren = children => Children.count(children) === 0;
  *     );
  *
  *     const customRoutes = [
- *         <Route path="/foo" render={() =>
+ *         <Route path="/foo" element={
  *             <WithPermissions
  *                  authParams={{ foo: 'bar' }}
- *                  render={({ permissions, ...props }) => <Foo permissions={permissions} {...props} />}
+ *                  component={({ permissions, ...props }) => <Foo permissions={permissions} {...props} />}
  *              />
  *         } />
  *     ];
  *     const App = () => (
- *         <Admin customRoutes={customRoutes}>
- *             ...
+ *         <Admin>
+ *             <CustomRoutes>{customRoutes}</CustomRoutes>
  *         </Admin>
  *     );
  */
-const WithPermissions: FunctionComponent<Props> = ({
-    authParams,
-    children,
-    render,
-    component,
-    staticContext,
-    ...props
-}) => {
+const WithPermissions = (props: WithPermissionsProps) => {
+    const {
+        authParams,
+        children,
+        render,
+        component,
+        loading: Loading = null,
+        staticContext,
+        ...rest
+    } = props;
     warning(
         (render && children && !isEmptyChildren(children)) ||
             (render && component) ||
@@ -80,20 +78,29 @@ const WithPermissions: FunctionComponent<Props> = ({
         'You should only use one of the `component`, `render` and `children` props in <WithPermissions>'
     );
 
-    useAuthenticated(authParams);
-    const { permissions } = usePermissionsOptimized(authParams);
-    // render even though the usePermissions() call isn't finished (optimistic rendering)
+    const { isPending: isAuthenticationPending } = useAuthenticated(authParams);
+    const { permissions, isPending: isPendingPermissions } = usePermissions(
+        authParams,
+        {
+            enabled: !isAuthenticationPending,
+        }
+    );
+    // We must check both pending states here as if the authProvider does not implement getPermissions, isPendingPermissions will always be false
+    if (isAuthenticationPending || isPendingPermissions) {
+        return Loading ? <Loading /> : null;
+    }
+
     if (component) {
-        return createElement(component, { permissions, ...props });
+        return createElement(component, { permissions, ...rest });
     }
     // @deprecated
     if (render) {
-        return render({ permissions, ...props });
+        return render({ permissions, ...rest });
     }
     // @deprecated
     if (children) {
-        return children({ permissions, ...props });
+        return children({ permissions, ...rest });
     }
 };
 
-export default WithPermissions as ComponentType<Props>;
+export default WithPermissions as ComponentType<WithPermissionsProps>;

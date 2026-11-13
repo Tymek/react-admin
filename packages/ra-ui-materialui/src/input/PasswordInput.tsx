@@ -1,20 +1,22 @@
 import * as React from 'react';
-import { FC, useState } from 'react';
+import { useState } from 'react';
 import { useTranslate } from 'ra-core';
-import { InputAdornment, IconButton } from '@material-ui/core';
-import Visibility from '@material-ui/icons/Visibility';
-import VisibilityOff from '@material-ui/icons/VisibilityOff';
+import { InputAdornment, IconButton } from '@mui/material';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 
-import TextInput, { TextInputProps } from './TextInput';
+import { TextInput, TextInputProps } from './TextInput';
 
-export interface PasswordInputProps extends TextInputProps {
-    initiallyVisible?: boolean;
-}
-
-const PasswordInput: FC<PasswordInputProps> = ({
-    initiallyVisible = false,
-    ...props
-}) => {
+export const PasswordInput = (props: PasswordInputProps) => {
+    const { initiallyVisible = false, ...rest } = useThemeProps({
+        props: props,
+        name: PREFIX,
+    });
     const [visible, setVisible] = useState(initiallyVisible);
     const translate = useTranslate();
 
@@ -23,9 +25,9 @@ const PasswordInput: FC<PasswordInputProps> = ({
     };
 
     return (
-        <TextInput
-            {...props}
+        <StyledTextInput
             type={visible ? 'text' : 'password'}
+            size="small"
             InputProps={{
                 endAdornment: (
                     <InputAdornment position="end">
@@ -36,14 +38,48 @@ const PasswordInput: FC<PasswordInputProps> = ({
                                     : 'ra.input.password.toggle_hidden'
                             )}
                             onClick={handleClick}
+                            size="small"
                         >
-                            {visible ? <Visibility /> : <VisibilityOff />}
+                            {visible ? (
+                                <Visibility fontSize="small" />
+                            ) : (
+                                <VisibilityOff fontSize="small" />
+                            )}
                         </IconButton>
                     </InputAdornment>
                 ),
             }}
+            {...rest}
         />
     );
 };
 
-export default PasswordInput;
+export interface PasswordInputProps extends TextInputProps {
+    initiallyVisible?: boolean;
+}
+
+const PREFIX = 'RaPasswordInput';
+
+const StyledTextInput = styled(TextInput, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<PasswordInputProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

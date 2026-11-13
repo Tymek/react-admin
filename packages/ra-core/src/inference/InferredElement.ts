@@ -2,14 +2,18 @@ import { createElement } from 'react';
 import { InferredType } from './types';
 
 class InferredElement {
-    constructor(
-        private type?: InferredType,
-        private props?: any,
-        private children?: any
-    ) {}
+    type?: InferredType;
+    props?: any;
+    children?: any;
+
+    constructor(type?: InferredType, props?: any, children?: any) {
+        this.type = type;
+        this.props = props;
+        this.children = children;
+    }
 
     getElement(props = {}) {
-        if (!this.isDefined()) {
+        if (!this.type || !this.type.component) {
             return;
         }
         return this.children
@@ -34,15 +38,18 @@ class InferredElement {
     }
 
     getRepresentation() {
-        if (!this.isDefined()) {
-            return;
+        if (!this.type) {
+            return '';
         }
         if (this.type.representation) {
             return this.type.representation(this.props, this.children);
         }
-        return `<${
-            this.type.component.displayName || this.type.component.name
-        } source="${this.props.source}" />`;
+        if (this.type.component) {
+            return `<${
+                this.type.component.displayName || this.type.component.name
+            } source="${this.props.source}" />`;
+        }
+        return '';
     }
 }
 

@@ -1,31 +1,36 @@
 /* eslint react/jsx-key: off */
 import * as React from 'react';
-import PropTypes from 'prop-types';
-import { Show, Tab, TabbedShowLayout, TextField } from 'react-admin'; // eslint-disable-line import/no-unresolved
+import { Show, TabbedShowLayout, TextField, useCanAccess } from 'react-admin';
 
-import UserTitle from './UserTitle';
 import Aside from './Aside';
 
-const UserShow = ({ permissions, ...props }) => (
-    <Show title={<UserTitle />} aside={<Aside />} {...props}>
-        <TabbedShowLayout>
-            <Tab label="user.form.summary">
-                <TextField source="id" />
-                <TextField source="name" />
-            </Tab>
-            {permissions === 'admin' && (
-                <Tab label="user.form.security" path="security">
-                    <TextField source="role" />
-                </Tab>
-            )}
-        </TabbedShowLayout>
-    </Show>
-);
-
-UserShow.propTypes = {
-    location: PropTypes.object.isRequired,
-    match: PropTypes.object.isRequired,
-    permissions: PropTypes.string,
+const UserShow = () => {
+    const { isPending, canAccess: canSeeRole } = useCanAccess({
+        action: 'show',
+        resource: 'users.role',
+    });
+    if (isPending) {
+        return null;
+    }
+    return (
+        <Show>
+            <TabbedShowLayout>
+                <TabbedShowLayout.Tab label="user.form.summary">
+                    <TextField source="id" />
+                    <TextField source="name" />
+                </TabbedShowLayout.Tab>
+                {canSeeRole ? (
+                    <TabbedShowLayout.Tab
+                        label="user.form.security"
+                        path="security"
+                    >
+                        <TextField source="role" />
+                    </TabbedShowLayout.Tab>
+                ) : null}
+            </TabbedShowLayout>
+            <Aside />
+        </Show>
+    );
 };
 
 export default UserShow;

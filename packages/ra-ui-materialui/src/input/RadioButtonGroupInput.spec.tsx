@@ -1,14 +1,24 @@
 import * as React from 'react';
 import expect from 'expect';
-import { render, fireEvent } from '@testing-library/react';
-import { Form } from 'react-final-form';
-import { TestTranslationProvider } from 'ra-core';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+    ResourceContextProvider,
+    testDataProvider,
+    TestTranslationProvider,
+    useRecordContext,
+} from 'ra-core';
 
-import RadioButtonGroupInput from './RadioButtonGroupInput';
+import { AdminContext } from '../AdminContext';
+import { SimpleForm } from '../form';
+import { RadioButtonGroupInput } from './RadioButtonGroupInput';
+import {
+    InsideReferenceArrayInput,
+    Themed,
+    TranslateChoice,
+} from './RadioButtonGroupInput.stories';
 
 describe('<RadioButtonGroupInput />', () => {
     const defaultProps = {
-        resource: 'creditcards',
         source: 'type',
         choices: [
             { id: 'visa', name: 'VISA' },
@@ -17,23 +27,27 @@ describe('<RadioButtonGroupInput />', () => {
     };
 
     it('should render choices as radio inputs', () => {
-        const { getByLabelText, queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        label="Credit card"
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'visa' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            label="Credit card"
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('Credit card')).not.toBeNull();
-        const input1 = getByLabelText('VISA') as HTMLInputElement;
+        expect(screen.queryByText('Credit card')).not.toBeNull();
+        const input1 = screen.getByLabelText('VISA') as HTMLInputElement;
         expect(input1.type).toBe('radio');
         expect(input1.name).toBe('type');
-        expect(input1.checked).toBeFalsy();
-        const input2 = getByLabelText('Mastercard') as HTMLInputElement;
+        expect(input1.checked).toEqual(true);
+        const input2 = screen.getByLabelText('Mastercard') as HTMLInputElement;
         expect(input2.type).toBe('radio');
         expect(input2.name).toBe('type');
         expect(input2.checked).toBeFalsy();
@@ -46,75 +60,96 @@ describe('<RadioButtonGroupInput />', () => {
             </span>
         );
 
-        const { getByLabelText, queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        resource={'people'}
-                        source="type"
-                        choices={[
-                            {
-                                id: 123,
-                                first_name: 'Leo',
-                                last_name: 'Tolstoi',
-                            },
-                            {
-                                id: 456,
-                                first_name: 'Jane',
-                                last_name: 'Austen',
-                            },
-                        ]}
-                        optionText={record => <FullNameField record={record} />}
-                        label="People"
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'visa' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            resource={'people'}
+                            source="type"
+                            choices={[
+                                {
+                                    id: 123,
+                                    first_name: 'Leo',
+                                    last_name: 'Tolstoi',
+                                },
+                                {
+                                    id: 456,
+                                    first_name: 'Jane',
+                                    last_name: 'Austen',
+                                },
+                            ]}
+                            optionText={record => (
+                                <FullNameField record={record} />
+                            )}
+                            label="People"
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('People')).not.toBeNull();
-        const input1 = getByLabelText('Leo Tolstoi');
-        expect(input1.id).toBe('type_123');
-        const input2 = getByLabelText('Jane Austen');
-        expect(input2.id).toBe('type_456');
+        expect(screen.queryByText('People')).not.toBeNull();
+        const input1 = screen.getByLabelText('Leo Tolstoi');
+        expect(input1.id).toMatch(/:r\d:/);
+        const input2 = screen.getByLabelText('Jane Austen');
+        expect(input2.id).toMatch(/:r\d:/);
+        expect(input2.id).not.toEqual(input1.id);
     });
 
     it('should trigger custom onChange when clicking radio button', async () => {
         const onChange = jest.fn();
-        const { getByLabelText, queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        label="Credit card"
-                        onChange={onChange}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'visa' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            label="Credit card"
+                            onChange={onChange}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('Credit card')).not.toBeNull();
-        const input1 = getByLabelText('VISA') as HTMLInputElement;
-        fireEvent.click(input1);
-        expect(onChange).toBeCalledWith('visa');
+        expect(screen.queryByText('Credit card')).not.toBeNull();
 
-        const input2 = getByLabelText('Mastercard') as HTMLInputElement;
+        const input2 = screen.getByLabelText('Mastercard') as HTMLInputElement;
         fireEvent.click(input2);
-        expect(onChange).toBeCalledWith('mastercard');
+        await waitFor(() => {
+            expect(onChange).toBeCalledWith(expect.anything(), 'mastercard');
+        });
+
+        const input1 = screen.getByLabelText('VISA') as HTMLInputElement;
+        fireEvent.click(input1);
+        await waitFor(() => {
+            expect(onChange).toBeCalledWith(expect.anything(), 'visa');
+        });
     });
 
-    it('should use the value provided by final-form as the initial input value', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                initialValues={{ type: 'mastercard' }}
-                render={() => <RadioButtonGroupInput {...defaultProps} />}
-            />
+    it('should use the value provided by the form default values', () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ type: 'mastercard' }}
+                    >
+                        <RadioButtonGroupInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
         expect(
-            (getByLabelText('VISA') as HTMLInputElement).checked
+            (screen.getByLabelText('VISA') as HTMLInputElement).checked
         ).toBeFalsy();
         expect(
-            (getByLabelText('Mastercard') as HTMLInputElement).checked
+            (screen.getByLabelText('Mastercard') as HTMLInputElement).checked
         ).toBeTruthy();
     });
 
@@ -123,179 +158,240 @@ describe('<RadioButtonGroupInput />', () => {
             { id: 1, name: 'VISA' },
             { id: 2, name: 'Mastercard' },
         ];
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        choices={choices}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        onSubmit={jest.fn()}
+                        defaultValues={{ type: 1 }}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            choices={choices}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        const input = getByLabelText('Mastercard') as HTMLInputElement;
+        const input = screen.getByLabelText('Mastercard') as HTMLInputElement;
         expect(input.checked).toBe(false);
         fireEvent.click(input);
         expect(input.checked).toBe(true);
     });
 
     it('should use optionValue as value identifier', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        optionValue="short"
-                        choices={[{ short: 'mc', name: 'Mastercard' }]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'mc' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            optionValue="short"
+                            choices={[{ short: 'mc', name: 'Mastercard' }]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect((getByLabelText('Mastercard') as HTMLInputElement).value).toBe(
-            'mc'
-        );
+        expect(
+            (screen.getByLabelText('Mastercard') as HTMLInputElement).value
+        ).toBe('mc');
     });
 
     it('should use optionValue including "." as value identifier', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        optionValue="details.id"
-                        choices={[
-                            { details: { id: 'mc' }, name: 'Mastercard' },
-                        ]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'mc' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            optionValue="details.id"
+                            choices={[
+                                { details: { id: 'mc' }, name: 'Mastercard' },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect((getByLabelText('Mastercard') as HTMLInputElement).value).toBe(
-            'mc'
-        );
+        expect(
+            (screen.getByLabelText('Mastercard') as HTMLInputElement).value
+        ).toBe('mc');
     });
 
     it('should use optionText with a string value as text identifier', () => {
-        const { queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        optionText="longname"
-                        choices={[{ id: 'mc', longname: 'Mastercard' }]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'mc' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            optionText="longname"
+                            choices={[{ id: 'mc', longname: 'Mastercard' }]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('Mastercard')).not.toBeNull();
+        expect(screen.queryByText('Mastercard')).not.toBeNull();
     });
 
     it('should use optionText with a string value including "." as text identifier', () => {
-        const { queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        optionText="details.name"
-                        choices={[
-                            { id: 'mc', details: { name: 'Mastercard' } },
-                        ]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'mc' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            optionText="details.name"
+                            choices={[
+                                { id: 'mc', details: { name: 'Mastercard' } },
+                            ]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('Mastercard')).not.toBeNull();
+        expect(screen.queryByText('Mastercard')).not.toBeNull();
     });
 
     it('should use optionText with a function value as text identifier', () => {
-        const { queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        optionText={choice => choice.longname}
-                        choices={[{ id: 'mc', longname: 'Mastercard' }]}
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'mc' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            optionText={choice => choice.longname}
+                            choices={[{ id: 'mc', longname: 'Mastercard' }]}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('Mastercard')).not.toBeNull();
+        expect(screen.queryByText('Mastercard')).not.toBeNull();
     });
 
     it('should use optionText with an element value as text identifier', () => {
-        const Foobar = ({ record }: { record?: any }) => (
-            <span>{record.longname}</span>
-        );
-        const { queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        optionText={<Foobar />}
-                        choices={[{ id: 'mc', longname: 'Mastercard' }]}
-                    />
-                )}
-            />
-        );
-        expect(queryByText('Mastercard')).not.toBeNull();
-    });
-
-    it('should translate the choices by default', () => {
-        const { queryByText } = render(
-            <TestTranslationProvider translate={x => `**${x}**`}>
-                <Form
-                    onSubmit={jest.fn}
-                    render={() => (
+        const Foobar = () => {
+            const record = useRecordContext();
+            return <span data-testid="label">{record?.longname}</span>;
+        };
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'mc' }}
+                        onSubmit={jest.fn()}
+                    >
                         <RadioButtonGroupInput
                             {...defaultProps}
-                            choices={[{ id: 'mc', name: 'Mastercard' }]}
+                            optionText={<Foobar />}
+                            choices={[{ id: 'mc', longname: 'Mastercard' }]}
                         />
-                    )}
-                />
-            </TestTranslationProvider>
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('**Mastercard**')).not.toBeNull();
+        expect(screen.queryByText('Mastercard')).not.toBeNull();
+    });
+
+    it('should be customized by a theme', async () => {
+        render(<Themed />);
+        const inputs = await screen.findAllByTestId('themed');
+        expect(inputs).toHaveLength(3);
+    });
+
+    describe('translateChoice', () => {
+        it('should translate the choices by default', async () => {
+            render(<TranslateChoice />);
+            const label = await screen.findByText('translateChoice default');
+            const options =
+                label.parentNode?.parentNode?.childNodes[1].childNodes;
+            expect(options![1].textContent).toBe('Female');
+        });
+        it('should not translate the choices when translateChoice is false', async () => {
+            render(<TranslateChoice />);
+            const label = await screen.findByText('translateChoice false');
+            const options =
+                label.parentNode?.parentNode?.childNodes[1].childNodes;
+            expect(options![1].textContent).toBe('option.female');
+        });
+        it('should not translate the choices when inside ReferenceInput by default', async () => {
+            render(<TranslateChoice />);
+            await waitFor(() => {
+                const label = screen.getByText('inside ReferenceInput');
+                const options =
+                    label.parentNode?.parentNode?.childNodes[1].childNodes;
+                expect(options![1].textContent).toBe('option.female');
+            });
+        });
+        it('should translate the choices when inside ReferenceInput when translateChoice is true', async () => {
+            render(<TranslateChoice />);
+            await waitFor(() => {
+                const label = screen.getByText('inside ReferenceInput forced');
+                const options =
+                    label.parentNode?.parentNode?.childNodes[1].childNodes;
+                expect(options![1].textContent).toBe('Female');
+            });
+        });
     });
 
     it('should not translate the choices if translateChoice is false', () => {
-        const { queryByText } = render(
-            <TestTranslationProvider translate={x => `**${x}**`}>
-                <Form
-                    onSubmit={jest.fn}
-                    render={() => (
-                        <RadioButtonGroupInput
-                            {...defaultProps}
-                            choices={[{ id: 'mc', name: 'Mastercard' }]}
-                            translateChoice={false}
-                        />
-                    )}
-                />
-            </TestTranslationProvider>
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <TestTranslationProvider translate={x => `**${x}**`}>
+                    <ResourceContextProvider value="creditcards">
+                        <SimpleForm
+                            defaultValues={{ type: 'mc' }}
+                            onSubmit={jest.fn()}
+                        >
+                            <RadioButtonGroupInput
+                                {...defaultProps}
+                                choices={[{ id: 'mc', name: 'Mastercard' }]}
+                                translateChoice={false}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </TestTranslationProvider>
+            </AdminContext>
         );
-        expect(queryByText('**Mastercard**')).toBeNull();
-        expect(queryByText('Mastercard')).not.toBeNull();
+        expect(screen.queryByText('**Mastercard**')).toBeNull();
+        expect(screen.queryByText('Mastercard')).not.toBeNull();
     });
 
     it('should display helperText if prop is present in meta', () => {
-        const { queryByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...defaultProps}
-                        helperText="Can I help you?"
-                    />
-                )}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'visa' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            helperText="Can I help you?"
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByText('Can I help you?')).not.toBeNull();
+        expect(screen.queryByText('Can I help you?')).not.toBeNull();
     });
 
     describe('error message', () => {
@@ -303,136 +399,212 @@ describe('<RadioButtonGroupInput />', () => {
             // This validator always returns an error
             const validate = () => 'ra.validation.error';
 
-            const { queryByText } = render(
-                <Form
-                    onSubmit={jest.fn}
-                    validateOnBlur
-                    render={() => (
-                        <RadioButtonGroupInput
-                            {...defaultProps}
-                            validate={validate}
-                        />
-                    )}
-                />
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="creditcards">
+                        <SimpleForm
+                            defaultValues={{ type: 'visa' }}
+                            onSubmit={jest.fn()}
+                            mode="onBlur"
+                        >
+                            <RadioButtonGroupInput
+                                {...defaultProps}
+                                validate={validate}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
             );
-            expect(queryByText('ra.validation.required')).toBeNull();
+            expect(screen.queryByText('ra.validation.required')).toBeNull();
         });
 
-        it('should be displayed if field has been touched and is invalid', () => {
+        it('should be displayed if field has been touched and is invalid', async () => {
             // This validator always returns an error
             const validate = () => 'ra.validation.error';
 
-            const { getByLabelText, getByText } = render(
-                <Form
-                    onSubmit={jest.fn}
-                    validateOnBlur
-                    render={() => (
-                        <RadioButtonGroupInput
-                            {...defaultProps}
-                            validate={validate}
-                        />
-                    )}
-                />
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="creditcards">
+                        <SimpleForm
+                            defaultValues={{ type: 'visa' }}
+                            onSubmit={jest.fn()}
+                            mode="onBlur"
+                        >
+                            <RadioButtonGroupInput
+                                {...defaultProps}
+                                validate={validate}
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
             );
 
-            const input = getByLabelText('Mastercard') as HTMLInputElement;
-            input.focus();
+            const input = screen.getByLabelText(
+                'Mastercard'
+            ) as HTMLInputElement;
             fireEvent.click(input);
             expect(input.checked).toBe(true);
 
-            input.blur();
+            fireEvent.blur(input);
 
-            expect(getByText('ra.validation.error')).not.toBeNull();
+            await waitFor(() => {
+                expect(screen.getByText('ra.validation.error')).not.toBeNull();
+            });
         });
 
-        it('should be displayed even with a helper Text', () => {
+        it('should be displayed even with a helper Text', async () => {
             // This validator always returns an error
             const validate = () => 'ra.validation.error';
 
-            const { getByLabelText, getByText, queryByText } = render(
-                <Form
-                    onSubmit={jest.fn}
-                    validateOnBlur
-                    render={() => (
-                        <RadioButtonGroupInput
-                            {...defaultProps}
-                            validate={validate}
-                            helperText="Can I help you?"
-                        />
-                    )}
-                />
+            render(
+                <AdminContext dataProvider={testDataProvider()}>
+                    <ResourceContextProvider value="creditcards">
+                        <SimpleForm
+                            defaultValues={{ type: 'visa' }}
+                            onSubmit={jest.fn()}
+                            mode="onBlur"
+                        >
+                            <RadioButtonGroupInput
+                                {...defaultProps}
+                                validate={validate}
+                                helperText="Can I help you?"
+                            />
+                        </SimpleForm>
+                    </ResourceContextProvider>
+                </AdminContext>
             );
-            const input = getByLabelText('Mastercard') as HTMLInputElement;
-            input.focus();
+            const input = screen.getByLabelText(
+                'Mastercard'
+            ) as HTMLInputElement;
             fireEvent.click(input);
             expect(input.checked).toBe(true);
 
-            input.blur();
+            fireEvent.blur(input);
 
-            const error = getByText('ra.validation.error');
-            expect(error).toBeDefined();
-            expect(error.classList.contains('Mui-error')).toEqual(true);
-            expect(queryByText('Can I help you?')).toBeNull();
+            await waitFor(() => {
+                expect(screen.getByText('ra.validation.error')).not.toBeNull();
+            });
+            expect(screen.queryByText('Can I help you?')).toBeNull();
         });
     });
 
-    it('should not render a LinearProgress if loading is true and a second has not passed yet', () => {
-        const { queryByRole } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...{
-                            ...defaultProps,
-                            loaded: true,
-                            loading: true,
-                        }}
-                    />
-                )}
-            />
+    it('should not render a LinearProgress if isPending is true and a second has not passed yet', () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'visa' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput {...defaultProps} isPending />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        expect(queryByRole('progressbar')).toBeNull();
+        expect(screen.queryByRole('progressbar')).toBeNull();
     });
 
-    it('should render a LinearProgress if loading is true and a second has passed', async () => {
-        const { queryByRole } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...{
-                            ...defaultProps,
-                            loaded: true,
-                            loading: true,
-                        }}
-                    />
-                )}
-            />
+    it('should render a LinearProgress if isPending is true and a second has passed', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'visa' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput {...defaultProps} isPending />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
         await new Promise(resolve => setTimeout(resolve, 1001));
 
-        expect(queryByRole('progressbar')).not.toBeNull();
+        await screen.findByRole('progressbar');
     });
 
-    it('should not render a LinearProgress if loading is false', () => {
-        const { queryByRole } = render(
-            <Form
-                validateOnBlur
-                onSubmit={jest.fn()}
-                render={() => (
-                    <RadioButtonGroupInput
-                        {...{
-                            ...defaultProps,
-                        }}
-                    />
-                )}
-            />
+    it('should not render a LinearProgress if isPending is false', () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm
+                        defaultValues={{ type: 'visa' }}
+                        onSubmit={jest.fn()}
+                    >
+                        <RadioButtonGroupInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        expect(queryByRole('progressbar')).toBeNull();
+        expect(screen.queryByRole('progressbar')).toBeNull();
+    });
+
+    it('should render disabled choices marked as so', () => {
+        const choices = [
+            { id: 1, name: 'VISA' },
+            { id: 2, name: 'Mastercard', disabled: true },
+        ];
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm onSubmit={jest.fn()}>
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            choices={choices}
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        fireEvent.mouseDown(screen.getByLabelText('Mastercard'));
+
+        const enabledInput = screen.getByLabelText('VISA') as HTMLInputElement;
+        expect(enabledInput.disabled).toBe(false);
+
+        const disabledInput = screen.getByLabelText(
+            'Mastercard'
+        ) as HTMLInputElement;
+        expect(disabledInput.disabled).toBe(true);
+    });
+
+    it('should render disabled choices marked as so by disableValue prop', () => {
+        const choices = [
+            { id: 1, name: 'VISA' },
+            { id: 2, name: 'Mastercard', not_available: true },
+        ];
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="creditcards">
+                    <SimpleForm onSubmit={jest.fn()}>
+                        <RadioButtonGroupInput
+                            {...defaultProps}
+                            choices={choices}
+                            disableValue="not_available"
+                        />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        fireEvent.mouseDown(screen.getByLabelText('Mastercard'));
+
+        const enabledInput = screen.getByLabelText('VISA') as HTMLInputElement;
+        expect(enabledInput.disabled).toBe(false);
+
+        const disabledInput = screen.getByLabelText(
+            'Mastercard'
+        ) as HTMLInputElement;
+        expect(disabledInput.disabled).toBe(true);
+    });
+
+    describe('inside ReferenceArrayInput', () => {
+        it('should use the recordRepresentation as optionText', async () => {
+            render(<InsideReferenceArrayInput />);
+
+            await screen.findByText('Lifestyle (Lifestyle details)');
+            await screen.findByText('Tech (Tech details)');
+            await screen.findByText('People (People details)');
+        });
     });
 });

@@ -1,215 +1,383 @@
 ---
 layout: default
-title: "Reference"
+title: "Index"
 ---
 
-# Reference
+# Index
 
-<div style="column-count:3" markdown="1">
+## Components
 
-* [`<AccordionForm>`](https://marmelab.com/ra-enterprise/modules/ra-form-layout#accordionform)<img class="icon" src="./img/premium.svg" />
-* [`<Actions>`](./CreateEdit.md#actions)
+<div class="pages-index" markdown="1">
+
+**- A -**
+
+* [`<AccordionForm>`](./AccordionForm.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
 * [`<Admin>`](./Admin.md)
-* `<AdminRoutes>`
-* [`<AppBar>`](./Theming.md#customizing-the-appbar-content)
-* [`<ArrayField>`](./Fields.md#arrayfield)
-* [`<ArrayInput>`](./Inputs.md#arrayinput)
-* [`<Aside>`](./CreateEdit.md#aside-component)
-* [`<Authenticated>`](./Authentication.md#useauthenticated-hook)
-* [`<AutocompleteArrayInput>`](./Inputs.md#autocompletearrayinput)
-* [`<AutocompleteInput>`](./Inputs.md#autocompleteinput)
-* [`<Breadcrumb>`](https://marmelab.com/ra-enterprise/modules/ra-navigation#breadcrumb-adding-a-breadcrumb-path-to-every-page)<img class="icon" src="./img/premium.svg" />
-* [`<BreadcrumbItem>`](https://marmelab.com/ra-enterprise/modules/ra-navigation#the-breadcrumbitem-component)<img class="icon" src="./img/premium.svg" />
-* [`<BooleanField>`](./Fields.md#booleanfield)
-* [`<BooleanInput>`](./Inputs.md#booleaninput-and-nullablebooleaninput)
-* [`<BulkDeleteButton>`](./List.md#bulkactionbuttons)
-* [`<BulkExportButton>`](./List.md#bulkactionbuttons)
-* [`<Calendar>`](https://marmelab.com/ra-enterprise/modules/ra-calendar#calendar)<img class="icon" src="./img/premium.svg" />
-* [`<CheckboxGroupInput>`](./Inputs.md#checkboxgroupinput)
-* [`<ChipField>`](./Fields.md#chipfield)
-* [`<CloneButton>`](./CreateEdit.md#prefilling-a-create-record)
-* [`<CompleteCalendar>`](https://marmelab.com/ra-enterprise/modules/ra-calendar#completecalendar)<img class="icon" src="./img/premium.svg" />
-* `<Confirm>`
-* [`<Create>`](./CreateEdit.md#the-create-and-edit-components)
-* `<CreateActions>`
+* [`<AppBar>`](./AppBar.md)
+* [`<ArrayField>`](./ArrayField.md)
+* [`<ArrayInput>`](./ArrayInput.md)
+* [`<Authenticated>`](./Authenticated.md)
+* [`<AutocompleteArrayInput>`](./AutocompleteArrayInput.md)
+* [`<AutocompleteInput>`](./AutocompleteInput.md)
+* [`<AutoPersistInStore>`](./AutoPersistInStore.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<AutoSave>`](./AutoSave.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- B -**
+
+* [`<Breadcrumb>`](./Breadcrumb.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<BooleanField>`](./BooleanField.md)
+* [`<BooleanInput>`](./BooleanInput.md)
+* [`<BulkDeleteButton>`](./Buttons.md#bulkdeletebutton)
+* [`<BulkExportButton>`](./Buttons.md#bulkexportbutton)
+* [`<BulkUpdateButton>`](./Buttons.md#bulkupdatebutton)
+
+**- C -**
+
+* [`<Calendar>`](./Calendar.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<CanAccess>`](./CanAccess.md)
+* [`<CheckboxGroupInput>`](./CheckboxGroupInput.md)
+* [`<CheckForApplicationUpdate>`](./CheckForApplicationUpdate.md)
+* [`<ChipField>`](./ChipField.md)
+* [`<CloneButton>`](./Buttons.md#clonebutton)
+* [`<CompleteCalendar>`](https://react-admin-ee.marmelab.com/documentation/ra-calendar#completecalendar)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Confirm>`](./Confirm.md)
+* [`<ContainerLayout>`](./ContainerLayout.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Count>`](./Count.md)
+* [`<Create>`](./Create.md)
 * [`<CreateButton>`](./Buttons.md#createbutton)
-* [`<CreateDialog>`](https://marmelab.com/ra-enterprise/modules/ra-form-layout#createdialog--editdialog)<img class="icon" src="./img/premium.svg" />
-* [`<DashboardMenuItem>`](./Theming.md#using-a-custom-menu)
-* [`<Datagrid>`](./List.md#the-datagrid-component)
-* [`<DatagridBody>`](./List.md#body-element)
-* [`<DatagridRow>`](./List.md#body-element)
-* `<DatagridCell>`
-* `<DatagridHeaderCell>`
-* [`<DateField>`](./Fields.md#datefield)
-* [`<DateInput>`](./Inputs.md#dateinput)
-* [`<DateTimeInput>`](./Inputs.md#datetimeinput)
-* `<DeleteButton>`
-* [`<DualListInput>`](https://marmelab.com/ra-enterprise/modules/ra-relationships#duallistinput)<img class="icon" src="./img/premium.svg" />
-* [`<Edit>`](./CreateEdit.md#the-create-and-edit-components)
-* [`<EditableDatagrid>`](https://marmelab.com/ra-enterprise/modules/ra-editable-datagrid)<img class="icon" src="./img/premium.svg" />
-* [`<EditGuesser>`](./CreateEdit.md#the-editguesser-component)
-* `<EditActions>`
+* [`<CreateDialog>`](./CreateDialog.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<CreateInDialogButton>`](./CreateInDialogButton.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<CustomRoutes>`](./CustomRoutes.md)
+
+**- D -**
+
+* [`<DashboardMenuItem>`](./Menu.md#menudashboarditem)
+* [`<Datagrid>`](./Datagrid.md)
+* [`<DatagridAG>`](./DatagridAG.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<DataTable>`](./DataTable.md)
+* [`<DataTableBody>`](./DataTable.md#body)
+* [`<DataTableRow>`](./DataTable.md#body)
+* [`<DataTableHead>`](./DataTable.md#head)
+* [`<DateField>`](./DateField.md)
+* [`<DateInput>`](./DateInput.md)
+* [`<DateRangeInput>`](./DateRangeInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<DateTimeInput>`](./DateTimeInput.md)
+* [`<DeleteButton>`](./Buttons.md#deletebutton)
+* [`<DualListInput>`](./DualListInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- E -**
+
+* [`<Edit>`](./Edit.md)
+* [`<EditLive>`](./EditLive.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<EditableDatagrid>`](./EditableDatagrid.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<EditGuesser>`](./EditGuesser.md)
 * [`<EditButton>`](./Buttons.md#editbutton)
-* [`<EditDialog>`](https://marmelab.com/ra-enterprise/modules/ra-form-layout#createdialog--editdialog)<img class="icon" src="./img/premium.svg" />
-* [`<EmailField>`](./Fields.md#emailfield)
-* [`<FileField>`](./Fields.md#filefield)
-* [`<FileInput>`](./Inputs.md#fileinput)
+* [`<EditDialog>`](./EditDialog.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<EditInDialogButton>`](./EditInDialogButton.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<EmailField>`](./EmailField.md)
+* [`<Empty>`](./List.md#empty)
+
+**- F -**
+
+* [`<FieldDiff>`](https://react-admin-ee.marmelab.com/documentation/ra-history#fielddiff)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<FileField>`](./FileField.md)
+* [`<FileInput>`](./FileInput.md)
 * [`<Filter>`](./List.md#filters-filter-inputs)
 * [`<FilterButton>`](./Buttons.md#filterbutton)
-* [`<FilterForm>`](./List.md#custom-form-component)
-* [`<FilterList>`](./List.md#the-filterlist-sidebar)
-* [`<FilterListItem>`](./List.md#the-filterlist-sidebar)
-* [`<FilterLiveSearch>`](./List.md#live-search)
-* [`<FilterWithSave>`](https://marmelab.com/ra-enterprise/modules/ra-preferences#savedquerieslist-and-filterwithsave-store-user-queries-in-preferences)<img class="icon" src="./img/premium.svg" />
+* [`<FilterForm>`](./FilterForm.md)
+* [`<FilterList>`](./FilterList.md)
+* [`<FilterListItem>`](./FilterList.md#children)
+* [`<FilterListSection>`](./FilterLiveForm.md#usage)
+* [`<FilterLiveForm>`](./FilterLiveForm.md)
+* [`<FilterLiveSearch>`](./FilterLiveSearch.md)
+* [`<FilterValue>`](./FilterValue.md)
+* [`<Form>`](./Form.md)
 * [`<FormDataConsumer>`](./Inputs.md#linking-two-inputs)
-* [`<FormTab>`](./CreateEdit.md#the-tabbedform-component)
-* [`<FunctionField>`](./Fields.md#functionfield)
-* [`<ImageField>`](./Fields.md#imagefield)
-* [`<ImageInput>`](./Inputs.md#imageinput)
-* [`<ImageInputPreview>`](./Inputs.md#imageinput)
-* [`<Labeled>`](./Inputs.md#using-labeled)
-* [`<LanguageSwitcher>`](https://marmelab.com/ra-enterprise/modules/ra-preferences#languageswitcher-store-the-locale-in-preferences)<img class="icon" src="./img/premium.svg" />
-* [`<Layout>`](./Theming.md#using-a-custom-layout)
-* [`<Loading>`](./Theming.md#loading)
-* [`<LinearProgress>`](./Theming.md#linearprogress)
-* [`<Logout>`](./Theming.md#using-a-custom-logout-button)
-* [`linkToRecord`](./Fields.md#linking-to-other-records)
-* [`<List>`](./List.md#the-list-component)
-* [`<ListBase>`](./List.md#the-listbase-component)
-* [`<ListGuesser>`](./List.md#the-listguesser-component)
+* [`<FormFillerButton>`](./FormFillerButton.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<FormTab>`](./TabbedForm.md)
+* [`<FunctionField>`](./FunctionField.md)
+
+**- H -**
+
+* [`<HorizontalMenu>`](./HorizontalMenu.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- I -**
+
+* [`<InfiniteList>`](./InfiniteList.md)
+* [`<InfinitePagination>`](./InfiniteList.md)
+* [`<ImageField>`](./ImageField.md)
+* [`<ImageInput>`](./ImageInput.md)
+* [`<ImageInputPreview>`](./ImageInput.md#imageinput)
+* [`<InPlaceEditor>`](./InPlaceEditor.md)
+* [`<InspectorButton>`](./Configurable.md#inspectorbutton)
+
+**- L -**
+
+* [`<Labeled>`](./Labeled.md)
+* [`<Layout>`](./Layout.md)
+* [`<List>`](./List.md#usage)
+* [`<ListBase>`](./ListBase.md#usage)
 * [`<ListButton>`](./Buttons.md#listbutton)
-* [`<MarkdownField>`](https://marmelab.com/ra-enterprise/modules/ra-markdown#markdownfield)<img class="icon" src="./img/premium.svg" />
-* [`<MarkdownInput>`](https://marmelab.com/ra-enterprise/modules/ra-markdown#markdowninput)<img class="icon" src="./img/premium.svg" />
-* [`<Menu>`](./Theming.md#using-a-custom-menu)
-* [`<MultiLevelMenu>`](https://marmelab.com/ra-enterprise/modules/ra-navigation#multilevelmenu-replacing-the-default-menu-by-a-multi-level-one)<img class="icon" src="./img/premium.svg" />
-* [`<Mutation>`](./Actions.md#legacy-components-query-mutation-and-withdataprovider)
-* [`<Notification>`](./Theming.md#notifications)
-* [`<NullableBooleanInput>`](./Inputs.md#booleaninput-and-nullablebooleaninput)
-* [`<NumberField>`](./Fields.md#numberfield)
-* [`<NumberInput>`](./Inputs.md#numberinput)
-* [`<Pagination>`](./List.md#pagination-pagination-component)
-* [`<PasswordInput>`](./Inputs.md#passwordinput)
-* [`<PreferencesSetter>`](https://marmelab.com/ra-enterprise/modules/ra-preferences#preferencessetter-setting-preferences-declaratively)<img class="icon" src="./img/premium.svg" />
-* [`<Query>`](./Actions.md#legacy-components-query-mutation-and-withdataprovider)
-* [`<RadioButtonGroupInput>`](./Inputs.md#radiobuttongroupinput)
-* [`<RealTimeEdit>`](https://marmelab.com/ra-enterprise/modules/ra-realtime#real-time-views-list-edit-show)<img class="icon" src="./img/premium.svg" />
-* [`<RealTimeList>`](https://marmelab.com/ra-enterprise/modules/ra-realtime#real-time-views-list-edit-show)<img class="icon" src="./img/premium.svg" />
-* [`<RealTimeMenu>`](https://marmelab.com/ra-enterprise/modules/ra-realtime#realtimemenu)<img class="icon" src="./img/premium.svg" />
-* [`<RealTimeShow>`](https://marmelab.com/ra-enterprise/modules/ra-realtime#real-time-views-list-edit-show)<img class="icon" src="./img/premium.svg" />
-* [`<ReferenceArrayField>`](./Fields.md#referencearrayfield)
-* [`<ReferenceArrayInput>`](./Inputs.md#referencearrayinput)
-* [`<ReferenceField>`](./Fields.md#referencefield)
-* [`<ReferenceInput>`](./Inputs.md#referenceinput)
-* [`<ReferenceManyField>`](./Fields.md#referencemanyfield)
-* [`<ReferenceManyToManyField>`](https://marmelab.com/ra-enterprise/modules/ra-relationships#referencemanytomanyfield)<img class="icon" src="./img/premium.svg" />
-* [`<ReferenceManyToManyInput>`](https://marmelab.com/ra-enterprise/modules/ra-relationships#referencemanytomanyinput)<img class="icon" src="./img/premium.svg" />
-* `<RefreshButton>`
-* [`<Resource>`](./Resource.md#the-resource-component)
-* [`<RichTextField>`](./Fields.md#richtextfield)
-* [`<RichTextInput>`](./Inputs.md#richtextinput)
-* [`<RowForm>`](https://marmelab.com/ra-enterprise/modules/ra-editable-datagrid#rowform)<img class="icon" src="./img/premium.svg" />
-* `<SaveButton>`
-* [`<SavedFilterList>`](https://marmelab.com/ra-enterprise/modules/ra-preferences#savedquerieslist-and-filterwithsave-store-user-queries-in-preferences)<img class="icon" src="./img/premium.svg" />
-* [`<Search>`](https://marmelab.com/ra-enterprise/modules/ra-search#the-search-component)<img class="icon" src="./img/premium.svg" />
-* [`<SearchInput>`](./List.md#full-text-search)
-* [`<SelectArrayInput>`](./Inputs.md#selectarrayinput)
-* [`<SelectColumnsButton>`](https://marmelab.com/ra-enterprise/modules/ra-preferences#selectcolumnsbutton-store-datagrid-columns-in-preferences)<img class="icon" src="./img/premium.svg" />
-* [`<SelectField>`](./Fields.md#selectfield)
-* [`<SelectInput>`](./Inputs.md#selectinput)
-* [`<Show>`](./Show.md#the-show-component)
-* [`<ShowGuesser`](./Show.md#the-showguesser-component)
+* [`<ListGuesser>`](./ListGuesser.md#usage)
+* [`<ListLiveUpdate>`](./ListLiveUpdate.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<LocalesMenuButton>`](./LocalesMenuButton.md)
+* [`<LongForm>`](./LongForm.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Login>`](./Authentication.md#customizing-the-login-component)
+* [`<LoginForm>`](./Authentication.md#customizing-the-login-component)
+* [`<LoginWithEmail>`](./Authentication.md#customizing-the-login-component)
+* [`<Logout>`](./AppBar.md#usermenu)
+
+**- M -**
+
+* [`<MarkdownField>`](./MarkdownField.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<MarkdownInput>`](./MarkdownInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Menu>`](./Menu.md)
+* [`<MenuLive>`](./MenuLive.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<MultiLevelMenu>`](./MultiLevelMenu.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- N -**
+
+* [`<Notification>`](./Admin.md#notification)
+* [`<NullableBooleanInput>`](./NullableBooleanInput.md)
+* [`<NumberField>`](./NumberField.md)
+* [`<NumberInput>`](./NumberInput.md)
+
+**- P -**
+
+* [`<Pagination>`](./List.md#pagination)
+* [`<PasswordInput>`](./PasswordInput.md)
+
+**- R -**
+
+* [`<RadioButtonGroupInput>`](./RadioButtonGroupInput.md)
+* [`<RecordField>`](./RecordField.md)
+* [`<RecordRepresentation>`](./RecordRepresentation.md)
+* [`<RecordsIterator>`](./RecordsIterator.md)
+* [`<ReferenceArrayField>`](./ReferenceArrayField.md)
+* [`<ReferenceArrayInput>`](./ReferenceArrayInput.md)
+* [`<ReferenceField>`](./ReferenceField.md)
+* [`<ReferenceInput>`](./ReferenceInput.md)
+* [`<ReferenceManyCount>`](./ReferenceManyCount.md)
+* [`<ReferenceManyField>`](./ReferenceManyField.md)
+* [`<ReferenceManyInput>`](./ReferenceManyInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<ReferenceManyToManyField>`](./ReferenceManyToManyField.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<ReferenceManyToManyInput>`](./ReferenceManyToManyInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<ReferenceNodeInput>`](./ReferenceNodeInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<ReferenceOneField>`](./ReferenceOneField.md)
+* [`<ReferenceOneInput>`](./ReferenceOneInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Resource>`](./Resource.md)
+* [`<RevisionsButton>`](./RevisionsButton.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<RevisionListWithDetailsInDialog>`](https://react-admin-ee.marmelab.com/documentation/ra-history#revisionlistwithdetailsindialog)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<RichTextField>`](./RichTextField.md)
+* [`<RichTextInput>`](./RichTextInput.md)
+* [`<RowForm>`](https://react-admin-ee.marmelab.com/documentation/ra-editable-datagrid#rowform)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- S -**
+
+* [`<SaveButton>`](./SaveButton.md)
+* [`<SavedQueriesList>`](./SavedQueriesList.md)
+* [`<Scheduler>`](./Scheduler.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Search>`](./Search.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SearchInput>`](./SearchInput.md)
+* [`<SearchWithResult>`](./SearchWithResult.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SelectAllButton>`](./Buttons.md#selectallbutton)
+* [`<SelectArrayInput>`](./SelectArrayInput.md)
+* [`<SelectColumnsButton>`](./SelectColumnsButton.md)
+* [`<SelectField>`](./SelectField.md)
+* [`<SelectInput>`](./SelectInput.md)
+* [`<Show>`](./Show.md#show)
+* [`<ShowGuesser`](./ShowGuesser.md#showguesser)
 * [`<ShowButton>`](./Buttons.md#showbutton)
-* [`<Sidebar>`](./Theming.md#sidebar-customization)
-* [`<SidebarOpenPreferenceSync>`](https://marmelab.com/ra-enterprise/modules/ra-preferences#sidebaropenpreferencesync-store-the-sidebar-openclose-state-in-preferences)<img class="icon" src="./img/premium.svg" />
-* [`<SimpleForm>`](./CreateEdit.md#the-simpleform-component)
-* [`<SimpleFormIterator>`](./Inputs.md#arrayinput)
-* [`<SimpleList>`](./List.md#the-simplelist-component)
-* [`<SimpleShowLayout>`](./Show.md#the-simpleshowlayout-component)
-* [`<SingleFieldList>`](./List.md#the-singlefieldlist-component)
-* [`<SortButton>`](./Buttons.md#sortbutton)
+* [`<ShowDialog>`](./ShowDialog.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<ShowInDialogButton>`](./ShowInDialogButton.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<ShowLive>`](./ShowLive.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Sidebar>`](./Layout.md#sidebar)
+* [`<SidebarOpenPreferenceSync>`](https://react-admin-ee.marmelab.com/documentation/ra-preferences#sidebaropenpreferencesync-store-the-sidebar-openclose-state-in-preferences)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SimpleForm>`](./SimpleForm.md)
+* [`<SimpleFormIterator>`](./SimpleFormIterator.md)
+* [`<SimpleFormWithRevision>`](./SimpleForm.md#versioning)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SimpleList>`](./SimpleList.md)
+* [`<SimpleShowLayout>`](./SimpleShowLayout.md)
+* [`<SingleFieldList>`](./SingleFieldList.md)
+* [`<SmartFieldDiff>`](https://react-admin-ee.marmelab.com/documentation/ra-history#smartfielddiff)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SmartRichTextInput>`](./SmartRichTextInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SolarLayout>`](./SolarLayout.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SolarMenu>`](./SolarLayout.md#solarmenu)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SolarAppBar>`](./SolarLayout.md#solarappbar)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<SortButton>`](./SortButton.md)
+* [`<StackedFilters>`](./StackedFilters.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- T -**
+
 * `<Tab>`
-* [`<TabbedForm>`](./CreateEdit.md#the-tabbedform-component)
-* [`<TabbedShowLayout>`](./Show.md#the-tabbedshowlayout-component)
-* [`<TestContext>`](./UnitTesting.md#testing-custom-views)
-* [`<TextField>`](./Fields.md#textfield)
-* [`<TextInput>`](./Inputs.md#textinput)
-* `<Title>`
-* [`<ToggleThemeButton>`](https://marmelab.com/ra-enterprise/modules/ra-preferences#togglethemebutton-store-the-theme-in-the-preferences)<img class="icon" src="./img/premium.svg" />
-* [`<TourProvider>`](https://marmelab.com/ra-enterprise/modules/ra-tour)<img class="icon" src="./img/premium.svg" />
-* [`<Tree>`](https://marmelab.com/ra-enterprise/modules/ra-tree#tree-component)<img class="icon" src="./img/premium.svg" />
-* [`<TreeWithDetails>`](https://marmelab.com/ra-enterprise/modules/ra-tree#treewithdetails-component)<img class="icon" src="./img/premium.svg" />
-* [`translate`](./Translation.md#withtranslate-hoc)
-* [`<Toolbar>`](./CreateEdit.md#toolbar)
-* `<TopToolbar>`
-* [`<UrlField>`](./Fields.md#urlfield)
-* [`<UserMenu>`](./Theming.md#usermenu-customization)
-* [`<WizardForm>`](https://marmelab.com/ra-enterprise/modules/ra-form-layout#wizardform)<img class="icon" src="./img/premium.svg" />
-* [`useAppLocationState`](https://marmelab.com/ra-enterprise/modules/ra-navigation#useapplocationstate-retrieve-and-define-app-location)<img class="icon" src="./img/premium.svg" />
-* [`useAppLocationMatcher`](https://marmelab.com/ra-enterprise/modules/ra-navigation#useapplocationmatcher-apply-a-matching-on-the-current-app-location)<img class="icon" src="./img/premium.svg" />
-* [`useAuthenticated`](./Authentication.md#useauthenticated-hook)
-* `useAuthProvider`
-* [`useAuthState`](./Authentication.md#useauthstate-hook)
-* `useCheckAuth`
-* `useChoices`
-* [`useCreate`](./Actions.md#usecreate)
-* [`useCreateController`](./CreateEdit.md#usecreatecontroller)
-* [`useDataProvider`](./Actions.md#usedataprovider-hook)
-* [`useDelete`](./Actions.md#usedelete)
-* [`useDeleteMany`](./Actions.md#usedeletemany)
-* [`useEditController`](./CreateEdit.md#useeditcontroller)
-* `useFilterState`
-* [`useGetIdentity`](./Authentication.md#usegetidentity-hook)
-* [`useGetList`](./Actions.md#usegetlist)
-* [`useGetMany`](./Actions.md#usegetmany)
-* [`useGetManyReference`](./Actions.md#usegetmanyreference)
-* `useGetMatching`
-* `useGetMatchingReferences`
-* [`useGetOne`](./Actions.md#usegetone)
-* [`useGetPermissions`](./Authentication.md#usegetpermissions-hook)
-* [`useHasLock`](https://marmelab.com/ra-enterprise/modules/ra-realtime#locks-on-content)<img class="icon" src="./img/premium.svg" />
-* [`useHasLocks`](https://marmelab.com/ra-enterprise/modules/ra-realtime#locks-on-content)<img class="icon" src="./img/premium.svg" />
-* [`useInput`](./Inputs.md#the-useinput-hook)
-* [`useListContext`](./List.md#uselistcontext)
-* [`useListController`](./List.md#uselistcontroller)
-* `useListParams`
-* `useLoading`
-* [`useLocale`](./Translation.md#uselocale-getting-the-current-locale)
-* [`useLock`](https://marmelab.com/ra-enterprise/modules/ra-realtime#locks-on-content)<img class="icon" src="./img/premium.svg" />
-* [`useLogin`](./Authentication.md#uselogin-hook)
-* [`useLogout`](./Authentication.md#uselogout-hook)
-* `useLogoutIfAccessDenied`
-* [`useMediaQuery`](./Theming.md#usemediaquery-hook)
-* [`useMutation`](./Actions.md#usemutation-hook)
-* [`useNotify`](./Actions.md#handling-side-effects-in-usedataprovider)
-* `usePaginationState`
-* [`usePermissions`](./Authentication.md#usepermissions-hook)
-* [`usePreferences`](https://marmelab.com/ra-enterprise/modules/ra-preferences#usepreferences-reading-and-writing-user-preferences)<img class="icon" src="./img/premium.svg" />
-* [`useQuery`](./Actions.md#usequery-hook)
-* [`useQueryWithStore`](./Actions.md#usequerywithstore-hook)
-* [`useRedirect`](./Actions.md#handling-side-effects-in-usedataprovider)
-* [`useResourceAppLocation`](https://marmelab.com/ra-enterprise/modules/ra-navigation#useresourceapplocation-access-current-resource-app-location)<img class="icon" src="./img/premium.svg" />
-* `useReference`
-* `useReferenceArrayFieldController`
-* `useReferenceArrayInputController`
-* `useReferenceInputController`
-* `useReferenceManyFieldController`
-* [`useRefresh`](./Actions.md#handling-side-effects-in-usedataprovider)
-* [`useSearch`](https://marmelab.com/ra-enterprise/modules/ra-search#the-usesearch-hook)<img class="icon" src="./img/premium.svg" />
-* [`useSetLocale`](./Translation.md#usesetlocale-changing-locale-at-runtime)
-* [`useShowController`](./Show.md#useshowcontroller)
-* `useSortState`
-* [`useStyles`](./Theming.md#overriding-a-component-style)
-* `useSuggestions`
-* [`useTour`](https://marmelab.com/ra-enterprise/modules/ra-tour)<img class="icon" src="./img/premium.svg" />
-* [`useTranslate`](./Translation.md#usetranslate-hook)
-* [`useUpdate`](./Actions.md#useupdate)
-* `useUpdateLoading`
-* [`useUpdateMany`](./Actions.md#useupdatemany)
-* [`useUnselectAll`](./Actions.md#handling-side-effects-in-usedataprovider)
-* [`useWarnWhenUnsavedChanges`](./CreateEdit.md#warning-about-unsaved-changes)
-* `useVersion`
-* [`withDataProvider`](./Actions.md#legacy-components-query-mutation-and-withdataprovider)
-* [`withTranslate`](./Translation.md#withtranslate-hoc)
-* [`<WithPermissions>`](./Authentication.md#usepermissions-hook)
+* [`<TabbedForm>`](./TabbedForm.md)
+* [`<TabbedFormWithRevision>`](./TabbedForm.md#versioning)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<TabbedShowLayout>`](./TabbedShowLayout.md)
+* [`<TextArrayField>`](./TextArrayField.md)
+* [`<TextArrayInput>`](./TextArrayInput.md)
+* [`<TextField>`](./TextField.md)
+* [`<TextInput>`](./TextInput.md)
+* [`<TimeInput>`](./TimeInput.md)
+* [`<Title>`](./Title.md)
+* [`<TitlePortal>`](./AppBar.md#children)
+* [`<ToggleThemeButton>`](./ToggleThemeButton.md)
+* [`<TourProvider>`](https://react-admin-ee.marmelab.com/documentation/ra-tour)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<TranslatableFields>`](./TranslatableFields.md)
+* [`<TranslatableInputs>`](./TranslatableInputs.md)
+* [`<Translate>`](./Translate.md)
+* [`<Tree>`](./Tree.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<TreeInput>`](./TreeInput.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<TreeWithDetails>`](./TreeWithDetails.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<Toolbar>`](./Toolbar.md)
+
+**- U -**
+
+* [`<UpdateButton>`](./Buttons.md#updatebutton)
+* [`<UrlField>`](./UrlField.md)
+* [`<UserMenu>`](./AppBar.md#usermenu)
+
+**- W -**
+
+* [`<WithListContext>`](./WithListContext.md)
+* [`<WithPermissions>`](./WithPermissions.md)
+* [`<WithRecord>`](./WithRecord.md)
+* [`<WizardForm>`](./WizardForm.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`<WrapperField>`](./WrapperField.md)
+
+</div>
+
+---
+
+## Hooks
+
+<div class="pages-index" markdown="1">
+
+**- A -**
+
+* [`useAppLocationState`](https://react-admin-ee.marmelab.com/documentation/ra-navigation#useapplocationstate-retrieve-and-define-app-location)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useAppLocationMatcher`](https://react-admin-ee.marmelab.com/documentation/ra-navigation#useapplocationmatcher)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useAuthenticated`](./useAuthenticated.md)
+* [`useAuthProvider`](./useAuthProvider.md)
+* [`useAuthState`](./useAuthState.md)
+
+**- C -**
+
+* [`useCanAccess`](./useCanAccess.md)
+* [`useCanAccessCallback`](./useCanAccess.md#callback-version)
+* [`useCanAccessResources`](./useCanAccess.md#multiple-resources)
+* [`useChoicesContext`](./useChoicesContext.md)
+* [`useCreate`](./useCreate.md)
+* [`useCreateContext`](./useCreateContext.md)
+* [`useCreateController`](./useCreateController.md)
+
+**- D -**
+
+* [`useDataProvider`](./useDataProvider.md#usedataprovider)
+* [`useDefineAppLocation`](./useDefineAppLocation.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useDelete`](./useDelete.md)
+* [`useDeleteMany`](./useDeleteMany.md)
+
+**- E -**
+
+* [`useEditContext`](./useEditContext.md)
+* [`useEditController`](./useEditController.md)
+
+**- F -**
+
+* [`useFieldValue`](./useFieldValue.md)
+
+**- G -**
+
+* [`useGetIdentity`](./useGetIdentity.md)
+* [`useGetList`](./useGetList.md)
+* [`useGetListLive`](./useGetListLive.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useGetLock`](./useGetLock.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useGetLockLive`](./useGetLockLive.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useGetLocks`](./useGetLocks.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useGetLocksLive`](./useGetLocksLive.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useGetMany`](./useGetMany.md)
+* [`useGetManyAggregate`](./useGetOne.md#aggregating-getone-calls)
+* [`useGetManyReference`](./useGetManyReference.md)
+* [`useGetOne`](./useGetOne.md)
+* [`useGetOneLive`](./useGetOneLive.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useGetPermissions`](./WithPermissions.md)
+* [`useGetRecordId`](./useGetRecordId.md)
+* [`useGetRecordRepresentation`](./useGetRecordRepresentation.md)
+
+**- I -**
+
+* [`useInfiniteGetList`](./useInfiniteGetList.md)
+* [`useInput`](./useInput.md)
+
+**- L -**
+
+* [`useList`](./useList.md)
+* [`useListContext`](./useListContext.md)
+* [`useListController`](./useListController.md)
+* [`useLocaleState`](./useLocaleState.md)
+* [`useLock`](./useLock.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useLockOnCall`](./useLockOnCall.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useLockOnMount`](./useLockOnMount.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useLogin`](./useLogin.md)
+* [`useLogout`](./useLogout.md)
+
+**- M -**
+
+* [`useMediaQuery`](./useMediaQuery.md)
+
+**- N -**
+
+* [`useNotify`](./useNotify.md)
+
+**- P -**
+
+* [`usePermissions`](./usePermissions.md)
+* [`usePreference`](./Configurable.md#usage)
+* [`usePublish`](./usePublish.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- R -**
+
+* [`useRecordContext`](./useRecordContext.md)
+* [`useRecordFromLocation`](./useRecordFromLocation.md)
+* [`useRedirect`](./useRedirect.md)
+* [`useReference`](./useGetOne.md#aggregating-getone-calls)
+* [`useRefresh`](./useRefresh.md)
+* [`useRegisterMutationMiddleware`](./useRegisterMutationMiddleware.md)
+* [`useRemoveFromStore`](./useRemoveFromStore.md)
+* [`useRequireAccess`](./useCanAccess.md#logout-on-failure)
+* [`useResetStore`](./useResetStore.md)
+
+**- S -**
+
+* [`useSaveContext`](./useSaveContext.md)
+* [`useSearch`](https://react-admin-ee.marmelab.com/documentation/ra-search#usesearch)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useShowContext`](./useShowContext.md)
+* [`useShowController`](./useShowController.md#useshowcontroller)
+* [`useStore`](./useStore.md)
+* [`useStoreContext`](./useStoreContext.md)
+* [`useSubscribe`](./useSubscribe.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useSubscribeCallback`](./useSubscribeCallback.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useSubscribeToRecord`](./useSubscribeToRecord.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useSubscribeToRecordList`](./useSubscribeToRecordList.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+
+**- T -**
+
+* [`useTheme`](./useTheme.md)
+* [`useTour`](https://react-admin-ee.marmelab.com/documentation/ra-tour)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useTranslate`](./useTranslate.md)
+
+**- U -**
+
+* [`useUnique`](./useUnique.md)
+* [`useUnlock`](./useUnlock.md)<img class="icon" src="./img/premium.svg" alt="React Admin Enterprise Edition icon" />
+* [`useUnselect`](./useUnselect.md)
+* [`useUnselectAll`](./useUnselectAll.md)
+* [`useUpdate`](./useUpdate.md)
+* [`useUpdateMany`](./useUpdateMany.md)
+
+**- W -**
+
+* [`useWarnWhenUnsavedChanges`](./Forms.md#warning-about-unsaved-changes)
+* [`withLifecycleCallbacks`](./withLifecycleCallbacks.md)
 
 </div>

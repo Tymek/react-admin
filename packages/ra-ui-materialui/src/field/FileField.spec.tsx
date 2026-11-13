@@ -1,19 +1,40 @@
 import * as React from 'react';
 import expect from 'expect';
 import { render } from '@testing-library/react';
-import { RecordContextProvider } from 'ra-core';
+import { RecordContextProvider, I18nContextProvider } from 'ra-core';
+import polyglotI18nProvider from 'ra-i18n-polyglot';
+import englishMessages from 'ra-language-english';
 
-import FileField from './FileField';
+import { FileField } from './FileField';
 
 const defaultProps = {
     classes: {},
-    source: 'url',
+    source: 'url' as const,
 };
+
+const i18nProvider = polyglotI18nProvider(
+    _locale => ({
+        ...englishMessages,
+        resources: {
+            books: {
+                name: 'Books',
+                fields: {
+                    id: 'Id',
+                    title: 'Title',
+                    author: 'Author',
+                    year: 'Year',
+                },
+                not_found: 'Not found',
+            },
+        },
+    }),
+    'en'
+);
 
 describe('<FileField />', () => {
     it('should return an empty div when record is not set', () => {
         const { container } = render(<FileField {...defaultProps} />);
-        expect(container.firstChild.textContent).toEqual('');
+        expect(container.firstChild?.textContent).toEqual('');
     });
 
     it.each([null, undefined])(
@@ -152,15 +173,76 @@ describe('<FileField />', () => {
         expect(secondLink.title).toEqual('Bye world!');
     });
 
+    it('should not render a clickable link for javascript: URLs', () => {
+        const consoleError = jest
+            .spyOn(console, 'error')
+            .mockImplementation(() => {});
+        const { getByTitle } = render(
+            <FileField
+                {...defaultProps}
+                record={{ id: 123, url: 'javascript:alert(1)' }}
+                title="Click me"
+            />
+        );
+        expect(getByTitle('Click me').getAttribute('href')).toBeNull();
+        expect(consoleError).toHaveBeenCalledWith(
+            'Blocked unsafe URL: "javascript:alert(1)"'
+        );
+        consoleError.mockRestore();
+    });
+
+    it('should not render clickable links for javascript: URLs in a list', () => {
+        const consoleError = jest
+            .spyOn(console, 'error')
+            .mockImplementation(() => {});
+        const { getByTitle } = render(
+            <FileField
+                {...defaultProps}
+                record={{
+                    id: 123,
+                    files: [
+                        { url: 'http://foo.com/bar.jpg', title: 'Safe' },
+                        { url: 'javascript:alert(1)', title: 'Unsafe' },
+                    ],
+                }}
+                source="files"
+                src="url"
+                title="title"
+            />
+        );
+        expect(getByTitle('Safe').getAttribute('href')).toEqual(
+            'http://foo.com/bar.jpg'
+        );
+        expect(getByTitle('Unsafe').getAttribute('href')).toBeNull();
+        expect(consoleError).toHaveBeenCalledWith(
+            'Blocked unsafe URL: "javascript:alert(1)"'
+        );
+        consoleError.mockRestore();
+    });
+
     it('should use custom className', () => {
         const { container } = render(
             <FileField
                 {...defaultProps}
                 record={{ id: 123, foo: true }}
-                source="email"
+                source="foo"
                 className="foo"
             />
         );
         expect(container.children[0].classList.contains('foo')).toBe(true);
+    });
+
+    it('should translate emptyText', () => {
+        const { getByText } = render(
+            <I18nContextProvider value={i18nProvider}>
+                <FileField
+                    record={{ id: 123, foo: { bar: undefined } }}
+                    source="foo.bar"
+                    emptyText="resources.books.not_found"
+                />
+            </I18nContextProvider>
+        );
+
+        expect(getByText('Not found')).not.toBeNull();
     });
 });

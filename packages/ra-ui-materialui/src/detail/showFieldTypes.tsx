@@ -1,44 +1,69 @@
 import * as React from 'react';
 import { ReactNode } from 'react';
-import Datagrid from '../list/datagrid/Datagrid';
-import ArrayField from '../field/ArrayField';
-import BooleanField from '../field/BooleanField';
-import DateField from '../field/DateField';
-import EmailField from '../field/EmailField';
-import NumberField from '../field/NumberField';
-import ReferenceField, { ReferenceFieldProps } from '../field/ReferenceField';
-import ReferenceArrayField from '../field/ReferenceArrayField';
-import RichTextField from '../field/RichTextField';
-import SimpleShowLayout, { SimpleShowLayoutProps } from './SimpleShowLayout';
-import TextField from '../field/TextField';
-import UrlField from '../field/UrlField';
-import { InferredElement, InferredTypeMap, InputProps } from 'ra-core';
+import {
+    type InferredElement,
+    type InferredTypeMap,
+    type InputProps,
+} from 'ra-core';
+import {
+    ArrayField,
+    BooleanField,
+    DateField,
+    EmailField,
+    NumberField,
+    ReferenceField,
+    ReferenceFieldProps,
+    ReferenceArrayField,
+    ReferenceArrayFieldProps,
+    RichTextField,
+    TextField,
+    UrlField,
+    ChipField,
+    TextArrayField,
+} from '../field';
+import { SimpleShowLayout, SimpleShowLayoutProps } from './SimpleShowLayout';
+import { DataTable, SingleFieldList } from '../list';
 
-const showFieldTypes: InferredTypeMap = {
+export const showFieldTypes: InferredTypeMap = {
     show: {
         component: (props: SimpleShowLayoutProps) => (
             <SimpleShowLayout {...props} />
-        ), // eslint-disable-line react/display-name
+        ),
         representation: (_, children) => `        <SimpleShowLayout>
 ${children.map(child => `            ${child.getRepresentation()}`).join('\n')}
         </SimpleShowLayout>`,
     },
     array: {
-        // eslint-disable-next-line react/display-name
-        component: ({
-            children,
-            ...props
-        }: { children: ReactNode } & InputProps) => (
+        component: ({ children, ...props }: { children } & InputProps) => (
             <ArrayField {...props}>
-                <Datagrid>{children}</Datagrid>
+                <DataTable>
+                    {children && children.length > 0
+                        ? children.map((child, index) => (
+                              <DataTable.Col key={index} {...child.props}>
+                                  {child}
+                              </DataTable.Col>
+                          ))
+                        : children}
+                </DataTable>
             </ArrayField>
         ),
         representation: (props: InputProps, children: InferredElement[]) =>
-            `<ArrayField source="${
-                props.source
-            }"><Datagrid>${children
-                .map(child => child.getRepresentation())
-                .join('\n')}</Datagrid></ArrayField>`,
+            `<ArrayField source="${props.source}">
+                <DataTable>
+                    ${children
+                        .map(
+                            child => `<DataTable.Col source="${child.getProps().source}">
+                        ${child.getRepresentation()}
+                    </DataTable.Col>`
+                        )
+                        .join('\n                    ')}
+                </DataTable>
+            </ArrayField>`,
+    },
+    scalar_array: {
+        component: TextArrayField,
+        representation: (props: InputProps) =>
+            `<TextArrayField source="${props.source}" />`,
     },
     boolean: {
         component: BooleanField,
@@ -68,24 +93,28 @@ ${children.map(child => `            ${child.getRepresentation()}`).join('\n')}
     reference: {
         component: ReferenceField,
         representation: (props: ReferenceFieldProps) =>
-            `<ReferenceField source="${props.source}" reference="${props.reference}"><TextField source="id" /></ReferenceField>`,
+            `<ReferenceField source="${props.source}" reference="${props.reference}" />`,
     },
     referenceChild: {
-        component: (props: { children: ReactNode } & InputProps) => (
-            <TextField source="id" {...props} />
-        ), // eslint-disable-line react/display-name
+        component: (
+            props: { children: ReactNode } & Omit<InputProps, 'source'> &
+                Partial<Pick<InputProps, 'source'>>
+        ) => <TextField source="id" {...props} />,
         representation: () => `<TextField source="id" />`,
     },
     referenceArray: {
         component: ReferenceArrayField,
-        representation: (props: InputProps) =>
-            `<ReferenceArrayField source="${props.source}" reference="${props.reference}"><TextField source="id" /></ReferenceArrayField>`,
+        representation: (props: ReferenceArrayFieldProps) =>
+            `<ReferenceArrayField source="${props.source}" reference="${props.reference}" />`,
     },
     referenceArrayChild: {
-        component: (props: { children: ReactNode } & InputProps) => (
-            <TextField source="id" {...props} />
-        ), // eslint-disable-line react/display-name
-        representation: () => `<TextField source="id" />`,
+        component: () => (
+            <SingleFieldList>
+                <ChipField source="id" />
+            </SingleFieldList>
+        ),
+        representation: () =>
+            `<SingleFieldList><ChipField source="id" /></SingleFieldList>`,
     },
     richText: {
         component: RichTextField,
@@ -103,5 +132,3 @@ ${children.map(child => `            ${child.getRepresentation()}`).join('\n')}
             `<UrlField source="${props.source}" />`,
     },
 };
-
-export default showFieldTypes;

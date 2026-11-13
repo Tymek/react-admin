@@ -62,13 +62,23 @@ describe('flattenObject', () => {
 });
 
 describe('createHeadersFromOptions', () => {
-    it('should add a Content-Type header for POST requests', () => {
-        const options = {
+    it('should add a Content-Type header for POST requests if there is a body', () => {
+        const optionsWithBody = {
+            method: 'POST',
+            body: JSON.stringify(null),
+        };
+
+        const headers = createHeadersFromOptions(optionsWithBody);
+        expect(headers.get('Content-Type')).toStrictEqual('application/json');
+    });
+
+    it('should not add a Content-Type header for POST requests with no body', () => {
+        const optionsWithoutBody = {
             method: 'POST',
         };
 
-        const headers = createHeadersFromOptions(options);
-        expect(headers.get('Content-Type')).toStrictEqual('application/json');
+        const headersWithoutBody = createHeadersFromOptions(optionsWithoutBody);
+        expect(headersWithoutBody.get('Content-Type')).toBeNull();
     });
 
     it('should not add a Content-Type header for GET requests', () => {
@@ -80,9 +90,94 @@ describe('createHeadersFromOptions', () => {
         const headersWithMethod = createHeadersFromOptions(optionsWithMethod);
         expect(headersWithMethod.get('Content-Type')).toBeNull();
 
-        const headersWithoutMethod = createHeadersFromOptions(
-            optionsWithoutMethod
-        );
+        const headersWithoutMethod =
+            createHeadersFromOptions(optionsWithoutMethod);
         expect(headersWithoutMethod.get('Content-Type')).toBeNull();
+    });
+
+    it('should not add a Content-Type header for DELETE requests with no body', () => {
+        const optionsWithDelete = {
+            method: 'DELETE',
+        };
+
+        const headersWithDelete = createHeadersFromOptions(optionsWithDelete);
+        expect(headersWithDelete.get('Content-Type')).toBeNull();
+        const optionsWithDeleteAndBody = {
+            method: 'DELETE',
+            body: JSON.stringify(null),
+        };
+
+        const headersWithDeleteAndBody = createHeadersFromOptions(
+            optionsWithDeleteAndBody
+        );
+        expect(headersWithDeleteAndBody.get('Content-Type')).toStrictEqual(
+            'application/json'
+        );
+    });
+
+    it('should not add a Content-Type header if there already is a Content-Type header', () => {
+        const optionsWithContentType = {
+            headers: new Headers({
+                'Content-Type': 'not undefined',
+            }) as Headers,
+            method: 'POST',
+            body: 'not undefined either',
+        };
+
+        const headersWithContentType = createHeadersFromOptions(
+            optionsWithContentType
+        );
+        expect(headersWithContentType.get('Content-Type')).toStrictEqual(
+            'not undefined'
+        );
+    });
+
+    it('should accept headers as a Headers object', () => {
+        const headers = new Headers();
+        headers.append('X-Custom-Header', 'foo');
+        const headersFromObject = createHeadersFromOptions({
+            headers,
+            method: 'POST',
+            body: JSON.stringify(null),
+        });
+        expect(headersFromObject.get('X-Custom-Header')).toStrictEqual('foo');
+        expect(headersFromObject.get('Content-Type')).toStrictEqual(
+            'application/json'
+        );
+    });
+
+    it('should accept headers as a plain object', () => {
+        const headersFromObject = createHeadersFromOptions({
+            headers: { 'X-Custom-Header': 'foo' },
+            method: 'POST',
+            body: JSON.stringify(null),
+        });
+        expect(headersFromObject.get('X-Custom-Header')).toStrictEqual('foo');
+        expect(headersFromObject.get('Content-Type')).toStrictEqual(
+            'application/json'
+        );
+    });
+
+    it('should accept headers as an array of pairs', () => {
+        const headersFromPairs = createHeadersFromOptions({
+            headers: [['X-Custom-Header', 'bar']],
+            user: { authenticated: true, token: 'Bearer token' },
+        });
+        expect(headersFromPairs.get('X-Custom-Header')).toStrictEqual('bar');
+        expect(headersFromPairs.get('Authorization')).toStrictEqual(
+            'Bearer token'
+        );
+    });
+
+    it('should not modify the headers passed in the options', () => {
+        const headers = new Headers({ Accept: 'application/json' });
+        createHeadersFromOptions({
+            headers,
+            method: 'POST',
+            body: JSON.stringify(null),
+            user: { authenticated: true, token: 'Bearer token' },
+        });
+        expect(headers.get('Content-Type')).toBeNull();
+        expect(headers.get('Authorization')).toBeNull();
     });
 });

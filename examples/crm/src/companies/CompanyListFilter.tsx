@@ -1,4 +1,3 @@
-/* eslint-disable import/no-anonymous-default-export */
 import * as React from 'react';
 import {
     FilterList,
@@ -6,19 +5,24 @@ import {
     FilterListItem,
     useGetIdentity,
 } from 'react-admin';
-import { Box } from '@material-ui/core';
-import BusinessIcon from '@material-ui/icons/Business';
-import LocalShippingIcon from '@material-ui/icons/LocalShipping';
-import SupervisorAccountIcon from '@material-ui/icons/SupervisorAccount';
+import { Box } from '@mui/material';
+import BusinessIcon from '@mui/icons-material/Business';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 
 import { sizes } from './sizes';
-import { sectors } from './sectors';
+import { useConfigurationContext } from '../root/ConfigurationContext';
 
 export const CompanyListFilter = () => {
     const { identity } = useGetIdentity();
+    const { companySectors } = useConfigurationContext();
+    const sectors = companySectors.map(sector => ({
+        id: sector,
+        name: sector,
+    }));
     return (
-        <Box width="15em" order="-1" marginRight="1em">
-            <FilterLiveSearch />
+        <Box width="13em" minWidth="13em" order={-1} mr={2} mt={5}>
+            <FilterLiveSearch hiddenLabel />
 
             <FilterList label="Size" icon={<BusinessIcon />}>
                 {sizes.map(size => (
@@ -47,7 +51,7 @@ export const CompanyListFilter = () => {
                 <FilterListItem
                     label="Me"
                     value={{
-                        sales_id: identity && identity.id,
+                        sales_id: identity?.id,
                     }}
                 />
             </FilterList>

@@ -1,0 +1,371 @@
+import * as React from 'react';
+import { ReactNode, useEffect } from 'react';
+import { FormHelperText } from '@mui/material';
+import { styled } from '@mui/material/styles';
+import { Color } from '@tiptap/extension-color';
+import { Highlight } from '@tiptap/extension-highlight';
+import { Image } from '@tiptap/extension-image';
+import { TextAlign } from '@tiptap/extension-text-align';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Editor, EditorContent, EditorOptions, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import clsx from 'clsx';
+import { useInput, useResourceContext } from 'ra-core';
+import {
+    CommonInputProps,
+    InputHelperText,
+    Labeled,
+    LabeledProps,
+} from 'ra-ui-materialui';
+
+import { RichTextInputToolbar } from './RichTextInputToolbar';
+import { TiptapEditorProvider } from './TiptapEditorProvider';
+
+/**
+ * A rich text editor for the react-admin that is accessible and supports translations. Based on [Tiptap](https://www.tiptap.dev/).
+ * @param props The input props. Accept all common react-admin input props.
+ * @param {EditorOptions} props.editorOptions The options to pass to the Tiptap editor. See Tiptap settings [here](https://tiptap.dev/api/editor#settings).
+ * @param {ReactNode} props.toolbar The toolbar containing the editors commands.
+ *
+ * @example <caption>Customizing the editors options</caption>
+ * import { RichTextInput, RichTextInputToolbar } from 'ra-input-rich-text';
+ * const MyRichTextInput = (props) => (
+ *     <RichTextInput
+ *         toolbar={<RichTextInputToolbar size="large" />}
+ *         label="Body"
+ *         source="body"
+ *         {...props}
+ *     />
+ * );
+ *
+ * @example <caption>Customizing the toolbar size</caption>
+ * import { RichTextInput, RichTextInputToolbar } from 'ra-input-rich-text';
+ * const MyRichTextInput = (props) => (
+ *     <RichTextInput
+ *         toolbar={<RichTextInputToolbar size="large" />}
+ *         label="Body"
+ *         source="body"
+ *         {...props}
+ *     />
+ * );
+ *
+ * @example <caption>Customizing the toolbar commands</caption>
+ * import { RichTextInput, RichTextInputToolbar } from 'ra-input-rich-text';
+ * const MyRichTextInput = ({ size, ...props }) => (
+ *     <RichTextInput
+ *         toolbar={(
+ *             <RichTextInputToolbar>
+ *                 <LevelSelect size={size} />
+ *                 <FormatButtons size={size} />
+ *                 <ColorButtons size={size} />
+ *                 <ListButtons size={size} />
+ *                 <LinkButtons size={size} />
+ *                 <ImageButtons size={size} />
+ *                 <QuoteButtons size={size} />
+ *                 <ClearButtons size={size} />
+ *             </RichTextInputToolbar>
+ *         )}
+ *         label="Body"
+ *         source="body"
+ *         {...props}
+ *     />
+ * );
+ */
+export const RichTextInput = (props: RichTextInputProps) => {
+    const {
+        className,
+        defaultValue = '',
+        disabled = false,
+        editorOptions = DefaultEditorOptions,
+        fullWidth = true,
+        helperText,
+        label,
+        readOnly = false,
+        source,
+        sx,
+        toolbar,
+    } = props;
+
+    const resource = useResourceContext(props);
+    const {
+        id,
+        field,
+        isRequired,
+        fieldState,
+        formState: { isSubmitted },
+    } = useInput({ ...props, source, defaultValue });
+
+    const editor = useEditor(
+        {
+            ...editorOptions,
+            editable: !disabled && !readOnly,
+            content: field.value,
+            editorProps: {
+                ...editorOptions?.editorProps,
+                attributes: {
+                    ...editorOptions?.editorProps?.attributes,
+                    id,
+                },
+            },
+        },
+        [disabled, editorOptions, readOnly, id]
+    );
+
+    const { error, invalid, isTouched } = fieldState;
+
+    useEffect(() => {
+        // Tiptap v3's Editor.destroy() sets commandManager to null, and the
+        // `commands` getter dereferences it. When the editor is recreated (e.g.
+        // readOnly/disabled/editorOptions/id change), this passive effect can run
+        // against the just-destroyed instance, throwing "Cannot read properties of
+        // null (reading 'commands')". Bail out on destroyed editors as well.
+        if (!editor || editor.isDestroyed) return;
+
+        const { from, to } = editor.state.selection;
+
+        editor.commands.setContent(field.value, {
+            emitUpdate: false,
+            parseOptions: { preserveWhitespace: true },
+        });
+        editor.commands.setTextSelection({ from, to });
+    }, [editor, field.value]);
+
+    useEffect(() => {
+        if (!editor) {
+            return;
+        }
+
+        const handleEditorUpdate = () => {
+            if (editor.isEmpty) {
+                field.onChange('');
+                field.onBlur();
+                return;
+            }
+
+            const html = editor.getHTML();
+            field.onChange(html);
+            field.onBlur();
+        };
+
+        editor.on('update', handleEditorUpdate);
+        editor.on('blur', field.onBlur);
+        return () => {
+            editor.off('update', handleEditorUpdate);
+            editor.off('blur', field.onBlur);
+        };
+    }, [editor, field]);
+
+    return (
+        <Root
+            className={clsx(
+                'ra-input',
+                `ra-input-${source}`,
+                className,
+                fullWidth ? 'fullWidth' : ''
+            )}
+            sx={sx}
+        >
+            <Labeled
+                isRequired={isRequired}
+                label={label}
+                id={`${id}-label`}
+                color={fieldState?.invalid ? 'error' : undefined}
+                source={source}
+                resource={resource}
+                fullWidth={fullWidth}
+            >
+                <RichTextInputContent
+                    editor={editor}
+                    error={error}
+                    helperText={helperText}
+                    id={id}
+                    isTouched={isTouched}
+                    isSubmitted={isSubmitted}
+                    invalid={invalid}
+                    toolbar={toolbar || <RichTextInputToolbar />}
+                />
+            </Labeled>
+        </Root>
+    );
+};
+
+export const DefaultEditorOptions: Partial<EditorOptions> = {
+    extensions: [
+        StarterKit,
+        TextAlign.configure({
+            types: ['heading', 'paragraph'],
+        }),
+        Image.configure({
+            inline: true,
+            resize: {
+                enabled: true,
+                alwaysPreserveAspectRatio: true,
+            },
+        }),
+        TextStyle, // Required by Color
+        Color,
+        Highlight.configure({ multicolor: true }),
+    ],
+};
+
+export type RichTextInputProps = CommonInputProps &
+    Omit<LabeledProps, 'children'> & {
+        disabled?: boolean;
+        readOnly?: boolean;
+        editorOptions?: Partial<EditorOptions>;
+        toolbar?: ReactNode;
+        sx?: (typeof Root)['defaultProps']['sx'];
+    };
+
+const PREFIX = 'RaRichTextInput';
+const classes = {
+    editorContent: `${PREFIX}-editorContent`,
+};
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    '&.fullWidth': {
+        width: '100%',
+    },
+    [`& .${classes.editorContent}`]: {
+        width: '100%',
+        '& .ProseMirror': {
+            backgroundColor: (theme.vars || theme).palette.background.default,
+            borderColor: (theme.vars || theme).palette.divider,
+            borderRadius: theme.shape.borderRadius,
+            borderStyle: 'solid',
+            borderWidth: '1px',
+            padding: theme.spacing(1),
+
+            '&[contenteditable="false"], &[contenteditable="false"]:hover, &[contenteditable="false"]:focus':
+                {
+                    backgroundColor: (theme.vars || theme).palette.action
+                        .disabledBackground,
+                },
+
+            '&:hover': {
+                backgroundColor: (theme.vars || theme).palette.action.hover,
+            },
+            '&:focus': {
+                backgroundColor: (theme.vars || theme).palette.background
+                    .default,
+            },
+            '& p': {
+                margin: '0 0 1em 0',
+                '&:last-child': {
+                    marginBottom: 0,
+                },
+            },
+            '& [data-resize-handle]': {
+                position: 'absolute',
+                background: 'rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                borderRadius: 2,
+                zIndex: 10,
+                '&:hover': {
+                    background: 'rgba(0, 0, 0, 0.8)',
+                },
+                /* Corner handles */
+                "&[data-resize-handle='top-left'], &[data-resize-handle='top-right'], &[data-resize-handle='bottom-left'], &[data-resize-handle='bottom-right']":
+                    {
+                        width: 8,
+                        height: 8,
+                    },
+                "&[data-resize-handle='top-left']": {
+                    top: -4,
+                    left: -4,
+                    cursor: 'nwse-resize',
+                },
+                "&[data-resize-handle='top-right']": {
+                    top: -4,
+                    right: -4,
+                    cursor: 'nesw-resize',
+                },
+                "&[data-resize-handle='bottom-left']": {
+                    bottom: -4,
+                    left: -4,
+                    cursor: 'nesw-resize',
+                },
+                "&[data-resize-handle='bottom-right']": {
+                    bottom: -4,
+                    right: -4,
+                    cursor: 'nwse-resize',
+                },
+                /* Edge handles */
+                "&[data-resize-handle='top'], &[data-resize-handle='bottom']": {
+                    height: 6,
+                    left: 8,
+                    right: 8,
+                },
+                "&[data-resize-handle='top']": {
+                    top: -3,
+                    cursor: 'ns-resize',
+                },
+                "&[data-resize-handle='bottom']": {
+                    bottom: -3,
+                    cursor: 'ns-resize',
+                },
+                "&[data-resize-handle='left'], &[data-resize-handle='right']": {
+                    width: 6,
+                    top: 8,
+                    bottom: 8,
+                },
+                "&[data-resize-handle='left']": {
+                    left: -3,
+                    cursor: 'ew-resize',
+                },
+                "&[data-resize-handle='right']": {
+                    right: -3,
+                    cursor: 'ew-resize',
+                },
+            },
+            "& [data-resize-state='true'] [data-resize-wrapper]": {
+                outline: '1px solid rgba(0, 0, 0, 0.25)',
+                borderRadius: '0.125rem',
+            },
+        },
+    },
+}));
+
+/**
+ * Extracted in a separate component so that we can remove fullWidth from the props injected by Labeled
+ * and avoid warnings about unknown props on Root.
+ */
+const RichTextInputContent = ({
+    editor,
+    error,
+    helperText,
+    id,
+    invalid,
+    toolbar,
+}: RichTextInputContentProps) => (
+    <>
+        <TiptapEditorProvider value={editor}>
+            {toolbar}
+            <EditorContent
+                aria-labelledby={`${id}-label`}
+                className={classes.editorContent}
+                editor={editor}
+            />
+        </TiptapEditorProvider>
+        <FormHelperText
+            className={invalid ? 'ra-rich-text-input-error' : ''}
+            error={invalid}
+        >
+            <InputHelperText error={error?.message} helperText={helperText} />
+        </FormHelperText>
+    </>
+);
+
+export type RichTextInputContentProps = {
+    className?: string;
+    editor?: Editor;
+    error?: any;
+    helperText?: ReactNode;
+    id: string;
+    isTouched: boolean;
+    isSubmitted: boolean;
+    invalid: boolean;
+    toolbar?: ReactNode;
+};

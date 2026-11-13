@@ -1,11 +1,20 @@
 import * as React from 'react';
-import { FC, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import ActionList from '@material-ui/icons/List';
-import { Link } from 'react-router-dom';
-import { useResourceContext } from 'ra-core';
+import ActionList from '@mui/icons-material/List';
+import {
+    useResourceContext,
+    useCreatePath,
+    useCanAccess,
+    useGetResourceLabel,
+    useResourceTranslation,
+    LinkBase,
+} from 'ra-core';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 
-import Button, { ButtonProps } from './Button';
+import { Button, type ButtonProps } from './Button';
 
 /**
  * Opens the List view of a given resource
@@ -14,16 +23,16 @@ import Button, { ButtonProps } from './Button';
  * import { ListButton } from 'react-admin';
  *
  * const CommentListButton = () => (
- *     <ListButton basePath="/comments" label="Comments" />
+ *     <ListButton label="Comments" />
  * );
  *
  * @example // linking back to the list from the Edit view
  * import { TopToolbar, ListButton, ShowButton, Edit } from 'react-admin';
  *
- * const PostEditActions = ({ basePath, record, resource }) => (
+ * const PostEditActions = () => (
  *     <TopToolbar>
- *         <ListButton basePath={basePath} />
- *         <ShowButton basePath={basePath} record={record} />
+ *         <ListButton />
+ *         <ShowButton />
  *     </TopToolbar>
  * );
  *
@@ -33,39 +42,103 @@ import Button, { ButtonProps } from './Button';
  *     </Edit>
  * );
  */
-const ListButton: FC<ListButtonProps> = ({
-    basePath = '',
-    icon = defaultIcon,
-    label = 'ra.action.list',
-    ...rest
-}) => {
-    const resource = useResourceContext();
+export const ListButton = React.forwardRef(function ListButton(
+    inProps: ListButtonProps,
+    ref: React.ForwardedRef<HTMLAnchorElement>
+) {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
+    const {
+        icon = defaultIcon,
+        label: labelProp,
+        resource: resourceProp,
+        scrollToTop = true,
+        ...rest
+    } = props;
+    const resource = useResourceContext(props);
+    if (!resource) {
+        throw new Error(
+            '<ListButton> components should be used inside a <Resource> component or provided the resource prop.'
+        );
+    }
+    const { canAccess, isPending } = useCanAccess({
+        action: 'list',
+        resource,
+    });
+    const createPath = useCreatePath();
+    const getResourceLabel = useGetResourceLabel();
+    const label = useResourceTranslation({
+        resourceI18nKey: `resources.${resource}.action.list`,
+        baseI18nKey: 'ra.action.list',
+        options: {
+            name: getResourceLabel(resource, 1),
+        },
+        userText: labelProp,
+    });
+
+    if (!canAccess || isPending) {
+        return null;
+    }
+
     return (
-        <Button
-            component={Link}
-            to={basePath || `/${resource}`}
-            label={label}
-            {...(rest as any)}
+        <StyledButton
+            component={LinkBase}
+            ref={ref}
+            to={createPath({ type: 'list', resource })}
+            state={scrollStates[String(scrollToTop)]}
+            // avoid double translation
+            label={<>{label}</>}
+            // If users provide a ReactNode as label, its their responsibility to also provide an aria-label should they need it
+            aria-label={typeof label === 'string' ? label : undefined}
+            {...rest}
         >
             {icon}
-        </Button>
+        </StyledButton>
     );
+});
+
+// avoids using useMemo to get a constant value for the link state
+const scrollStates = {
+    true: { _scrollToTop: true },
+    false: {},
 };
 
 const defaultIcon = <ActionList />;
 
 interface Props {
-    basePath?: string;
-    icon?: ReactElement;
+    icon?: React.ReactNode;
     label?: string;
+    resource?: string;
+    scrollToTop?: boolean;
 }
 
-export type ListButtonProps = Props & ButtonProps;
+export type ListButtonProps = Props & Omit<ButtonProps<typeof LinkBase>, 'to'>;
 
-ListButton.propTypes = {
-    basePath: PropTypes.string,
-    icon: PropTypes.element,
-    label: PropTypes.string,
-};
+const PREFIX = 'RaListButton';
 
-export default ListButton;
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<ListButtonProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

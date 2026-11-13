@@ -1,60 +1,60 @@
 import * as React from 'react';
-import { Children, Fragment, cloneElement, memo } from 'react';
-import BookIcon from '@material-ui/icons/Book';
-import { Chip, useMediaQuery } from '@material-ui/core';
-import { makeStyles, Theme } from '@material-ui/core/styles';
-import lodashGet from 'lodash/get';
+import BookIcon from '@mui/icons-material/Book';
+import { Chip, useMediaQuery } from '@mui/material';
+import { Theme } from '@mui/material/styles';
+import lodashGet from 'lodash/get.js';
 import jsonExport from 'jsonexport/dist';
 import {
     BooleanField,
     BulkDeleteButton,
     BulkExportButton,
     ChipField,
-    Datagrid,
+    ColumnsButton,
+    CreateButton,
+    DataTable,
     DateField,
     downloadCSV,
     EditButton,
-    Filter,
+    ExportButton,
+    FilterButton,
     List,
-    NumberField,
+    InfiniteList,
     ReferenceArrayField,
+    ReferenceManyCount,
     SearchInput,
     ShowButton,
     SimpleList,
     SingleFieldList,
-    TextField,
     TextInput,
+    TopToolbar,
+    useRecordContext,
     useTranslate,
-} from 'react-admin'; // eslint-disable-line import/no-unresolved
+} from 'react-admin';
 
 import ResetViewsButton from './ResetViewsButton';
+
 export const PostIcon = BookIcon;
 
-const useQuickFilterStyles = makeStyles(theme => ({
-    chip: {
-        marginBottom: theme.spacing(1),
-    },
-}));
-const QuickFilter = ({ label, source, defaultValue }) => {
+const QuickFilter = ({
+    label,
+}: {
+    label: string;
+    source?: string;
+    defaultValue?: any;
+}) => {
     const translate = useTranslate();
-    const classes = useQuickFilterStyles();
-    return <Chip className={classes.chip} label={translate(label)} />;
+    return <Chip sx={{ marginBottom: 1 }} label={translate(label)} />;
 };
 
-const PostFilter = props => (
-    <Filter {...props}>
-        <SearchInput source="q" alwaysOn />
-        <TextInput
-            source="title"
-            defaultValue="Qui tempore rerum et voluptates"
-        />
-        <QuickFilter
-            label="resources.posts.fields.commentable"
-            source="commentable"
-            defaultValue
-        />
-    </Filter>
-);
+const postFilter = [
+    <SearchInput source="q" alwaysOn />,
+    <TextInput source="title" defaultValue="Qui tempore rerum et voluptates" />,
+    <QuickFilter
+        label="resources.posts.fields.commentable"
+        source="commentable"
+        defaultValue
+    />,
+];
 
 const exporter = posts => {
     const data = posts.map(post => ({
@@ -63,51 +63,52 @@ const exporter = posts => {
             backlink => backlink.url
         ),
     }));
-    jsonExport(data, (err, csv) => downloadCSV(csv, 'posts'));
+    return jsonExport(data, (err, csv) => downloadCSV(csv, 'posts'));
 };
 
-const useStyles = makeStyles(theme => ({
-    title: {
-        maxWidth: '20em',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-    },
-    hiddenOnSmallScreens: {
-        [theme.breakpoints.down('md')]: {
-            display: 'none',
-        },
-    },
-    publishedAt: { fontStyle: 'italic' },
-}));
+const postListMobileActions = (
+    <TopToolbar>
+        <FilterButton />
+        <CreateButton />
+        <ExportButton />
+    </TopToolbar>
+);
 
-const PostListBulkActions = memo(({ children, ...props }) => (
-    <Fragment>
-        <ResetViewsButton {...props} />
-        <BulkDeleteButton {...props} />
-        <BulkExportButton {...props} />
-    </Fragment>
-));
+const PostListMobile = () => (
+    <InfiniteList
+        filters={postFilter}
+        sort={{ field: 'published_at', order: 'DESC' }}
+        exporter={exporter}
+        actions={postListMobileActions}
+    >
+        <SimpleList
+            primaryText={record => record.title}
+            secondaryText={record => `${record.views} views`}
+            tertiaryText={record =>
+                new Date(record.published_at).toLocaleDateString()
+            }
+        />
+    </InfiniteList>
+);
 
-const usePostListActionToolbarStyles = makeStyles({
-    toolbar: {
-        alignItems: 'center',
-        display: 'flex',
-        marginTop: -1,
-        marginBottom: -1,
-    },
-});
+const postListBulkActions = (
+    <>
+        <ResetViewsButton />
+        <BulkDeleteButton />
+        <BulkExportButton />
+    </>
+);
 
-const PostListActionToolbar = ({ children, ...props }) => {
-    const classes = usePostListActionToolbarStyles();
-    return (
-        <div className={classes.toolbar}>
-            {Children.map(children, button => cloneElement(button, props))}
-        </div>
-    );
-};
+const postListActions = (
+    <TopToolbar>
+        <FilterButton />
+        <ColumnsButton />
+        <CreateButton />
+        <ExportButton />
+    </TopToolbar>
+);
 
-const rowClick = (id, basePath, record) => {
+const rowClick = (_id, _resource, record) => {
     if (record.commentable) {
         return 'edit';
     }
@@ -115,68 +116,103 @@ const rowClick = (id, basePath, record) => {
     return 'show';
 };
 
-const PostPanel = ({ id, record, resource }) => (
-    <div dangerouslySetInnerHTML={{ __html: record.body }} />
-);
-
-const PostList = props => {
-    const classes = useStyles();
-    const isSmall = useMediaQuery<Theme>(theme => theme.breakpoints.down('sm'));
-    return (
-        <List
-            {...props}
-            bulkActionButtons={<PostListBulkActions />}
-            filters={<PostFilter />}
-            sort={{ field: 'published_at', order: 'DESC' }}
-            exporter={exporter}
-        >
-            {isSmall ? (
-                <SimpleList
-                    primaryText={record => record.title}
-                    secondaryText={record => `${record.views} views`}
-                    tertiaryText={record =>
-                        new Date(record.published_at).toLocaleDateString()
-                    }
-                />
-            ) : (
-                <Datagrid rowClick={rowClick} expand={PostPanel} optimized>
-                    <TextField source="id" />
-                    <TextField source="title" cellClassName={classes.title} />
-                    <DateField
-                        source="published_at"
-                        sortByOrder="DESC"
-                        cellClassName={classes.publishedAt}
-                    />
-
-                    <BooleanField
-                        source="commentable"
-                        label="resources.posts.fields.commentable_short"
-                        sortable={false}
-                    />
-                    <NumberField source="views" sortByOrder="DESC" />
-                    <ReferenceArrayField
-                        label="Tags"
-                        reference="tags"
-                        source="tags"
-                        sortBy="tags.name"
-                        sort={tagSort}
-                        cellClassName={classes.hiddenOnSmallScreens}
-                        headerClassName={classes.hiddenOnSmallScreens}
-                    >
-                        <SingleFieldList>
-                            <ChipField source="name.en" size="small" />
-                        </SingleFieldList>
-                    </ReferenceArrayField>
-                    <PostListActionToolbar>
-                        <EditButton />
-                        <ShowButton />
-                    </PostListActionToolbar>
-                </Datagrid>
-            )}
-        </List>
-    );
+const PostPanel = () => {
+    const record = useRecordContext();
+    return <div dangerouslySetInnerHTML={{ __html: record?.body }} />;
 };
 
-const tagSort = { field: 'name.en', order: 'ASC' };
+const tagSort = { field: 'name.en', order: 'ASC' } as const;
+
+const PostListDesktop = () => (
+    <List
+        filters={postFilter}
+        sort={{ field: 'published_at', order: 'DESC' }}
+        exporter={exporter}
+        actions={postListActions}
+    >
+        <DataTable
+            bulkActionButtons={postListBulkActions}
+            rowClick={rowClick}
+            expand={PostPanel}
+            hiddenColumns={['average_note']}
+            sx={{
+                '& .hiddenOnSmallScreens': {
+                    display: {
+                        xs: 'none',
+                        lg: 'table-cell',
+                    },
+                },
+            }}
+        >
+            <DataTable.Col source="id" />
+            <DataTable.Col
+                source="title"
+                sx={{
+                    maxWidth: '16em',
+                    '&.MuiTableCell-body': {
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                    },
+                }}
+            />
+            <DataTable.Col
+                source="published_at"
+                sortByOrder="DESC"
+                sx={{ '&.MuiTableCell-body': { fontStyle: 'italic' } }}
+                field={DateField}
+            />
+            <DataTable.Col
+                label="resources.posts.fields.nb_comments"
+                align="right"
+            >
+                <ReferenceManyCount
+                    reference="comments"
+                    target="post_id"
+                    link
+                />
+            </DataTable.Col>
+            <DataTable.Col
+                source="commentable"
+                label="resources.posts.fields.commentable_short"
+                disableSort
+                field={BooleanField}
+            />
+            <DataTable.NumberCol source="views" sortByOrder="DESC" />
+            <DataTable.Col
+                label="Tags"
+                source="tags.name"
+                className="hiddenOnSmallScreens"
+                sx={{ minWidth: '9em' }}
+            >
+                <ReferenceArrayField
+                    source="tags"
+                    reference="tags"
+                    sort={tagSort}
+                >
+                    <SingleFieldList>
+                        <ChipField clickable source="name.en" size="small" />
+                    </SingleFieldList>
+                </ReferenceArrayField>
+            </DataTable.Col>
+            <DataTable.NumberCol
+                source="average_note"
+                className="hiddenOnSmallScreens"
+            />
+            <DataTable.Col sx={{ textAlign: 'center' }}>
+                <EditButton />
+                <ShowButton />
+            </DataTable.Col>
+        </DataTable>
+    </List>
+);
+
+const PostList = () => {
+    const isSmall = useMediaQuery<Theme>(
+        theme => theme.breakpoints.down('md'),
+        { noSsr: true }
+    );
+    return isSmall ? <PostListMobile /> : <PostListDesktop />;
+};
 
 export default PostList;

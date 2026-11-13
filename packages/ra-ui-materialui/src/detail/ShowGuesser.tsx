@@ -1,24 +1,51 @@
 import * as React from 'react';
-import { useEffect, useState } from 'react';
-import inflection from 'inflection';
+import { ReactNode, useEffect, useState } from 'react';
 import {
-    useShowController,
+    ShowBase,
     InferredElement,
     getElementsFromRecords,
-    ShowContextProvider,
     useResourceContext,
     useShowContext,
 } from 'ra-core';
+import { capitalize, singularize } from 'inflection';
 
+import { ShowProps } from './Show';
 import { ShowView } from './ShowView';
-import showFieldTypes from './showFieldTypes';
+import { showFieldTypes } from './showFieldTypes';
 
-const ShowViewGuesser = props => {
+export const ShowGuesser = ({
+    id,
+    queryOptions,
+    resource,
+    ...rest
+}: Omit<ShowProps, 'children'> & { enableLog?: boolean }) => (
+    <ShowBase id={id} resource={resource} queryOptions={queryOptions}>
+        <ShowGuesserView {...rest} />
+    </ShowBase>
+);
+
+export const ShowGuesserView = (
+    props: Omit<ShowProps, 'children'> & { enableLog?: boolean }
+) => {
     const resource = useResourceContext(props);
+
+    if (!resource) {
+        throw new Error(
+            `<ShowGuesser> was called outside of a ResourceContext and without a resource prop. You must set the resource prop.`
+        );
+    }
+
     const { record } = useShowContext();
-    const [inferredChild, setInferredChild] = useState(null);
+    const [child, setChild] = useState<ReactNode>(null);
+    const { enableLog = process.env.NODE_ENV === 'development', ...rest } =
+        props;
+
     useEffect(() => {
-        if (record && !inferredChild) {
+        setChild(null);
+    }, [resource]);
+
+    useEffect(() => {
+        if (record && !child) {
             const inferredElements = getElementsFromRecords(
                 [record],
                 showFieldTypes
@@ -28,36 +55,37 @@ const ShowViewGuesser = props => {
                 null,
                 inferredElements
             );
+            setChild(inferredChild.getElement());
 
-            process.env.NODE_ENV !== 'production' &&
-                // eslint-disable-next-line no-console
-                console.log(
-                    `Guessed Show:
+            if (!enableLog) return;
 
-export const ${inflection.capitalize(
-                        inflection.singularize(resource)
-                    )}Show = props => (
-    <Show {...props}>
+            const representation = inferredChild.getRepresentation();
+            const components = ['Show']
+                .concat(
+                    Array.from(
+                        new Set(
+                            Array.from(representation.matchAll(/<([^/\s>]+)/g))
+                                .map(match => match[1])
+                                .filter(component => component !== 'span')
+                        )
+                    )
+                )
+                .filter(component => !component.match(/[A-Za-z]+\.[A-Za-z]+/i))
+                .sort();
+
+            console.log(
+                `Guessed Show:
+
+import { ${components.join(', ')} } from 'react-admin';
+
+export const ${capitalize(singularize(resource))}Show = () => (
+    <Show>
 ${inferredChild.getRepresentation()}
     </Show>
 );`
-                );
-            setInferredChild(inferredChild.getElement());
+            );
         }
-    }, [record, inferredChild, resource]);
+    }, [record, child, resource, enableLog]);
 
-    return <ShowView {...props}>{inferredChild}</ShowView>;
+    return <ShowView {...rest}>{child}</ShowView>;
 };
-
-ShowViewGuesser.propTypes = ShowView.propTypes;
-
-const ShowGuesser = props => {
-    const controllerProps = useShowController(props);
-    return (
-        <ShowContextProvider value={controllerProps}>
-            <ShowViewGuesser {...props} {...controllerProps} />
-        </ShowContextProvider>
-    );
-};
-
-export default ShowGuesser;

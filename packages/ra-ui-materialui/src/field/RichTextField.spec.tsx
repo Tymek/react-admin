@@ -1,9 +1,11 @@
 import * as React from 'react';
 import expect from 'expect';
-import { render } from '@testing-library/react';
-import { RecordContextProvider } from 'ra-core';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { RecordContextProvider, I18nContextProvider } from 'ra-core';
+import polyglotI18nProvider from 'ra-i18n-polyglot';
 
-import RichTextField, { removeTags } from './RichTextField';
+import { RichTextField, removeTags } from './RichTextField';
+import { Secure, Themed } from './RichTextField.stories';
 
 describe('stripTags', () => {
     it('should strip HTML tags from input', () => {
@@ -42,6 +44,10 @@ describe('stripTags', () => {
         expect(removeTags('<p>All our base is belong to us.<p>')).toEqual(
             'All our base is belong to us.'
         );
+    });
+
+    it('should drop an unfinished opening tag', () => {
+        expect(removeTags('Safe<script alert(1)')).toEqual('Safe');
     });
 });
 
@@ -100,6 +106,7 @@ describe('<RichTextField />', () => {
         const { container } = render(
             <RichTextField
                 record={{ id: 123, foo: true }}
+                // @ts-expect-error source prop does not have a valid value
                 source="body"
                 className="foo"
             />
@@ -107,7 +114,7 @@ describe('<RichTextField />', () => {
         expect(container.children[0].classList.contains('foo')).toBe(true);
     });
 
-    it.each([null, undefined])(
+    it.each([null, undefined, ''])(
         'should render the emptyText when value is %s and stripTags is set to false',
         body => {
             const { queryByText } = render(
@@ -121,7 +128,7 @@ describe('<RichTextField />', () => {
         }
     );
 
-    it.each([null, undefined])(
+    it.each([null, undefined, ''])(
         'should render the emptyText when value is %s and stripTags is set to true',
         body => {
             const { queryByText } = render(
@@ -135,4 +142,54 @@ describe('<RichTextField />', () => {
             expect(queryByText('NA')).not.toBeNull();
         }
     );
+
+    it('should be safe by default', async () => {
+        const { container } = render(<Secure />);
+        fireEvent.mouseOver(
+            screen.getByText(
+                "It is regarded as one of Tolstoy's finest literary achievements and remains a classic of world literature."
+            )
+        );
+        expect(
+            (container.querySelector('#stolendata') as HTMLInputElement)?.value
+        ).toEqual('none');
+    });
+
+    it('should translate emptyText', () => {
+        const i18nProvider = polyglotI18nProvider(
+            _locale =>
+                ({
+                    resources: {
+                        books: {
+                            name: 'Books',
+                            fields: {
+                                id: 'Id',
+                                title: 'Title',
+                                author: 'Author',
+                                year: 'Year',
+                            },
+                            not_found: 'Not found',
+                        },
+                    },
+                }) as any,
+            'en'
+        );
+        render(
+            <I18nContextProvider value={i18nProvider}>
+                <RichTextField
+                    record={{ id: 123 }}
+                    // @ts-expect-error source prop does not have a valid value
+                    source="foo.bar"
+                    emptyText="resources.books.not_found"
+                />
+            </I18nContextProvider>
+        );
+
+        expect(screen.getByText('Not found')).not.toBeNull();
+    });
+
+    it('should be customized by a theme', async () => {
+        render(<Themed />);
+        expect(screen.getByTestId('themed')).toBeDefined();
+    });
 });

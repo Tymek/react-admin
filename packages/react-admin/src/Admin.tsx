@@ -1,14 +1,19 @@
 import * as React from 'react';
-import { FunctionComponent } from 'react';
-import { AdminProps } from 'ra-core';
+import { localStorageStore } from 'ra-core';
+import {
+    AdminUI,
+    AdminContext,
+    AdminContextProps,
+    AdminUIProps,
+} from 'ra-ui-materialui';
 
-import AdminContext from './AdminContext';
-import AdminUI from './AdminUI';
+import { defaultI18nProvider } from './defaultI18nProvider';
+const defaultStore = localStorageStore();
 
 /**
  * Main admin component, entry point to the application.
  *
- * Initializes the various contexts (auth, data, i18n, redux, router)
+ * Initializes the various contexts (auth, data, i18n, router)
  * and defines the main routes.
  *
  * Expects a list of resources as children, or a function returning a list of
@@ -57,13 +62,17 @@ import { useEffect, useState } from 'react';
  * import {
  *     AdminContext,
  *     AdminUI,
+ *     defaultI18nProvider,
+ *     localStorageStore,
  *     Resource,
  *     ListGuesser,
  *     useDataProvider,
  * } from 'react-admin';
  *
+ * const store = localStorageStore();
+ *
  * const App = () => (
- *     <AdminContext dataProvider={myDataProvider}>
+ *     <AdminContext dataProvider={myDataProvider} i18nProvider={defaultI18nProvider} store={store}>
  *         <Resources />
  *     </AdminContext>
  * );
@@ -84,69 +93,71 @@ import { useEffect, useState } from 'react';
  *     );
  * };
  */
-const Admin: FunctionComponent<AdminProps> = ({
-    appLayout,
-    authProvider,
-    catchAll,
-    children,
-    customReducers,
-    customRoutes = [],
-    customSagas,
-    dashboard,
-    dataProvider,
-    disableTelemetry,
-    history,
-    i18nProvider,
-    initialState,
-    layout,
-    loading,
-    locale,
-    loginPage,
-    logoutButton,
-    menu, // deprecated, use a custom layout instead
-    ready,
-    theme,
-    title = 'React Admin',
-}) => {
-    if (appLayout && process.env.NODE_ENV !== 'production') {
-        console.warn(
-            'You are using deprecated prop "appLayout", it was replaced by "layout", see https://github.com/marmelab/react-admin/issues/2918'
-        );
-    }
+export const Admin = (props: AdminProps) => {
+    const {
+        accessDenied,
+        authCallbackPage,
+        authenticationError,
+        authProvider,
+        basename,
+        catchAll,
+        children,
+        darkTheme,
+        dashboard,
+        dataProvider,
+        defaultTheme,
+        disableTelemetry,
+        error,
+        i18nProvider = defaultI18nProvider,
+        layout,
+        lightTheme,
+        loading,
+        loginPage,
+        notification,
+        queryClient,
+        ready,
+        requireAuth,
+        routerProvider,
+        store = defaultStore,
+        theme,
+        title = 'React Admin',
+    } = props;
+
     if (loginPage === true && process.env.NODE_ENV !== 'production') {
         console.warn(
             'You passed true to the loginPage prop. You must either pass false to disable it or a component class to customize it'
-        );
-    }
-    if (locale && process.env.NODE_ENV !== 'production') {
-        console.warn(
-            'You are using deprecated prop "locale". You must now pass the initial locale to your i18nProvider'
         );
     }
 
     return (
         <AdminContext
             authProvider={authProvider}
+            basename={basename}
+            darkTheme={darkTheme}
             dataProvider={dataProvider}
+            defaultTheme={defaultTheme}
             i18nProvider={i18nProvider}
-            history={history}
-            customReducers={customReducers}
-            customSagas={customSagas}
-            initialState={initialState}
+            lightTheme={lightTheme}
+            queryClient={queryClient}
+            routerProvider={routerProvider}
+            store={store}
+            theme={theme}
         >
             <AdminUI
-                layout={appLayout || layout}
-                customRoutes={customRoutes}
+                accessDenied={accessDenied}
+                authCallbackPage={authCallbackPage}
+                authenticationError={authenticationError}
+                catchAll={catchAll}
                 dashboard={dashboard}
                 disableTelemetry={disableTelemetry}
-                menu={menu}
-                catchAll={catchAll}
-                theme={theme}
-                title={title}
+                error={error}
+                layout={layout}
                 loading={loading}
                 loginPage={loginPage}
-                logout={authProvider ? logoutButton : undefined}
+                notification={notification}
                 ready={ready}
+                requireAuth={requireAuth}
+                title={title}
             >
                 {children}
             </AdminUI>
@@ -155,3 +166,5 @@ const Admin: FunctionComponent<AdminProps> = ({
 };
 
 export default Admin;
+
+export interface AdminProps extends AdminContextProps, AdminUIProps {}

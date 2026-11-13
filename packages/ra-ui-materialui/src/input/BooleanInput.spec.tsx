@@ -1,24 +1,32 @@
 import * as React from 'react';
-import { render, fireEvent } from '@testing-library/react';
-import { Form } from 'react-final-form';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { ResourceContextProvider, testDataProvider } from 'ra-core';
 
-import BooleanInput from './BooleanInput';
+import { AdminContext } from '../AdminContext';
+import { SimpleForm } from '../form';
+import { BooleanInput } from './BooleanInput';
+import { SetFocus, Themed } from './BooleanInput.stories';
 
 describe('<BooleanInput />', () => {
     const defaultProps = {
-        resource: 'posts',
         source: 'isPublished',
     };
 
     it('should render as a checkbox', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => <BooleanInput {...defaultProps} />}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        defaultValues={{ isPublished: true }}
+                        onSubmit={jest.fn}
+                    >
+                        <BooleanInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        const input = getByLabelText(
+        const input = screen.getByLabelText(
             'resources.posts.fields.isPublished'
         ) as HTMLInputElement;
 
@@ -26,15 +34,20 @@ describe('<BooleanInput />', () => {
     });
 
     it('should be checked if the value is true', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                initialValues={{ isPublished: true }}
-                render={() => <BooleanInput {...defaultProps} />}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn}
+                        defaultValues={{ isPublished: true }}
+                    >
+                        <BooleanInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        const input = getByLabelText(
+        const input = screen.getByLabelText(
             'resources.posts.fields.isPublished'
         ) as HTMLInputElement;
 
@@ -42,15 +55,20 @@ describe('<BooleanInput />', () => {
     });
 
     it('should not be checked if the value is false', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                initialValues={{ isPublished: false }}
-                render={() => <BooleanInput {...defaultProps} />}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn}
+                        defaultValues={{ isPublished: false }}
+                    >
+                        <BooleanInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        const input = getByLabelText(
+        const input = screen.getByLabelText(
             'resources.posts.fields.isPublished'
         ) as HTMLInputElement;
 
@@ -58,59 +76,129 @@ describe('<BooleanInput />', () => {
     });
 
     it('should not be checked if the value is undefined', () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => <BooleanInput {...defaultProps} />}
-            />
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn}>
+                        <BooleanInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        const input = getByLabelText(
+        const input = screen.getByLabelText(
             'resources.posts.fields.isPublished'
         ) as HTMLInputElement;
 
         expect(input.checked).toBe(false);
     });
 
-    it('should update on click', async () => {
-        const { getByLabelText } = render(
-            <Form
-                onSubmit={jest.fn}
-                render={() => <BooleanInput {...defaultProps} />}
-            />
+    it('should be checked if the value is undefined and defaultValue is true', () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm onSubmit={jest.fn}>
+                        <BooleanInput {...defaultProps} defaultValue={true} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
 
-        const input = getByLabelText(
+        const input = screen.getByLabelText(
             'resources.posts.fields.isPublished'
         ) as HTMLInputElement;
 
-        fireEvent.click(input);
         expect(input.checked).toBe(true);
     });
 
-    it('should display errors', () => {
-        // This validator always returns an error
-        const validate = () => 'ra.validation.error';
-
-        const { getByLabelText, queryAllByText } = render(
-            <Form
-                onSubmit={jest.fn}
-                initialValues={{ isPublished: true }}
-                validateOnBlur
-                render={() => (
-                    <BooleanInput {...defaultProps} validate={validate} />
-                )}
-            />
+    it('should be checked if the value is true and defaultValue is false', () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn}
+                        record={{ isPublished: true }}
+                    >
+                        <BooleanInput {...defaultProps} defaultValue={false} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        const input = getByLabelText(
+
+        const input = screen.getByLabelText(
             'resources.posts.fields.isPublished'
         ) as HTMLInputElement;
 
-        input.focus();
-        fireEvent.click(input);
-        expect(input.checked).toBe(false);
-        input.blur();
+        expect(input.checked).toBe(true);
+    });
 
-        expect(queryAllByText('ra.validation.error')).toHaveLength(1);
+    it('should update on click', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        defaultValues={{ isPublished: false }}
+                        onSubmit={jest.fn}
+                    >
+                        <BooleanInput {...defaultProps} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+
+        const input = screen.getByLabelText(
+            'resources.posts.fields.isPublished'
+        ) as HTMLInputElement;
+
+        fireEvent.click(input);
+        await waitFor(() => {
+            expect(input.checked).toBe(true);
+        });
+    });
+
+    it('should display errors', async () => {
+        // This validator always returns an error
+        const validate = () => 'ra.validation.error';
+
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        onSubmit={jest.fn}
+                        defaultValues={{ isPublished: true }}
+                        mode="onChange"
+                    >
+                        <BooleanInput {...defaultProps} validate={validate} />
+                    </SimpleForm>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        const input = screen.getByLabelText(
+            'resources.posts.fields.isPublished'
+        ) as HTMLInputElement;
+
+        fireEvent.click(input);
+        await waitFor(() => {
+            expect(input.checked).toBe(false);
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByText('ra.validation.error')).not.toBeNull();
+        });
+    });
+
+    it('should be customized by a theme', async () => {
+        render(<Themed />);
+        await screen.findByTestId('themed');
+    });
+
+    it('should be focusable with setFocus', async () => {
+        render(<SetFocus />);
+        fireEvent.click(await screen.findByText('Set focus on published'));
+        await waitFor(() => {
+            expect(
+                screen.getByLabelText('resources.posts.fields.published')
+            ).toBe(document.activeElement);
+        });
     });
 });

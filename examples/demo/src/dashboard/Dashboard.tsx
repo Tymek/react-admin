@@ -1,13 +1,14 @@
-import React, {
-    useState,
-    useEffect,
-    useCallback,
-    FC,
-    CSSProperties,
-} from 'react';
-import { useVersion, useDataProvider } from 'react-admin';
-import { useMediaQuery, Theme } from '@material-ui/core';
-import { subDays } from 'date-fns';
+import React, { useMemo, CSSProperties, Suspense } from 'react';
+import { Translate, useGetList } from 'react-admin';
+import {
+    useMediaQuery,
+    Theme,
+    Skeleton,
+    Card,
+    CardHeader,
+    CardContent,
+} from '@mui/material';
+import { subDays, startOfDay } from 'date-fns';
 
 import Welcome from './Welcome';
 import MonthlyRevenue from './MonthlyRevenue';
@@ -15,9 +16,8 @@ import NbNewOrders from './NbNewOrders';
 import PendingOrders from './PendingOrders';
 import PendingReviews from './PendingReviews';
 import NewCustomers from './NewCustomers';
-import OrderChart from './OrderChart';
 
-import { Customer, Order, Review } from '../types';
+import { Order } from '../types';
 
 interface OrderStats {
     revenue: number;
@@ -25,17 +25,9 @@ interface OrderStats {
     pendingOrders: Order[];
 }
 
-interface CustomerData {
-    [key: string]: Customer;
-}
-
 interface State {
     nbNewOrders?: number;
-    nbPendingReviews?: number;
     pendingOrders?: Order[];
-    pendingOrdersCustomers?: CustomerData;
-    pendingReviews?: Review[];
-    pendingReviewsCustomers?: CustomerData;
     recentOrders?: Order[];
     revenue?: string;
 }
@@ -51,28 +43,26 @@ const styles = {
 const Spacer = () => <span style={{ width: '1em' }} />;
 const VerticalSpacer = () => <span style={{ height: '1em' }} />;
 
-const Dashboard: FC = () => {
-    const [state, setState] = useState<State>({});
-    const version = useVersion();
-    const dataProvider = useDataProvider();
+const OrderChart = React.lazy(() => import('./OrderChart'));
+
+const Dashboard = () => {
     const isXSmall = useMediaQuery((theme: Theme) =>
-        theme.breakpoints.down('xs')
+        theme.breakpoints.down('sm')
     );
     const isSmall = useMediaQuery((theme: Theme) =>
-        theme.breakpoints.down('md')
+        theme.breakpoints.down('lg')
     );
+    const aMonthAgo = useMemo(() => subDays(startOfDay(new Date()), 30), []);
 
-    const fetchOrders = useCallback(async () => {
-        const aMonthAgo = subDays(new Date(), 30);
-        const { data: recentOrders } = await dataProvider.getList<Order>(
-            'commands',
-            {
-                filter: { date_gte: aMonthAgo.toISOString() },
-                sort: { field: 'date', order: 'DESC' },
-                pagination: { page: 1, perPage: 50 },
-            }
-        );
-        const aggregations = recentOrders
+    const { data: orders } = useGetList<Order>('orders', {
+        filter: { date_gte: aMonthAgo.toISOString() },
+        sort: { field: 'date', order: 'DESC' },
+        pagination: { page: 1, perPage: 50 },
+    });
+
+    const aggregation = useMemo<State>(() => {
+        if (!orders) return {};
+        const aggregations = orders
             .filter(order => order.status !== 'cancelled')
             .reduce(
                 (stats: OrderStats, order) => {
@@ -91,9 +81,8 @@ const Dashboard: FC = () => {
                     pendingOrders: [],
                 }
             );
-        setState(state => ({
-            ...state,
-            recentOrders,
+        return {
+            recentOrders: orders,
             revenue: aggregations.revenue.toLocaleString(undefined, {
                 style: 'currency',
                 currency: 'USD',
@@ -102,72 +91,10 @@ const Dashboard: FC = () => {
             }),
             nbNewOrders: aggregations.nbNewOrders,
             pendingOrders: aggregations.pendingOrders,
-        }));
-        const { data: customers } = await dataProvider.getMany<Customer>(
-            'customers',
-            {
-                ids: aggregations.pendingOrders.map(
-                    (order: Order) => order.customer_id
-                ),
-            }
-        );
-        setState(state => ({
-            ...state,
-            pendingOrdersCustomers: customers.reduce(
-                (prev: CustomerData, customer) => {
-                    prev[customer.id] = customer; // eslint-disable-line no-param-reassign
-                    return prev;
-                },
-                {}
-            ),
-        }));
-    }, [dataProvider]);
+        };
+    }, [orders]);
 
-    const fetchReviews = useCallback(async () => {
-        const { data: reviews } = await dataProvider.getList<Review>(
-            'reviews',
-            {
-                filter: { status: 'pending' },
-                sort: { field: 'date', order: 'DESC' },
-                pagination: { page: 1, perPage: 100 },
-            }
-        );
-        const nbPendingReviews = reviews.reduce((nb: number) => ++nb, 0);
-        const pendingReviews = reviews.slice(0, Math.min(10, reviews.length));
-        setState(state => ({ ...state, pendingReviews, nbPendingReviews }));
-        const { data: customers } = await dataProvider.getMany<Customer>(
-            'customers',
-            {
-                ids: pendingReviews.map(review => review.customer_id),
-            }
-        );
-        setState(state => ({
-            ...state,
-            pendingReviewsCustomers: customers.reduce(
-                (prev: CustomerData, customer) => {
-                    prev[customer.id] = customer; // eslint-disable-line no-param-reassign
-                    return prev;
-                },
-                {}
-            ),
-        }));
-    }, [dataProvider]);
-
-    useEffect(() => {
-        fetchOrders();
-        fetchReviews();
-    }, [version]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const {
-        nbNewOrders,
-        nbPendingReviews,
-        pendingOrders,
-        pendingOrdersCustomers,
-        pendingReviews,
-        pendingReviewsCustomers,
-        revenue,
-        recentOrders,
-    } = state;
+    const { nbNewOrders, pendingOrders, revenue, recentOrders } = aggregation;
     return isXSmall ? (
         <div>
             <div style={styles.flexColumn as CSSProperties}>
@@ -176,10 +103,7 @@ const Dashboard: FC = () => {
                 <VerticalSpacer />
                 <NbNewOrders value={nbNewOrders} />
                 <VerticalSpacer />
-                <PendingOrders
-                    orders={pendingOrders}
-                    customers={pendingOrdersCustomers}
-                />
+                <PendingOrders orders={pendingOrders} />
             </div>
         </div>
     ) : isSmall ? (
@@ -193,13 +117,21 @@ const Dashboard: FC = () => {
                 <NbNewOrders value={nbNewOrders} />
             </div>
             <div style={styles.singleCol}>
-                <OrderChart orders={recentOrders} />
+                <Card>
+                    <CardHeader
+                        title={
+                            <Translate i18nKey="pos.dashboard.month_history" />
+                        }
+                    />
+                    <CardContent>
+                        <Suspense fallback={<Skeleton height={300} />}>
+                            <OrderChart orders={recentOrders} />
+                        </Suspense>
+                    </CardContent>
+                </Card>
             </div>
             <div style={styles.singleCol}>
-                <PendingOrders
-                    orders={pendingOrders}
-                    customers={pendingOrdersCustomers}
-                />
+                <PendingOrders orders={pendingOrders} />
             </div>
         </div>
     ) : (
@@ -213,22 +145,26 @@ const Dashboard: FC = () => {
                         <NbNewOrders value={nbNewOrders} />
                     </div>
                     <div style={styles.singleCol}>
-                        <OrderChart orders={recentOrders} />
+                        <Card>
+                            <CardHeader
+                                title={
+                                    <Translate i18nKey="pos.dashboard.month_history" />
+                                }
+                            />
+                            <CardContent>
+                                <Suspense fallback={<Skeleton height={300} />}>
+                                    <OrderChart orders={recentOrders} />
+                                </Suspense>
+                            </CardContent>
+                        </Card>
                     </div>
                     <div style={styles.singleCol}>
-                        <PendingOrders
-                            orders={pendingOrders}
-                            customers={pendingOrdersCustomers}
-                        />
+                        <PendingOrders orders={pendingOrders} />
                     </div>
                 </div>
                 <div style={styles.rightCol}>
                     <div style={styles.flex}>
-                        <PendingReviews
-                            nb={nbPendingReviews}
-                            reviews={pendingReviews}
-                            customers={pendingReviewsCustomers}
-                        />
+                        <PendingReviews />
                         <Spacer />
                         <NewCustomers />
                     </div>

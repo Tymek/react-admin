@@ -1,48 +1,26 @@
-require('raf/polyfill');
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/jest-globals';
 
-/**
- * As jsDom do not support mutationobserver and
- * quill requires mutationobserver, thus a shim is needed
- */
-require('mutationobserver-shim');
+// TextEncoder/TextDecoder are required by TanStack Router
+import { TextEncoder, TextDecoder } from 'util';
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
 
-/**
- * Mock PopperJS
- *
- * When using mount(), material-ui calls Popper.js, which is not compatible with JSDom
- * And causes UnhandledPromiseRejectionWarning: TypeError: document.createRange is not a function
- *
- * @see https://github.com/FezVrasta/popper.js/issues/478
- */
-jest.mock('popper.js', () => {
-    class Popper {
-        constructor() {
-            return {
-                destroy: () => {},
-                scheduleUpdate: () => {},
-                update: () => {},
-            };
-        }
-    }
-    Popper.placements = [
-        'auto',
-        'auto-end',
-        'auto-start',
-        'bottom',
-        'bottom-end',
-        'bottom-start',
-        'left',
-        'left-end',
-        'left-start',
-        'right',
-        'right-end',
-        'right-start',
-        'top',
-        'top-end',
-        'top-start',
-    ];
-    return Popper;
-});
+// Make the CI fail if console.error in tests
+let error = console.error;
+console.error = (...args) => {
+    error.call(console, args);
+    throw new Error(
+        JSON.stringify({
+            message: 'The tests failed due to `console.error` calls',
+            error: args,
+        })
+    );
+};
 
 // Ignore warnings about act()
 // See https://github.com/testing-library/react-testing-library/issues/281,
@@ -63,3 +41,10 @@ const { Response, Headers, Request } = require('whatwg-fetch');
 global.Response = Response;
 global.Headers = Headers;
 global.Request = Request;
+
+/** Mock scrollTo as it is not supported by JSDOM */
+global.scrollTo = jest.fn();
+
+const { configure: configureReact } = require('@testing-library/react');
+
+configureReact({ asyncUtilTimeout: 15000 });

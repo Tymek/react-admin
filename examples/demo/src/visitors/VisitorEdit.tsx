@@ -1,225 +1,207 @@
 import * as React from 'react';
-import { FC } from 'react';
 import {
     DateInput,
     Edit,
-    EditProps,
     NullableBooleanInput,
     TextInput,
     PasswordInput,
-    Toolbar,
+    SimpleForm,
     useTranslate,
-    FormWithRedirect,
-    required,
-    email,
-    FieldProps,
+    useDefaultTitle,
+    useEditContext,
 } from 'react-admin';
-import { Box, Card, CardContent, Typography } from '@material-ui/core';
+import { Grid, Box, Typography } from '@mui/material';
 
 import Aside from './Aside';
 import FullNameField from './FullNameField';
 import SegmentsInput from './SegmentsInput';
-import { validatePasswords } from './VisitorCreate';
-import { Customer } from '../types';
+import { validateForm } from './VisitorCreate';
 
-const VisitorEdit: FC<EditProps> = props => {
+const VisitorEdit = () => {
+    const translate = useTranslate();
     return (
-        <Edit
-            title={<VisitorTitle />}
-            aside={<Aside />}
-            component="div"
-            {...props}
-        >
-            <VisitorForm />
+        <Edit title={<VisitorTitle />} aside={<Aside />}>
+            <SimpleForm validate={validateForm}>
+                <div>
+                    <Grid
+                        container
+                        spacing={2}
+                        sx={{
+                            width: { xs: '100%', xl: 800 },
+                        }}
+                    >
+                        <Grid size={{ xs: 12, md: 8 }}>
+                            <Typography variant="h6" gutterBottom>
+                                {translate(
+                                    'resources.customers.fieldGroups.identity'
+                                )}
+                            </Typography>
+                            <Box
+                                sx={{
+                                    display: { xs: 'block', sm: 'flex' },
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        flex: 1,
+                                        mr: { xs: 0, sm: '0.5em' },
+                                    }}
+                                >
+                                    <TextInput source="first_name" isRequired />
+                                </Box>
+                                <Box
+                                    sx={{
+                                        flex: 1,
+                                        ml: { xs: 0, sm: '0.5em' },
+                                    }}
+                                >
+                                    <TextInput source="last_name" isRequired />
+                                </Box>
+                            </Box>
+                            <TextInput type="email" source="email" isRequired />
+                            <Box
+                                sx={{
+                                    display: { xs: 'block', sm: 'flex' },
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        flex: 1,
+                                        mr: { xs: 0, sm: '0.5em' },
+                                    }}
+                                >
+                                    <DateInput
+                                        source="birthday"
+                                        helperText={false}
+                                    />
+                                </Box>
+                                <Box
+                                    sx={{
+                                        flex: 2,
+                                        ml: { xs: 0, sm: '0.5em' },
+                                    }}
+                                />
+                            </Box>
+
+                            <Box
+                                sx={{
+                                    mt: '1em',
+                                }}
+                            />
+
+                            <Typography variant="h6" gutterBottom>
+                                {translate(
+                                    'resources.customers.fieldGroups.address'
+                                )}
+                            </Typography>
+                            <TextInput
+                                source="address"
+                                multiline
+                                helperText={false}
+                            />
+                            <Box
+                                sx={{
+                                    display: { xs: 'block', sm: 'flex' },
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        flex: 2,
+                                        mr: { xs: 0, sm: '0.5em' },
+                                    }}
+                                >
+                                    <TextInput
+                                        source="city"
+                                        helperText={false}
+                                    />
+                                </Box>
+                                <Box
+                                    sx={{
+                                        flex: 1,
+                                        mr: { xs: 0, sm: '0.5em' },
+                                    }}
+                                >
+                                    <TextInput
+                                        source="stateAbbr"
+                                        helperText={false}
+                                    />
+                                </Box>
+                                <Box
+                                    sx={{
+                                        flex: 2,
+                                    }}
+                                >
+                                    <TextInput
+                                        source="zipcode"
+                                        helperText={false}
+                                    />
+                                </Box>
+                            </Box>
+
+                            <Box
+                                sx={{
+                                    mt: '1em',
+                                }}
+                            />
+
+                            <Typography variant="h6" gutterBottom>
+                                {translate(
+                                    'resources.customers.fieldGroups.change_password'
+                                )}
+                            </Typography>
+                            <Box
+                                sx={{
+                                    display: { xs: 'block', sm: 'flex' },
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        flex: 1,
+                                        mr: { xs: 0, sm: '0.5em' },
+                                    }}
+                                >
+                                    <PasswordInput source="password" />
+                                </Box>
+                                <Box
+                                    sx={{
+                                        flex: 1,
+                                        ml: { xs: 0, sm: '0.5em' },
+                                    }}
+                                >
+                                    <PasswordInput source="confirm_password" />
+                                </Box>
+                            </Box>
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            <Typography variant="h6" gutterBottom>
+                                {translate(
+                                    'resources.customers.fieldGroups.stats'
+                                )}
+                            </Typography>
+
+                            <SegmentsInput />
+                            <NullableBooleanInput source="has_newsletter" />
+                        </Grid>
+                    </Grid>
+                </div>
+            </SimpleForm>
         </Edit>
     );
 };
 
-const VisitorTitle: FC<FieldProps<Customer>> = ({ record }) =>
-    record ? <FullNameField record={record} size="32" /> : null;
-
-const VisitorForm = (props: any) => {
-    const translate = useTranslate();
-
+const VisitorTitle = () => {
+    const appTitle = useDefaultTitle();
+    const { defaultTitle } = useEditContext();
     return (
-        <FormWithRedirect
-            {...props}
-            validate={validatePasswords}
-            render={(formProps: any) => (
-                <Card>
-                    <form>
-                        <CardContent>
-                            <Box display={{ md: 'block', lg: 'flex' }}>
-                                <Box flex={2} mr={{ md: 0, lg: '1em' }}>
-                                    <Typography variant="h6" gutterBottom>
-                                        {translate(
-                                            'resources.customers.fieldGroups.identity'
-                                        )}
-                                    </Typography>
-                                    <Box display={{ xs: 'block', sm: 'flex' }}>
-                                        <Box
-                                            flex={1}
-                                            mr={{ xs: 0, sm: '0.5em' }}
-                                        >
-                                            <TextInput
-                                                source="first_name"
-                                                resource="customers"
-                                                validate={requiredValidate}
-                                                fullWidth
-                                            />
-                                        </Box>
-                                        <Box
-                                            flex={1}
-                                            ml={{ xs: 0, sm: '0.5em' }}
-                                        >
-                                            <TextInput
-                                                source="last_name"
-                                                resource="customers"
-                                                validate={requiredValidate}
-                                                fullWidth
-                                            />
-                                        </Box>
-                                    </Box>
-                                    <TextInput
-                                        type="email"
-                                        source="email"
-                                        resource="customers"
-                                        validate={[email(), required()]}
-                                        fullWidth
-                                    />
-                                    <Box display={{ xs: 'block', sm: 'flex' }}>
-                                        <Box
-                                            flex={1}
-                                            mr={{ xs: 0, sm: '0.5em' }}
-                                        >
-                                            <DateInput
-                                                source="birthday"
-                                                resource="customers"
-                                                fullWidth
-                                                helperText={false}
-                                            />
-                                        </Box>
-                                        <Box
-                                            flex={2}
-                                            ml={{ xs: 0, sm: '0.5em' }}
-                                        />
-                                    </Box>
-
-                                    <Box mt="1em" />
-
-                                    <Typography variant="h6" gutterBottom>
-                                        {translate(
-                                            'resources.customers.fieldGroups.address'
-                                        )}
-                                    </Typography>
-                                    <TextInput
-                                        source="address"
-                                        resource="customers"
-                                        multiline
-                                        fullWidth
-                                        helperText={false}
-                                    />
-                                    <Box display={{ xs: 'block', sm: 'flex' }}>
-                                        <Box
-                                            flex={2}
-                                            mr={{ xs: 0, sm: '0.5em' }}
-                                        >
-                                            <TextInput
-                                                source="city"
-                                                resource="customers"
-                                                fullWidth
-                                                helperText={false}
-                                            />
-                                        </Box>
-                                        <Box
-                                            flex={1}
-                                            mr={{ xs: 0, sm: '0.5em' }}
-                                        >
-                                            <TextInput
-                                                source="stateAbbr"
-                                                resource="customers"
-                                                fullWidth
-                                                helperText={false}
-                                            />
-                                        </Box>
-                                        <Box flex={2}>
-                                            <TextInput
-                                                source="zipcode"
-                                                resource="customers"
-                                                fullWidth
-                                                helperText={false}
-                                            />
-                                        </Box>
-                                    </Box>
-
-                                    <Box mt="1em" />
-
-                                    <Typography variant="h6" gutterBottom>
-                                        {translate(
-                                            'resources.customers.fieldGroups.change_password'
-                                        )}
-                                    </Typography>
-                                    <Box display={{ xs: 'block', sm: 'flex' }}>
-                                        <Box
-                                            flex={1}
-                                            mr={{ xs: 0, sm: '0.5em' }}
-                                        >
-                                            <PasswordInput
-                                                source="password"
-                                                resource="customers"
-                                                fullWidth
-                                            />
-                                        </Box>
-                                        <Box
-                                            flex={1}
-                                            ml={{ xs: 0, sm: '0.5em' }}
-                                        >
-                                            <PasswordInput
-                                                source="confirm_password"
-                                                resource="customers"
-                                                fullWidth
-                                            />
-                                        </Box>
-                                    </Box>
-                                </Box>
-                                <Box
-                                    flex={1}
-                                    ml={{ xs: 0, lg: '1em' }}
-                                    mt={{ xs: '1em', lg: 0 }}
-                                >
-                                    <Typography variant="h6" gutterBottom>
-                                        {translate(
-                                            'resources.customers.fieldGroups.stats'
-                                        )}
-                                    </Typography>
-                                    <div>
-                                        <SegmentsInput fullWidth />
-                                    </div>
-                                    <div>
-                                        <NullableBooleanInput
-                                            source="has_newsletter"
-                                            resource="customers"
-                                        />
-                                    </div>
-                                </Box>
-                            </Box>
-                        </CardContent>
-                        <Toolbar
-                            record={formProps.record}
-                            basePath={formProps.basePath}
-                            undoable={true}
-                            invalid={formProps.invalid}
-                            handleSubmit={formProps.handleSubmit}
-                            saving={formProps.saving}
-                            resource="customers"
-                        />
-                    </form>
-                </Card>
-            )}
-        />
+        <>
+            <title>{`${appTitle} - ${defaultTitle}`}</title>
+            <FullNameField
+                source="last_name"
+                size="32"
+                sx={{ margin: '5px 0' }}
+            />
+        </>
     );
 };
-
-const requiredValidate = [required()];
 
 export default VisitorEdit;

@@ -1,72 +1,81 @@
-import * as React from 'react';
-import { Typography } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import { Droppable } from 'react-beautiful-dnd';
-import { Identifier, RecordMap } from 'react-admin';
+import { Droppable } from '@hello-pangea/dnd';
+import { Box, Stack, Typography } from '@mui/material';
 
-import { DealCard } from './DealCard';
-import { stageNames } from './stages';
 import { Deal } from '../types';
-
-const useStyles = makeStyles({
-    root: {
-        flex: 1,
-        paddingTop: 8,
-        paddingBottom: 16,
-        backgroundColor: '#eaeaee',
-        '&:first-child': {
-            paddingLeft: 5,
-            borderTopLeftRadius: 5,
-        },
-        '&:last-child': {
-            paddingRight: 5,
-            borderTopRightRadius: 5,
-        },
-    },
-    droppable: {
-        display: 'flex',
-        flexDirection: 'column',
-        borderRadius: 5,
-        padding: 5,
-        '&.isDraggingOver': {
-            backgroundColor: '#dadadf',
-        },
-    },
-});
+import { DealCard } from './DealCard';
+import { useConfigurationContext } from '../root/ConfigurationContext';
+import { findDealLabel } from './deal';
 
 export const DealColumn = ({
     stage,
-    dealIds,
-    data,
+    deals,
 }: {
     stage: string;
-    dealIds: Identifier[];
-    data: RecordMap<Deal>;
+    deals: Deal[];
 }) => {
-    const classes = useStyles();
+    const totalAmount = deals.reduce((sum, deal) => sum + deal.amount, 0);
+
+    const { dealStages } = useConfigurationContext();
     return (
-        <div className={classes.root}>
-            <Typography align="center" variant="subtitle1">
-                {/* @ts-ignore */}
-                {stageNames[stage]}
-            </Typography>
+        <Box
+            sx={{
+                flex: 1,
+                paddingTop: '8px',
+                paddingBottom: '16px',
+                bgcolor: '#eaeaee',
+                '&:first-of-type': {
+                    paddingLeft: '5px',
+                    borderTopLeftRadius: 5,
+                },
+                '&:last-of-type': {
+                    paddingRight: '5px',
+                    borderTopRightRadius: 5,
+                },
+            }}
+        >
+            <Stack alignItems="center">
+                <Typography variant="subtitle1">
+                    {findDealLabel(dealStages, stage)}
+                </Typography>
+                <Typography
+                    variant="subtitle1"
+                    color="text.secondary"
+                    fontSize="small"
+                >
+                    {totalAmount.toLocaleString('en-US', {
+                        notation: 'compact',
+                        style: 'currency',
+                        currency: 'USD',
+                        currencyDisplay: 'narrowSymbol',
+                        minimumSignificantDigits: 3,
+                    })}
+                </Typography>
+            </Stack>
             <Droppable droppableId={stage}>
                 {(droppableProvided, snapshot) => (
-                    <div
+                    <Box
                         ref={droppableProvided.innerRef}
                         {...droppableProvided.droppableProps}
                         className={
-                            classes.droppable +
-                            (snapshot.isDraggingOver ? ' isDraggingOver' : '')
+                            snapshot.isDraggingOver ? ' isDraggingOver' : ''
                         }
+                        sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            borderRadius: 1,
+                            padding: '5px',
+                            '&.isDraggingOver': {
+                                bgcolor: '#dadadf',
+                            },
+                        }}
                     >
-                        {dealIds.map((id, index) => (
-                            <DealCard key={id} index={index} deal={data[id]} />
+                        {deals.map((deal, index) => (
+                            <DealCard key={deal.id} deal={deal} index={index} />
                         ))}
                         {droppableProvided.placeholder}
-                    </div>
+                    </Box>
                 )}
             </Droppable>
-        </div>
+        </Box>
     );
 };

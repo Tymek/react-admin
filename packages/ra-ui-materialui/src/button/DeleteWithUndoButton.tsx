@@ -1,120 +1,151 @@
 import * as React from 'react';
-import { FC, ReactElement, ReactEventHandler, SyntheticEvent } from 'react';
-import PropTypes from 'prop-types';
-import { makeStyles } from '@material-ui/core/styles';
-import { fade } from '@material-ui/core/styles/colorManipulator';
-import ActionDelete from '@material-ui/icons/Delete';
-import classnames from 'classnames';
+import { ReactNode, ReactEventHandler } from 'react';
+import ActionDelete from '@mui/icons-material/Delete';
+import clsx from 'clsx';
 import {
-    Record,
-    RedirectionSideEffect,
-    useDeleteWithUndoController,
-    OnSuccess,
-    OnFailure,
+    RaRecord,
+    useDeleteController,
+    useRecordContext,
     useResourceContext,
+    useTranslate,
+    useGetRecordRepresentation,
+    useResourceTranslation,
+    UseDeleteControllerParams,
 } from 'ra-core';
+import { humanize, singularize } from 'inflection';
 
-import Button, { ButtonProps } from './Button';
+import { Button, ButtonProps } from './Button';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 
-const DeleteWithUndoButton: FC<DeleteWithUndoButtonProps> = props => {
-    const {
-        label = 'ra.action.delete',
-        classes: classesOverride,
-        className,
-        icon = defaultIcon,
-        onClick,
-        record,
-        basePath,
-        redirect = 'list',
-        onSuccess,
-        onFailure,
-        ...rest
-    } = props;
-    const classes = useStyles(props);
-    const resource = useResourceContext(props);
-    const { loading, handleDelete } = useDeleteWithUndoController({
-        record,
-        resource,
-        basePath,
-        redirect,
-        onClick,
-        onSuccess,
-        onFailure,
-    });
+export const DeleteWithUndoButton = React.forwardRef(
+    function DeleteWithUndoButton<RecordType extends RaRecord = any>(
+        inProps: DeleteWithUndoButtonProps<RecordType>,
+        ref: React.ForwardedRef<HTMLButtonElement>
+    ) {
+        const props = useThemeProps({
+            props: inProps,
+            name: PREFIX,
+        });
 
-    return (
-        <Button
-            onClick={handleDelete}
-            disabled={loading}
-            label={label}
-            className={classnames(
-                'ra-delete-button',
-                classes.deleteButton,
-                className
-            )}
-            key="button"
-            {...rest}
-        >
-            {icon}
-        </Button>
-    );
-};
+        const {
+            label: labelProp,
+            className,
+            icon = defaultIcon,
+            onClick,
+            redirect = 'list',
+            mutationOptions,
+            color = 'error',
+            successMessage,
+            ...rest
+        } = props;
 
-const useStyles = makeStyles(
-    theme => ({
-        deleteButton: {
-            color: theme.palette.error.main,
-            '&:hover': {
-                backgroundColor: fade(theme.palette.error.main, 0.12),
-                // Reset on mouse devices
-                '@media (hover: none)': {
-                    backgroundColor: 'transparent',
-                },
+        const record = useRecordContext(props);
+        const resource = useResourceContext(props);
+        if (!resource) {
+            throw new Error(
+                '<DeleteWithUndoButton> components should be used inside a <Resource> component or provided with a resource prop. (The <Resource> component set the resource prop for all its children).'
+            );
+        }
+        const { isPending, handleDelete } = useDeleteController({
+            record,
+            resource,
+            redirect,
+            mutationMode: 'undoable',
+            mutationOptions,
+            successMessage,
+        });
+        const handleClick: ReactEventHandler<any> = event => {
+            event.stopPropagation();
+            handleDelete();
+            if (onClick) {
+                onClick(event);
+            }
+        };
+
+        const translate = useTranslate();
+        const getRecordRepresentation = useGetRecordRepresentation(resource);
+        let recordRepresentation = getRecordRepresentation(record);
+        const resourceName = translate(`resources.${resource}.forcedCaseName`, {
+            smart_count: 1,
+            _: humanize(
+                translate(`resources.${resource}.name`, {
+                    smart_count: 1,
+                    _: resource ? singularize(resource) : undefined,
+                }),
+                true
+            ),
+        });
+        // We don't support React elements for this
+        if (React.isValidElement(recordRepresentation)) {
+            recordRepresentation = `#${record?.id}`;
+        }
+        const label = useResourceTranslation({
+            resourceI18nKey: `resources.${resource}.action.delete`,
+            baseI18nKey: 'ra.action.delete',
+            options: {
+                name: resourceName,
+                recordRepresentation,
             },
-        },
-    }),
-    { name: 'RaDeleteWithUndoButton' }
-);
+            userText: labelProp,
+        });
 
-interface Props {
-    basePath?: string;
-    classes?: object;
-    className?: string;
-    icon?: ReactElement;
-    label?: string;
-    onClick?: ReactEventHandler<any>;
-    record?: Record;
-    redirect?: RedirectionSideEffect;
-    resource?: string;
-    // May be injected by Toolbar - sanitized in Button
-    handleSubmit?: (event?: SyntheticEvent<HTMLFormElement>) => Promise<Object>;
-    handleSubmitWithRedirect?: (redirect?: RedirectionSideEffect) => void;
-    invalid?: boolean;
-    pristine?: boolean;
-    saving?: boolean;
-    submitOnEnter?: boolean;
-    undoable?: boolean;
-    onSuccess?: OnSuccess;
-    onFailure?: OnFailure;
-}
+        return (
+            <StyledButton
+                ref={ref}
+                onClick={handleClick}
+                disabled={isPending}
+                // avoid double translation
+                label={<>{label}</>}
+                // If users provide a ReactNode as label, its their responsibility to also provide an aria-label should they need it
+                aria-label={typeof label === 'string' ? label : undefined}
+                className={clsx('ra-delete-button', className)}
+                key="button"
+                color={color}
+                {...rest}
+            >
+                {icon}
+            </StyledButton>
+        );
+    }
+);
 
 const defaultIcon = <ActionDelete />;
 
-export type DeleteWithUndoButtonProps = Props & ButtonProps;
+export interface DeleteWithUndoButtonProps<
+    RecordType extends RaRecord = any,
+    MutationOptionsError = unknown,
+> extends ButtonProps,
+        UseDeleteControllerParams<RecordType, MutationOptionsError> {
+    icon?: ReactNode;
+    onClick?: ReactEventHandler<any>;
+}
 
-DeleteWithUndoButton.propTypes = {
-    basePath: PropTypes.string,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    label: PropTypes.string,
-    record: PropTypes.any,
-    redirect: PropTypes.oneOfType([
-        PropTypes.string,
-        PropTypes.bool,
-        PropTypes.func,
-    ]),
-    resource: PropTypes.string,
-    icon: PropTypes.element,
-};
+const PREFIX = 'RaDeleteWithUndoButton';
 
-export default DeleteWithUndoButton;
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<DeleteWithUndoButtonProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

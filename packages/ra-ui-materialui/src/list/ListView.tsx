@@ -1,257 +1,489 @@
 import * as React from 'react';
-import { Children, cloneElement, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import Card from '@material-ui/core/Card';
-import classnames from 'classnames';
-import { makeStyles } from '@material-ui/core/styles';
 import {
-    ComponentPropType,
-    defaultExporter,
-    ListControllerProps,
-    useListContext,
-    getListControllerProps,
-    useVersion,
-} from 'ra-core';
+    type ComponentsOverrides,
+    styled,
+    type SxProps,
+    type Theme,
+} from '@mui/material/styles';
+import type { ReactElement, ReactNode, ElementType } from 'react';
+import Card from '@mui/material/Card';
+import clsx from 'clsx';
+import { ListControllerResult, useListContext, type RaRecord } from 'ra-core';
 
-import Title, { TitlePropType } from '../layout/Title';
-import ListToolbar from './ListToolbar';
-import DefaultPagination from './pagination/Pagination';
-import BulkDeleteButton from '../button/BulkDeleteButton';
-import BulkActionsToolbar from './BulkActionsToolbar';
-import DefaultActions from './ListActions';
-import Empty from './Empty';
-import { ListProps } from '../types';
+import { Title } from '../layout/Title';
+import { ListToolbar } from './ListToolbar';
+import { Pagination as DefaultPagination } from './pagination';
+import { ListActions as DefaultActions } from './ListActions';
+import { Empty } from './Empty';
+import { ListProps } from './List';
+import { Offline } from '../Offline';
 
-export const ListView = (props: ListViewProps) => {
+const defaultActions = <DefaultActions />;
+const defaultPagination = <DefaultPagination />;
+const defaultEmpty = <Empty />;
+const DefaultComponent = Card;
+const defaultOffline = <Offline />;
+
+export const ListView = <RecordType extends RaRecord = any>(
+    props: ListViewProps
+) => {
     const {
-        actions,
+        actions = defaultActions,
         aside,
         filters,
-        bulkActionButtons,
-        pagination,
+        emptyWhileLoading,
+        pagination = defaultPagination,
         children,
         className,
-        classes: classesOverride,
-        component: Content,
-        exporter = defaultExporter,
+        component: Content = DefaultComponent,
         title,
-        empty,
+        empty = defaultEmpty,
+        render,
+        offline = defaultOffline,
+        error,
         ...rest
     } = props;
-    const controllerProps = getListControllerProps(props); // deprecated, to be removed in v4
-    const listContext = useListContext(props);
-    const classes = useStyles(props);
+    const listContext = useListContext<RecordType>();
     const {
         defaultTitle,
-        total,
-        loaded,
-        loading,
+        data,
+        error: errorState,
+        isPaused,
+        isPending,
+        isPlaceholderData,
         filterValues,
-        selectedIds,
+        resource,
+        total,
+        hasNextPage,
+        hasPreviousPage,
     } = listContext;
-    const version = useVersion();
 
-    const renderList = () => (
-        <>
-            {(filters || actions) && (
-                <ListToolbar
-                    filters={filters}
-                    {...controllerProps} // deprecated, use ListContext instead, to be removed in v4
-                    actions={actions}
-                    exporter={exporter} // deprecated, use ListContext instead, to be removed in v4
-                />
-            )}
-            <div className={classes.main}>
-                <Content
-                    className={classnames(classes.content, {
-                        [classes.bulkActionsDisplayed]: selectedIds.length > 0,
-                    })}
-                    key={version}
-                >
-                    {bulkActionButtons !== false && bulkActionButtons && (
-                        <BulkActionsToolbar {...controllerProps}>
-                            {bulkActionButtons}
-                        </BulkActionsToolbar>
-                    )}
-                    {children &&
-                        // @ts-ignore-line
-                        cloneElement(Children.only(children), {
-                            ...controllerProps, // deprecated, use ListContext instead, to be removed in v4
-                            hasBulkActions: bulkActionButtons !== false,
-                        })}
-                    {pagination && cloneElement(pagination, listContext)}
+    const showOffline =
+        isPaused &&
+        (isPending || isPlaceholderData) &&
+        offline !== false &&
+        offline !== undefined;
+
+    const showError = errorState && error !== false && error !== undefined;
+
+    if (
+        (!children && !render) ||
+        (!data && isPending && !isPaused && emptyWhileLoading)
+    ) {
+        return null;
+    }
+
+    const renderList = () => {
+        return (
+            <div
+                className={clsx(ListClasses.main, {
+                    [ListClasses.noActions]:
+                        !(filters || actions) || showOffline || showError,
+                })}
+            >
+                {filters || actions ? (
+                    <ListToolbar
+                        className={ListClasses.actions}
+                        filters={filters}
+                        actions={actions}
+                    />
+                ) : null}
+                <Content className={ListClasses.content}>
+                    {showOffline
+                        ? offline
+                        : showError
+                          ? error
+                          : render
+                            ? render(listContext)
+                            : children}
                 </Content>
-                {aside && cloneElement(aside, listContext)}
+                {pagination !== false ? pagination : null}
             </div>
-        </>
-    );
+        );
+    };
+
+    const renderEmpty = () =>
+        empty !== false && <div className={ListClasses.noResults}>{empty}</div>;
 
     const shouldRenderEmptyPage =
-        loaded && !loading && total === 0 && !Object.keys(filterValues).length;
+        !errorState &&
+        // the list is not loading data for the first time
+        !isPending &&
+        // the API returned no data (using either normal or partial pagination)
+        (total === 0 ||
+            (total == null &&
+                hasPreviousPage === false &&
+                hasNextPage === false &&
+                // @ts-ignore FIXME total may be undefined when using partial pagination but the ListControllerResult type is wrong about it
+                data.length === 0)) &&
+        // the user didn't set any filters
+        !Object.keys(filterValues).length &&
+        // there is an empty page component
+        empty !== false;
 
     return (
-        <div
-            className={classnames('list-page', classes.root, className)}
-            {...sanitizeRestProps(rest)}
-        >
-            <Title title={title} defaultTitle={defaultTitle} />
-            {shouldRenderEmptyPage && empty !== false
-                ? cloneElement(empty, listContext)
-                : renderList()}
-        </div>
+        <Root className={clsx('list-page', className)} {...rest}>
+            {title !== false && (
+                <Title
+                    title={title}
+                    defaultTitle={defaultTitle}
+                    preferenceKey={`${resource}.list.title`}
+                />
+            )}
+            {shouldRenderEmptyPage ? renderEmpty() : renderList()}
+            {aside}
+        </Root>
     );
 };
 
-ListView.propTypes = {
-    // @ts-ignore-line
-    actions: PropTypes.oneOfType([PropTypes.bool, PropTypes.element]),
-    aside: PropTypes.element,
-    basePath: PropTypes.string,
-    // @ts-ignore-line
-    bulkActionButtons: PropTypes.oneOfType([PropTypes.bool, PropTypes.element]),
-    children: PropTypes.element,
-    className: PropTypes.string,
-    classes: PropTypes.object,
-    component: ComponentPropType,
-    // @ts-ignore-line
-    currentSort: PropTypes.shape({
-        field: PropTypes.string.isRequired,
-        order: PropTypes.string.isRequired,
-    }),
-    data: PropTypes.any,
-    defaultTitle: PropTypes.string,
-    displayedFilters: PropTypes.object,
-    // @ts-ignore-line
-    exporter: PropTypes.oneOfType([PropTypes.func, PropTypes.bool]),
-    filterDefaultValues: PropTypes.object,
-    filters: PropTypes.element,
-    filterValues: PropTypes.object,
-    hasCreate: PropTypes.bool,
-    hideFilter: PropTypes.func,
-    ids: PropTypes.array,
-    loading: PropTypes.bool,
-    onSelect: PropTypes.func,
-    onToggleItem: PropTypes.func,
-    onUnselectItems: PropTypes.func,
-    page: PropTypes.number,
-    // @ts-ignore-line
-    pagination: PropTypes.oneOfType([PropTypes.element, PropTypes.bool]),
-    perPage: PropTypes.number,
-    refresh: PropTypes.func,
-    resource: PropTypes.string,
-    selectedIds: PropTypes.array,
-    setFilters: PropTypes.func,
-    setPage: PropTypes.func,
-    setPerPage: PropTypes.func,
-    setSort: PropTypes.func,
-    showFilter: PropTypes.func,
-    title: TitlePropType,
-    total: PropTypes.number,
-    version: PropTypes.number,
-};
+export interface ListViewProps<RecordType extends RaRecord = any> {
+    /**
+     * The actions to display in the toolbar. defaults to Filter + Create + Export.
+     *
+     * @see https://marmelab.com/react-admin/List.html#actions
+     * @example
+     * import {
+     *     CreateButton,
+     *     DatagridConfigurable,
+     *     ExportButton,
+     *     FilterButton,
+     *     List,
+     *     SelectColumnsButton,
+     *     TopToolbar,
+     * } from 'react-admin';
+     * import IconEvent from '@mui/icons-material/Event';
+     *
+     * const ListActions = () => (
+     *     <TopToolbar>
+     *         <SelectColumnsButton />
+     *         <FilterButton/>
+     *         <CreateButton/>
+     *         <ExportButton/>
+     *     </TopToolbar>
+     * );
+     *
+     * export const PostList = () => (
+     *     <List actions={<ListActions/>}>
+     *         <DatagridConfigurable>
+     *             ...
+     *         </DatagridConfigurable>
+     *     </List>
+     * );
+     */
+    actions?: ReactElement | false;
 
-const DefaultBulkActionButtons = props => <BulkDeleteButton {...props} />;
+    /**
+     * The content to render as a sidebar.
+     * @see https://marmelab.com/react-admin/List.html#aside
+     * @example
+     * import { List, useListContext } from 'react-admin';
+     * import { Typography } from '@mui/material';
+     *
+     * const Aside = () => {
+     *     const { data, isPending } = useListContext();
+     *     if (isPending) return null;
+     *     return (
+     *         <div style={{ width: 200, margin: '4em 1em' }}>
+     *             <Typography variant="h6">Posts stats</Typography>
+     *             <Typography variant="body2">
+     *                 Total views: {data.reduce((sum, post) => sum + post.views, 0)}
+     *             </Typography>
+     *         </div>
+     *     );
+     * };
+     *
+     * const PostList = () => (
+     *     <List aside={<Aside />}>
+     *         ...
+     *     </List>
+     * );
+     */
+    aside?: ReactNode;
 
-ListView.defaultProps = {
-    actions: <DefaultActions />,
-    classes: {},
-    component: Card,
-    bulkActionButtons: <DefaultBulkActionButtons />,
-    pagination: <DefaultPagination />,
-    empty: <Empty />,
-};
+    /**
+     * A class name to apply to the root div element
+     */
+    className?: string;
 
-const useStyles = makeStyles(
-    theme => ({
-        root: {},
-        main: {
-            display: 'flex',
-        },
-        content: {
-            marginTop: 0,
-            transition: theme.transitions.create('margin-top'),
-            position: 'relative',
-            flex: '1 1 auto',
-            [theme.breakpoints.down('xs')]: {
-                boxShadow: 'none',
-            },
-            overflow: 'inherit',
-        },
-        bulkActionsDisplayed: {
-            marginTop: -theme.spacing(8),
-            transition: theme.transitions.create('margin-top'),
-        },
-        actions: {
-            zIndex: 2,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            flexWrap: 'wrap',
-        },
-        noResults: { padding: 20 },
-    }),
-    { name: 'RaList' }
-);
+    /**
+     * The components rendering the list of records. Usually a <Datagrid> or <SimpleList>.
+     *
+     * @see https://marmelab.com/react-admin/List.html#children
+     * @example
+     * import { List, Datagrid, TextField, DateField, NumberField, BooleanField, ReferenceManyCount } from 'react-admin';
+     *
+     * export const BookList = () => (
+     *     <List>
+     *         <Datagrid rowClick="edit">
+     *             <TextField source="id" />
+     *             <TextField source="title" />
+     *             <DateField source="published_at" />
+     *             <ReferenceManyCount label="Nb comments" reference="comments" target="post_id" link />
+     *             <BooleanField source="commentable" label="Com." />
+     *             <NumberField source="nb_views" label="Views" />
+     *         </Datagrid>
+     *     </List>
+     * );
+     */
+    children?: ReactNode;
 
-export interface ListViewProps
-    extends Omit<ListProps, 'basePath' | 'hasCreate' | 'perPage' | 'resource'>,
-        ListControllerProps {
-    children: ReactElement;
+    /**
+     * The component to display when there is an error while fetching the list.
+     *
+     * @see https://marmelab.com/react-admin/List.html#error
+     * @example
+     * import { List } from 'react-admin';
+     * import { Box, Typography } from '@mui/material';
+     *
+     * const ListError = () => (
+     *     <Box textAlign="center" m={1}>
+     *         <Typography variant="h4" paragraph>
+     *             Something went wrong
+     *         </Typography>
+     *         <Typography variant="body1">
+     *             Please try again or contact an administrator.
+     *         </Typography>
+     *     </Box>
+     * );
+     *
+     * const ProductList = () => (
+     *     <List error={<ListError />}>
+     *         ...
+     *     </List>
+     * );
+     */
+    error?: ReactNode;
+
+    /**
+     * A function rendering the list of records. Take the list controller as argument.
+     *
+     * @see https://marmelab.com/react-admin/List.html#children
+     * @example
+     * import { List } from 'react-admin';
+     *
+     * export const BookList = () => (
+     *     <List>
+     *         {(listContext) =>
+     *             listContext.data.map(record => (
+     *                 <div key={record.id}>
+     *                     <p>{record.id}</p>
+     *                     <p>{record.title}</p>
+     *                     <p>{record.published_at}</p>
+     *                     <p>{record.nb_views}</p>
+     *                 </div>
+     *             )
+     *         }
+     *     </List>
+     * );
+     */
+    render?: (props: ListControllerResult<RecordType, Error>) => ReactNode;
+
+    /**
+     * The component used to display the list. Defaults to <Card>.
+     *
+     * @see https://marmelab.com/react-admin/List.html#component
+     * @example
+     * import { List } from 'react-admin';
+     *
+     * const PostList = () => (
+     *     <List component="div">
+     *         ...
+     *     </List>
+     * );
+     */
+    component?: ElementType;
+
+    /**
+     * The component to display when the list is empty.
+     *
+     * @see https://marmelab.com/react-admin/List.html#empty
+     * @example
+     * import { CreateButton, List } from 'react-admin';
+     * import { Box, Button, Typography } from '@mui/material';
+     *
+     * const Empty = () => (
+     *     <Box textAlign="center" m={1}>
+     *         <Typography variant="h4" paragraph>
+     *             No products available
+     *         </Typography>
+     *         <Typography variant="body1">
+     *             Create one or import products from a file
+     *         </Typography>
+     *         <CreateButton />
+     *         <Button onClick={...}>Import</Button>
+     *     </Box>
+     * );
+     *
+     * const ProductList = () => (
+     *     <List empty={<Empty />}>
+     *         ...
+     *     </List>
+     * );
+     */
+    empty?: ReactNode;
+
+    /**
+     * Set to true to return null while the list is loading.
+     *
+     * @see https://marmelab.com/react-admin/List.html#emptywhileloading
+     * @example
+     * import { List } from 'react-admin';
+     * import { SimpleBookList } from './BookList';
+     *
+     * const BookList = () => (
+     *     <List emptyWhileLoading>
+     *         <SimpleBookList />
+     *     </List>
+     * );
+     */
+    emptyWhileLoading?: boolean;
+
+    /**
+     * The filter inputs to display in the toolbar.
+     *
+     * @see https://marmelab.com/react-admin/List.html#filters
+     * @example
+     * import { List, TextInput } from 'react-admin';
+     *
+     * const postFilters = [
+     *     <TextInput label="Search" source="q" alwaysOn />,
+     *     <TextInput label="Title" source="title" defaultValue="Hello, World!" />,
+     * ];
+     *
+     * export const PostList = () => (
+     *     <List filters={postFilters}>
+     *         ...
+     *     </List>
+     * );
+     */
+    filters?: ReactElement | ReactElement[];
+
+    /**
+     * The offline component to display. defaults to <Offline />
+     *
+     * @see https://marmelab.com/react-admin/List.html#offline
+     * @example
+     * import { List } from 'react-admin';
+     * import { Alert } from '@mui/material';
+     *
+     * const offline = <Alert severity="warning">No internet connection. Could not load data.</Alert>;
+     *
+     * export const PostList = () => (
+     *     <List offline={offline}>
+     *         ...
+     *     </List>
+     * );
+     */
+    offline?: ReactNode | false;
+
+    /**
+     * The pagination component to display. defaults to <Pagination />
+     *
+     * @see https://marmelab.com/react-admin/List.html#pagination
+     * @example
+     * import { Pagination, List } from 'react-admin';
+     *
+     * const PostPagination = props => <Pagination rowsPerPageOptions={[10, 25, 50, 100]} {...props} />;
+     *
+     * export const PostList = () => (
+     *     <List pagination={<PostPagination />}>
+     *         ...
+     *     </List>
+     * );
+     */
+    pagination?: ReactNode | false;
+
+    /**
+     * The page title (main title) to display above the data. Defaults to the humanized resource name.
+     *
+     * @see https://marmelab.com/react-admin/List.html#title
+     * @example
+     * import { List } from 'react-admin';
+     *
+     * export const PostList = () => (
+     *     <List title="List of posts">
+     *         ...
+     *     </List>
+     * );
+     */
+    title?: ReactNode;
+
+    /**
+     * The CSS styles to apply to the component.
+     *
+     * @see https://marmelab.com/react-admin/List.html#sx-css-api
+     * @example
+     * const PostList = () => (
+     *     <List
+     *         sx={{
+     *             backgroundColor: 'yellow',
+     *             '& .RaList-content': {
+     *                 backgroundColor: 'red',
+     *             },
+     *         }}
+     *     >
+     *             ...
+     *     </List>
+     * );
+     */
+    sx?: SxProps<Theme>;
 }
 
-const sanitizeRestProps: (
-    props: Omit<
-        ListViewProps,
-        | 'actions'
-        | 'aside'
-        | 'filter'
-        | 'filters'
-        | 'bulkActionButtons'
-        | 'pagination'
-        | 'children'
-        | 'className'
-        | 'classes'
-        | 'component'
-        | 'exporter'
-        | 'title'
-        | 'empty'
-    >
-) => any = ({
-    basePath = null,
-    currentSort = null,
-    data = null,
-    defaultTitle = null,
-    displayedFilters = null,
-    filterDefaultValues = null,
-    filterValues = null,
-    hasCreate = null,
-    hasEdit = null,
-    hasList = null,
-    hasShow = null,
-    hideFilter = null,
-    history = null,
-    ids = null,
-    loading = null,
-    loaded = null,
-    location = null,
-    match = null,
-    onSelect = null,
-    onToggleItem = null,
-    onUnselectItems = null,
-    options = null,
-    page = null,
-    permissions = null,
-    perPage = null,
-    resource = null,
-    selectedIds = null,
-    setFilters = null,
-    setPage = null,
-    setPerPage = null,
-    setSort = null,
-    showFilter = null,
-    syncWithLocation = null,
-    sort = null,
-    total = null,
-    ...rest
-}) => rest;
+const PREFIX = 'RaList';
 
-export default ListView;
+export const ListClasses = {
+    main: `${PREFIX}-main`,
+    content: `${PREFIX}-content`,
+    actions: `${PREFIX}-actions`,
+    noActions: `${PREFIX}-noActions`,
+    noResults: `${PREFIX}-noResults`,
+};
+
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    display: 'flex',
+
+    [`& .${ListClasses.main}`]: {
+        flex: '1 1 auto',
+        display: 'flex',
+        flexDirection: 'column',
+    },
+
+    [`& .${ListClasses.content}`]: {
+        position: 'relative',
+        [theme.breakpoints.down('sm')]: {
+            boxShadow: 'none',
+        },
+        overflow: 'inherit',
+    },
+
+    [`& .${ListClasses.noActions}`]: {
+        marginTop: '1em',
+    },
+    [`& .${ListClasses.actions}`]: {},
+
+    [`& .${ListClasses.noResults}`]: {
+        flex: 1,
+    },
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaList: 'root' | 'main' | 'content' | 'actions' | 'noResults';
+    }
+
+    interface ComponentsPropsList {
+        RaList: Partial<ListProps>;
+    }
+
+    interface Components {
+        RaList?: {
+            defaultProps?: ComponentsPropsList['RaList'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaList'];
+        };
+    }
+}

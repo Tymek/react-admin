@@ -1,43 +1,32 @@
 import * as React from 'react';
 import expect from 'expect';
-import { waitFor } from '@testing-library/react';
+import { waitFor, render, screen } from '@testing-library/react';
+import { CoreAdminContext } from '../core/CoreAdminContext';
 
 import useAuthState from './useAuthState';
-import AuthContext from './AuthContext';
-import { renderWithRedux } from 'ra-test';
+import { QueryClient } from '@tanstack/react-query';
 
-const UseAuth = ({ children, authParams }: any) => {
-    const res = useAuthState(authParams);
-    return children(res);
+const UseAuth = (authParams: any) => {
+    const state = useAuthState(authParams);
+    return (
+        <div>
+            <span>{state.isPending && 'LOADING'}</span>
+            <span>AUTHENTICATED: {state.authenticated?.toString()}</span>
+        </div>
+    );
 };
 
-const stateInpector = state => (
-    <div>
-        <span>{state.loading && 'LOADING'}</span>
-        <span>{state.loaded && 'LOADED'}</span>
-        <span>{state.authenticated && 'AUTHENTICATED'}</span>
-    </div>
-);
-
 describe('useAuthState', () => {
-    it('should return a loading state on mount', () => {
-        const { queryByText } = renderWithRedux(
-            <UseAuth>{stateInpector}</UseAuth>
-        );
-        expect(queryByText('LOADING')).not.toBeNull();
-        expect(queryByText('LOADED')).toBeNull();
-        expect(queryByText('AUTHENTICATED')).not.toBeNull();
-    });
-
     it('should return authenticated by default after a tick', async () => {
-        const { queryByText } = renderWithRedux(
-            <UseAuth>{stateInpector}</UseAuth>
+        render(
+            <CoreAdminContext>
+                <UseAuth />
+            </CoreAdminContext>
         );
         await waitFor(() => {
-            expect(queryByText('LOADING')).toBeNull();
-            expect(queryByText('LOADED')).not.toBeNull();
-            expect(queryByText('AUTHENTICATED')).not.toBeNull();
+            expect(screen.queryByText('LOADING')).toBeNull();
         });
+        screen.getByText('AUTHENTICATED: true');
     });
 
     it('should return an error after a tick if the auth fails', async () => {
@@ -48,17 +37,46 @@ describe('useAuthState', () => {
             checkError: () => Promise.reject('bad method'),
             getPermissions: () => Promise.reject('bad method'),
         };
-        const { queryByText } = renderWithRedux(
-            <AuthContext.Provider value={authProvider}>
-                <UseAuth options={{ logoutOnFailure: false }}>
-                    {stateInpector}
-                </UseAuth>
-            </AuthContext.Provider>
+        render(
+            <CoreAdminContext authProvider={authProvider}>
+                <UseAuth options={{ logoutOnFailure: false }} />
+            </CoreAdminContext>
         );
         await waitFor(() => {
-            expect(queryByText('LOADING')).toBeNull();
-            expect(queryByText('LOADED')).not.toBeNull();
-            expect(queryByText('AUTHENTICATED')).toBeNull();
+            expect(screen.queryByText('LOADING')).toBeNull();
+        });
+        screen.getByText('AUTHENTICATED: false');
+    });
+
+    it('should abort the request if the query is canceled', async () => {
+        const abort = jest.fn();
+        const authProvider = {
+            checkAuth: jest.fn(
+                ({ signal }) =>
+                    new Promise(() => {
+                        signal.addEventListener('abort', () => {
+                            abort(signal.reason);
+                        });
+                    })
+            ) as any,
+        } as any;
+        const queryClient = new QueryClient();
+        render(
+            <CoreAdminContext
+                authProvider={authProvider}
+                queryClient={queryClient}
+            >
+                <UseAuth />
+            </CoreAdminContext>
+        );
+        await waitFor(() => {
+            expect(authProvider.checkAuth).toHaveBeenCalled();
+        });
+        queryClient.cancelQueries({
+            queryKey: ['auth', 'checkAuth'],
+        });
+        await waitFor(() => {
+            expect(abort).toHaveBeenCalled();
         });
     });
 });

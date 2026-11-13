@@ -1,15 +1,29 @@
 import * as React from 'react';
-import { FC, AnchorHTMLAttributes, memo } from 'react';
-import get from 'lodash/get';
-import sanitizeFieldRestProps from './sanitizeFieldRestProps';
-import { Typography, Link } from '@material-ui/core';
-import { useRecordContext } from 'ra-core';
-import { PublicFieldProps, InjectedFieldProps, fieldPropTypes } from './types';
+import { AnchorHTMLAttributes } from 'react';
+import { sanitizeFieldRestProps } from './sanitizeFieldRestProps';
+import { Typography, Link } from '@mui/material';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import { useFieldValue, useTranslate, genericMemo, getSafeUrl } from 'ra-core';
 
-const UrlField: FC<UrlFieldProps> = memo<UrlFieldProps>(props => {
-    const { className, emptyText, source, ...rest } = props;
-    const record = useRecordContext(props);
-    const value = get(record, source);
+import { FieldProps } from './types';
+
+const UrlFieldImpl = <
+    RecordType extends Record<string, any> = Record<string, any>,
+>(
+    inProps: UrlFieldProps<RecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
+    const { className, emptyText, content, ...rest } = props;
+    const value = useFieldValue(props);
+    const translate = useTranslate();
 
     if (value == null) {
         return (
@@ -19,32 +33,59 @@ const UrlField: FC<UrlFieldProps> = memo<UrlFieldProps>(props => {
                 className={className}
                 {...sanitizeFieldRestProps(rest)}
             >
-                {emptyText}
+                {emptyText && translate(emptyText, { _: emptyText })}
             </Typography>
         );
     }
 
     return (
-        <Link
+        <StyledLink
             className={className}
-            href={value}
+            href={getSafeUrl(value)}
+            onClick={stopPropagation}
+            variant="body2"
             {...sanitizeFieldRestProps(rest)}
         >
-            {value}
-        </Link>
+            {content ?? value}
+        </StyledLink>
     );
-});
-
-UrlField.defaultProps = {
-    addLabel: true,
 };
+UrlFieldImpl.displayName = 'UrlFieldImpl';
 
-UrlField.propTypes = fieldPropTypes;
-UrlField.displayName = 'UrlField';
+export const UrlField = genericMemo(UrlFieldImpl);
 
-export interface UrlFieldProps
-    extends PublicFieldProps,
-        InjectedFieldProps,
-        AnchorHTMLAttributes<HTMLAnchorElement> {}
+export interface UrlFieldProps<
+    RecordType extends Record<string, any> = Record<string, any>,
+> extends FieldProps<RecordType>,
+        AnchorHTMLAttributes<HTMLAnchorElement> {
+    content?: string;
+}
 
-export default UrlField;
+// useful to prevent click bubbling in a Datagrid with rowClick
+const stopPropagation = e => e.stopPropagation();
+
+const PREFIX = 'RaUrlField';
+
+const StyledLink = styled(Link, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<UrlFieldProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

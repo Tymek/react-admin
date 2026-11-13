@@ -1,43 +1,38 @@
-import { render } from '@testing-library/react';
 import * as React from 'react';
+import { render, screen } from '@testing-library/react';
 import expect from 'expect';
-import { TestContext } from 'ra-test';
-import { ThemeProvider } from '@material-ui/core';
-import { createMuiTheme } from '@material-ui/core/styles';
-import Button from './Button';
+import polyglotI18nProvider from 'ra-i18n-polyglot';
+import englishMessages from 'ra-language-english';
+import {
+    ReactNodeLabel,
+    SimpleStringLabel,
+    TranslationKeyLabel,
+} from './Button.stories';
 
-const theme = createMuiTheme();
-
-const invalidButtonDomProps = {
-    basePath: '',
-    handleSubmit: jest.fn(),
-    handleSubmitWithRedirect: jest.fn(),
-    invalid: false,
-    onSave: jest.fn(),
-    pristine: false,
-    record: { id: 123, foo: 'bar' },
-    redirect: 'list',
-    resource: 'posts',
-    saving: false,
-    submitOnEnter: true,
-    undoable: false,
-};
-
-describe('<Button />', () => {
-    it('should render as submit type with no DOM errors', () => {
-        const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-        const { getByLabelText } = render(
-            <TestContext>
-                <ThemeProvider theme={theme}>
-                    <Button label="button" {...invalidButtonDomProps} />
-                </ThemeProvider>
-            </TestContext>
-        );
-
-        expect(spy).not.toHaveBeenCalled();
-        expect(getByLabelText('button').getAttribute('type')).toEqual('button');
-
-        spy.mockRestore();
+describe('<DeleteButton />', () => {
+    it('should allow simple string as label', async () => {
+        const i18nProvider = polyglotI18nProvider(() => englishMessages, 'en');
+        const translate = jest.spyOn(i18nProvider, 'translate');
+        render(<SimpleStringLabel i18nProvider={i18nProvider} />);
+        await screen.findByText('A non translated string');
+        expect(translate).toHaveBeenCalledWith('A non translated string', {
+            _: 'A non translated string',
+        });
+    });
+    it('should allow translation keys as label', async () => {
+        const i18nProvider = polyglotI18nProvider(() => englishMessages, 'en');
+        const translate = jest.spyOn(i18nProvider, 'translate');
+        render(<TranslationKeyLabel i18nProvider={i18nProvider} />);
+        await screen.findByText('Create');
+        expect(translate).toHaveBeenCalledWith('ra.action.create', {
+            _: 'ra.action.create',
+        });
+    });
+    it('should ReactNode as label', async () => {
+        const i18nProvider = polyglotI18nProvider(() => englishMessages, 'en');
+        const translate = jest.spyOn(i18nProvider, 'translate');
+        render(<ReactNodeLabel i18nProvider={i18nProvider} />);
+        await screen.findByText('A ReactNode');
+        expect(translate).not.toHaveBeenCalled();
     });
 });

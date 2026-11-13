@@ -1,14 +1,16 @@
 import * as React from 'react';
 import expect from 'expect';
-import { render } from '@testing-library/react';
-import { ThemeProvider } from '@material-ui/styles';
-import { createMuiTheme } from '@material-ui/core/styles';
-import { ListPaginationContext } from 'ra-core';
+import { render, screen } from '@testing-library/react';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { I18nContextProvider, ListPaginationContext } from 'ra-core';
+import polyglotI18nProvider from 'ra-i18n-polyglot';
+import frenchMessages from 'ra-language-french';
 
-import Pagination from './Pagination';
-import DeviceTestWrapper from '../../layout/DeviceTestWrapper';
+import { Pagination } from './Pagination';
+import { DeviceTestWrapper } from '../../layout';
+import { RowsPerPageOptions } from './Pagination.stories';
 
-const theme = createMuiTheme();
+const theme = createTheme();
 
 describe('<Pagination />', () => {
     const defaultProps = {
@@ -16,186 +18,270 @@ describe('<Pagination />', () => {
         page: 1,
         perPage: 10,
         setPage: () => null,
-        loading: false,
+        isLoading: false,
         setPerPage: () => {},
+        hasNextPage: undefined,
+        hasPreviousPage: undefined,
     };
 
-    describe('no results mention', () => {
-        it('should display a pagination limit when there is no result', () => {
-            const { queryByText } = render(
-                <ThemeProvider theme={theme}>
-                    <ListPaginationContext.Provider
-                        value={{ ...defaultProps, total: 0 }}
-                    >
-                        <Pagination />
-                    </ListPaginationContext.Provider>
-                </ThemeProvider>
-            );
-            expect(queryByText('ra.navigation.no_results')).not.toBeNull();
-        });
-
-        it('should not display a pagination limit when there are results', () => {
-            const { queryByText } = render(
-                <ThemeProvider theme={theme}>
-                    <ListPaginationContext.Provider
-                        value={{ ...defaultProps, total: 1 }}
-                    >
-                        <Pagination />
-                    </ListPaginationContext.Provider>
-                </ThemeProvider>
-            );
-            expect(queryByText('ra.navigation.no_results')).toBeNull();
-        });
-
-        it('should display a pagination limit on an out of bounds page (more than total pages)', async () => {
-            jest.spyOn(console, 'error').mockImplementationOnce(() => {});
-            const setPage = jest.fn().mockReturnValue(null);
-            const { queryByText } = render(
+    describe('Total pagination', () => {
+        it('should display a next button when there are more results', () => {
+            render(
                 <ThemeProvider theme={theme}>
                     <ListPaginationContext.Provider
                         value={{
                             ...defaultProps,
-                            total: 10,
-                            page: 2, // Query the page 2 but there is only 1 page
-                            perPage: 10,
-                            setPage,
+                            perPage: 1,
+                            total: 2,
+                            page: 1,
                         }}
                     >
-                        <Pagination />
+                        <Pagination rowsPerPageOptions={[1]} />
                     </ListPaginationContext.Provider>
                 </ThemeProvider>
             );
-            // mui TablePagination displays no more a warning in that case
-            // Then useEffect fallbacks on a valid page
-            expect(queryByText('ra.navigation.no_results')).not.toBeNull();
+            const nextButton = screen.queryByLabelText(
+                'Go to next page'
+            ) as HTMLButtonElement;
+            expect(nextButton).not.toBeNull();
+            expect(nextButton.disabled).toBe(false);
         });
-
-        it('should display a pagination limit on an out of bounds page (less than 0)', async () => {
-            jest.spyOn(console, 'error').mockImplementationOnce(() => {});
-            const setPage = jest.fn().mockReturnValue(null);
-            const { queryByText } = render(
+        it('should display a disabled next button when there are no more results', () => {
+            render(
                 <ThemeProvider theme={theme}>
                     <ListPaginationContext.Provider
-                        value={{
-                            ...defaultProps,
-                            total: 10,
-                            page: -2, // Query the page -2 😱
-                            perPage: 10,
-                            setPage,
-                        }}
+                        value={
+                            {
+                                ...defaultProps,
+                                perPage: 1,
+                                total: 2,
+                                page: 2,
+                            } as any
+                        }
                     >
-                        <Pagination />
+                        <Pagination rowsPerPageOptions={[1]} />
                     </ListPaginationContext.Provider>
                 </ThemeProvider>
             );
-            // mui TablePagination displays no more a warning in that case
-            // Then useEffect fallbacks on a valid page
-            expect(queryByText('ra.navigation.no_results')).not.toBeNull();
+            const nextButton = screen.queryByLabelText(
+                'Go to next page'
+            ) as HTMLButtonElement;
+            expect(nextButton).not.toBeNull();
+            expect(nextButton.disabled).toBe(true);
+        });
+        it('should display a prev button when there are previous results', () => {
+            render(
+                <ThemeProvider theme={theme}>
+                    <ListPaginationContext.Provider
+                        value={
+                            {
+                                ...defaultProps,
+                                perPage: 1,
+                                total: 2,
+                                page: 2,
+                            } as any
+                        }
+                    >
+                        <Pagination rowsPerPageOptions={[1]} />
+                    </ListPaginationContext.Provider>
+                </ThemeProvider>
+            );
+            const prevButton = screen.queryByLabelText(
+                'Go to previous page'
+            ) as HTMLButtonElement;
+            expect(prevButton).not.toBeNull();
+            expect(prevButton.disabled).toBe(false);
+        });
+        it('should display a disabled prev button when there are no previous results', () => {
+            render(
+                <ThemeProvider theme={theme}>
+                    <ListPaginationContext.Provider
+                        value={
+                            {
+                                ...defaultProps,
+                                perPage: 1,
+                                total: 2,
+                                page: 1,
+                            } as any
+                        }
+                    >
+                        <Pagination rowsPerPageOptions={[1]} />
+                    </ListPaginationContext.Provider>
+                </ThemeProvider>
+            );
+            const prevButton = screen.queryByLabelText(
+                'Go to previous page'
+            ) as HTMLButtonElement;
+            expect(prevButton).not.toBeNull();
+            expect(prevButton.disabled).toBe(true);
         });
     });
 
-    describe('Pagination buttons', () => {
+    describe('Partial pagination', () => {
         it('should display a next button when there are more results', () => {
-            const { queryByText } = render(
+            render(
                 <ThemeProvider theme={theme}>
                     <ListPaginationContext.Provider
-                        value={{
-                            ...defaultProps,
-                            perPage: 1,
-                            total: 2,
-                            page: 1,
-                        }}
+                        value={
+                            {
+                                ...defaultProps,
+                                perPage: 1,
+                                total: undefined,
+                                page: 1,
+                                hasNextPage: true,
+                            } as any
+                        }
                     >
                         <Pagination rowsPerPageOptions={[1]} />
                     </ListPaginationContext.Provider>
                 </ThemeProvider>
             );
-            expect(queryByText('ra.navigation.next')).not.toBeNull();
+            const nextButton = screen.queryByLabelText(
+                'Go to next page'
+            ) as HTMLButtonElement;
+            expect(nextButton).not.toBeNull();
+            expect(nextButton.disabled).toBe(false);
         });
-        it('should not display a next button when there are no more results', () => {
-            const { queryByText } = render(
+        it('should display a disabled next button when there are no more results', () => {
+            render(
                 <ThemeProvider theme={theme}>
                     <ListPaginationContext.Provider
-                        value={{
-                            ...defaultProps,
-                            perPage: 1,
-                            total: 2,
-                            page: 2,
-                        }}
+                        value={
+                            {
+                                ...defaultProps,
+                                perPage: 1,
+                                total: undefined,
+                                page: 2,
+                                hasNextPage: false,
+                            } as any
+                        }
                     >
                         <Pagination rowsPerPageOptions={[1]} />
                     </ListPaginationContext.Provider>
                 </ThemeProvider>
             );
-            expect(queryByText('ra.navigation.next')).toBeNull();
+            const nextButton = screen.queryByLabelText(
+                'Go to next page'
+            ) as HTMLButtonElement;
+            expect(nextButton).not.toBeNull();
+            expect(nextButton.disabled).toBe(true);
         });
         it('should display a prev button when there are previous results', () => {
-            const { queryByText } = render(
+            render(
                 <ThemeProvider theme={theme}>
                     <ListPaginationContext.Provider
-                        value={{
-                            ...defaultProps,
-                            perPage: 1,
-                            total: 2,
-                            page: 2,
-                        }}
+                        value={
+                            {
+                                ...defaultProps,
+                                perPage: 1,
+                                total: undefined,
+                                page: 2,
+                                hasPreviousPage: true,
+                            } as any
+                        }
                     >
                         <Pagination rowsPerPageOptions={[1]} />
                     </ListPaginationContext.Provider>
                 </ThemeProvider>
             );
-            expect(queryByText('ra.navigation.prev')).not.toBeNull();
+            const prevButton = screen.queryByLabelText(
+                'Go to previous page'
+            ) as HTMLButtonElement;
+            expect(prevButton).not.toBeNull();
+            expect(prevButton.disabled).toBe(false);
         });
-        it('should not display a prev button when there are no previous results', () => {
-            const { queryByText } = render(
+        it('should display a disabled prev button when there are no previous results', () => {
+            render(
                 <ThemeProvider theme={theme}>
                     <ListPaginationContext.Provider
-                        value={{
-                            ...defaultProps,
-                            perPage: 1,
-                            total: 2,
-                            page: 1,
-                        }}
+                        value={
+                            {
+                                ...defaultProps,
+                                perPage: 1,
+                                total: undefined,
+                                page: 1,
+                                hasPreviousPage: false,
+                            } as any
+                        }
                     >
                         <Pagination rowsPerPageOptions={[1]} />
                     </ListPaginationContext.Provider>
                 </ThemeProvider>
             );
-            expect(queryByText('ra.navigation.prev')).toBeNull();
+            const prevButton = screen.queryByLabelText(
+                'Go to previous page'
+            ) as HTMLButtonElement;
+            expect(prevButton).not.toBeNull();
+            expect(prevButton.disabled).toBe(true);
         });
     });
 
     describe('mobile', () => {
         it('should not render a rowsPerPage choice', () => {
-            const { queryByText } = render(
+            render(
                 <DeviceTestWrapper width="sm">
                     <ListPaginationContext.Provider
-                        value={{
-                            ...defaultProps,
-                            page: 2,
-                            perPage: 5,
-                            total: 15,
-                        }}
+                        value={
+                            {
+                                ...defaultProps,
+                                page: 2,
+                                perPage: 5,
+                                total: 15,
+                            } as any
+                        }
                     >
                         <Pagination />
                     </ListPaginationContext.Provider>
                 </DeviceTestWrapper>
             );
-            expect(queryByText('ra.navigation.page_rows_per_page')).toBeNull();
+            expect(
+                screen.queryByText('ra.navigation.page_rows_per_page')
+            ).toBeNull();
+        });
+
+        it('should translate the navigation buttons labels', () => {
+            render(
+                <DeviceTestWrapper width="sm">
+                    <I18nContextProvider
+                        value={polyglotI18nProvider(() => frenchMessages, 'fr')}
+                    >
+                        <ListPaginationContext.Provider
+                            value={
+                                {
+                                    ...defaultProps,
+                                    page: 2,
+                                    perPage: 5,
+                                    total: 15,
+                                } as any
+                            }
+                        >
+                            <Pagination />
+                        </ListPaginationContext.Provider>
+                    </I18nContextProvider>
+                </DeviceTestWrapper>
+            );
+            expect(
+                screen.queryByLabelText('Aller à la page précédente')
+            ).not.toBeNull();
+            expect(
+                screen.queryByLabelText('Aller à la prochaine page')
+            ).not.toBeNull();
         });
     });
 
     describe('desktop', () => {
         it('should render rowsPerPage choice', () => {
-            const { queryByText } = render(
+            render(
                 <DeviceTestWrapper width="lg">
                     <ListPaginationContext.Provider
-                        value={{
-                            ...defaultProps,
-                            page: 2,
-                            perPage: 5,
-                            total: 15,
-                        }}
+                        value={
+                            {
+                                ...defaultProps,
+                                page: 2,
+                                perPage: 5,
+                                total: 15,
+                            } as any
+                        }
                     >
                         <Pagination />
                     </ListPaginationContext.Provider>
@@ -203,8 +289,15 @@ describe('<Pagination />', () => {
             );
 
             expect(
-                queryByText('ra.navigation.page_rows_per_page')
+                screen.queryByText('ra.navigation.page_rows_per_page')
             ).not.toBeNull();
+        });
+    });
+
+    describe('rowsPerPageOptions', () => {
+        it('should accept an array of options with label and value', () => {
+            render(<RowsPerPageOptions />);
+            expect(screen.getByText('ten')).not.toBeNull();
         });
     });
 });

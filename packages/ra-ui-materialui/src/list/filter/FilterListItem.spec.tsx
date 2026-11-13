@@ -1,70 +1,115 @@
 import * as React from 'react';
 import expect from 'expect';
-import { render, cleanup } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 
-import { ListContextProvider } from 'ra-core';
-import FilterListItem from './FilterListItem';
+import { ListContextProvider, ListControllerResult } from 'ra-core';
+import GoogleIcon from '@mui/icons-material/Google';
+import { FilterListItem } from './FilterListItem';
+import { Cumulative } from './FilterList.stories';
+
+const defaultListContext: ListControllerResult = {
+    data: [],
+    displayedFilters: null,
+    filterValues: null,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    hideFilter: () => {},
+    isFetching: false,
+    isLoading: false,
+    onSelect: () => {},
+    onToggleItem: () => {},
+    onUnselectItems: () => {},
+    page: 1,
+    perPage: 10,
+    refetch: () => {},
+    resource: 'posts',
+    selectedIds: [],
+    setFilters: () => {},
+    setPage: () => {},
+    setPerPage: () => {},
+    setSort: () => {},
+    showFilter: () => {},
+    sort: { field: '', order: 'ASC' },
+    total: 0,
+};
 
 describe('<FilterListItem/>', () => {
-    afterEach(cleanup);
-
     it("should display the item label when it's a string", () => {
-        const { queryByText } = render(
-            <ListContextProvider value={{ hideFilter: true }}>
+        render(
+            <ListContextProvider value={defaultListContext}>
                 <FilterListItem label="Foo" value={{ foo: 'bar' }} />
             </ListContextProvider>
         );
-        expect(queryByText('Foo')).not.toBeNull();
+        expect(screen.queryByText('Foo')).not.toBeNull();
     });
 
     it("should display the item label when it's an element", () => {
-        const { queryByTestId } = render(
-            <ListContextProvider value={{ hideFilter: true }}>
+        render(
+            <ListContextProvider value={defaultListContext}>
                 <FilterListItem
                     label={<span data-testid="123">Foo</span>}
                     value={{ foo: 'bar' }}
                 />
             </ListContextProvider>
         );
-        expect(queryByTestId('123')).not.toBeNull();
+        expect(screen.queryByTestId('123')).not.toBeNull();
+    });
+
+    it("should display the item icon if it's provided", () => {
+        render(
+            <ListContextProvider value={defaultListContext}>
+                <FilterListItem
+                    label="Foo"
+                    value={{ foo: 'bar' }}
+                    icon={<GoogleIcon />}
+                />
+            </ListContextProvider>
+        );
+        expect(screen.queryByTestId('GoogleIcon')).not.toBeNull();
     });
 
     it('should not appear selected if filterValues is empty', () => {
-        const { getByText } = render(
-            <ListContextProvider value={{ hideFilter: true }}>
+        render(
+            <ListContextProvider value={defaultListContext}>
                 <FilterListItem label="Foo" value={{ foo: 'bar' }} />
             </ListContextProvider>
         );
-        expect(getByText('Foo').parentElement.dataset.selected).toBe('false');
+        expect(screen.getByText('Foo').parentElement?.dataset.selected).toBe(
+            'false'
+        );
     });
 
     it('should not appear selected if filterValues does not contain value', () => {
-        const { getByText } = render(
+        render(
             <ListContextProvider
-                value={{ hideFilter: true, filterValues: { bar: 'baz' } }}
+                value={{ ...defaultListContext, filterValues: { bar: 'baz' } }}
             >
                 <FilterListItem label="Foo" value={{ foo: 'bar' }} />
             </ListContextProvider>
         );
-        expect(getByText('Foo').parentElement.dataset.selected).toBe('false');
+        expect(screen.getByText('Foo').parentElement?.dataset.selected).toBe(
+            'false'
+        );
     });
 
     it('should appear selected if filterValues is equal to value', () => {
-        const { getByText } = render(
+        render(
             <ListContextProvider
-                value={{ hideFilter: true, filterValues: { foo: 'bar' } }}
+                value={{ ...defaultListContext, filterValues: { foo: 'bar' } }}
             >
                 <FilterListItem label="Foo" value={{ foo: 'bar' }} />
             </ListContextProvider>
         );
-        expect(getByText('Foo').parentElement.dataset.selected).toBe('true');
+        expect(screen.getByText('Foo').parentElement?.dataset.selected).toBe(
+            'true'
+        );
     });
 
     it('should appear selected if filterValues is equal to value for nested filters', () => {
-        const { getByText } = render(
+        render(
             <ListContextProvider
                 value={{
-                    hideFilter: true,
+                    ...defaultListContext,
                     filterValues: {
                         $and: [
                             {
@@ -100,20 +145,60 @@ describe('<FilterListItem/>', () => {
                 />
             </ListContextProvider>
         );
-        expect(getByText('Foo').parentElement.dataset.selected).toBe('true');
+        expect(screen.getByText('Foo').parentElement?.dataset.selected).toBe(
+            'true'
+        );
     });
 
     it('should appear selected if filterValues contains value', () => {
-        const { getByText } = render(
+        render(
             <ListContextProvider
                 value={{
-                    hideFilter: true,
+                    ...defaultListContext,
                     filterValues: { foo: 'bar', bar: 'baz' },
                 }}
             >
                 <FilterListItem label="Foo" value={{ foo: 'bar' }} />
             </ListContextProvider>
         );
-        expect(getByText('Foo').parentElement.dataset.selected).toBe('true');
+        expect(screen.getByText('Foo').parentElement?.dataset.selected).toBe(
+            'true'
+        );
+    });
+
+    it('should allow to customize isSelected and toggleFilter', async () => {
+        const { container } = render(<Cumulative />);
+
+        expect(getSelectedItemsLabels(container)).toEqual([
+            'News',
+            'Tutorials',
+        ]);
+        screen.getByText(JSON.stringify({ category: ['tutorials', 'news'] }));
+
+        screen.getByText('News').click();
+
+        await waitFor(() =>
+            expect(getSelectedItemsLabels(container)).toEqual(['Tutorials'])
+        );
+        await screen.findByText(JSON.stringify({ category: ['tutorials'] }));
+
+        screen.getByText('Tutorials').click();
+
+        await waitFor(() =>
+            expect(getSelectedItemsLabels(container)).toEqual([])
+        );
+        expect(screen.getAllByText(JSON.stringify({})).length).toBe(2);
+
+        screen.getByText('Tests').click();
+
+        await waitFor(() =>
+            expect(getSelectedItemsLabels(container)).toEqual(['Tests'])
+        );
+        await screen.findByText(JSON.stringify({ category: ['tests'] }));
     });
 });
+
+const getSelectedItemsLabels = (container: HTMLElement) =>
+    Array.from(
+        container.querySelectorAll<HTMLElement>('[data-selected="true"]')
+    ).map(item => item.textContent);

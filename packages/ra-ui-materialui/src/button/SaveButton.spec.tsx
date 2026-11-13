@@ -1,184 +1,308 @@
 import * as React from 'react';
-import { render, waitFor, fireEvent } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import expect from 'expect';
 import {
-    DataProviderContext,
-    DataProvider,
-    SaveContextProvider,
-    FormContextProvider,
+    Form,
+    MutationMode,
+    required,
+    ResourceContextProvider,
+    testDataProvider,
+    useNotificationContext,
 } from 'ra-core';
-import { renderWithRedux, TestContext } from 'ra-test';
-import { ThemeProvider } from '@material-ui/core';
-import { createMuiTheme } from '@material-ui/core/styles';
 
-import SaveButton from './SaveButton';
-import { Toolbar, SimpleForm } from '../form';
+import { SaveButton } from './SaveButton';
+import { SimpleForm, Toolbar } from '../form';
 import { Edit } from '../detail';
-import { TextInput } from '../input';
-
-const theme = createMuiTheme();
+import {
+    TextInput,
+    ArrayInput,
+    SimpleFormIterator,
+    NumberInput,
+} from '../input';
+import { AdminContext } from '../AdminContext';
+import {
+    AlwaysEnable,
+    Basic,
+    Dirty,
+    ComplexForm,
+    EnabledWhenFormIsPrefilled,
+} from './SaveButton.stories';
 
 const invalidButtonDomProps = {
-    basePath: '',
-    handleSubmit: jest.fn(),
-    handleSubmitWithRedirect: jest.fn(),
-    invalid: false,
-    onSave: jest.fn(),
     disabled: true,
-    pristine: false,
-    record: { id: 123, foo: 'bar' },
-    redirect: 'list',
-    resource: 'posts',
-    saving: false,
-    submitOnEnter: true,
-    undoable: false,
 };
 
 describe('<SaveButton />', () => {
-    const saveContextValue = {
-        save: jest.fn(),
-        saving: false,
-        setOnFailure: jest.fn(),
-    };
-    const formContextValue = {
-        setOnSave: jest.fn(),
-        registerGroup: jest.fn(),
-        unregisterField: jest.fn(),
-        unregisterGroup: jest.fn(),
-        registerField: jest.fn(),
-        getGroupFields: jest.fn(),
-    };
-
-    it('should render as submit type with no DOM errors', () => {
+    it('should render as submit type with no DOM errors', async () => {
         const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-        const { getByLabelText } = render(
-            <TestContext>
-                <ThemeProvider theme={theme}>
-                    <SaveContextProvider value={saveContextValue}>
-                        <SaveButton {...invalidButtonDomProps} />
-                    </SaveContextProvider>
-                </ThemeProvider>
-            </TestContext>
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <Form>
+                    {' '}
+                    <SaveButton {...invalidButtonDomProps} />
+                </Form>
+            </AdminContext>
         );
 
         expect(spy).not.toHaveBeenCalled();
-        expect(getByLabelText('ra.action.save').getAttribute('type')).toEqual(
-            'submit'
+        await waitFor(() =>
+            expect(
+                screen.getByLabelText('ra.action.save').getAttribute('type')
+            ).toEqual('submit')
         );
 
         spy.mockRestore();
     });
 
-    it('should render a disabled button', () => {
-        const { getByLabelText } = render(
-            <TestContext>
-                <ThemeProvider theme={theme}>
-                    <SaveContextProvider value={saveContextValue}>
-                        <SaveButton disabled={true} />
-                    </SaveContextProvider>
-                </ThemeProvider>
-            </TestContext>
+    it('should render a disabled button', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <Form>
+                    <SaveButton disabled={true} />
+                </Form>
+            </AdminContext>
         );
-        expect(getByLabelText('ra.action.save')['disabled']).toEqual(true);
-    });
-
-    it('should render as submit type when submitOnEnter is true', () => {
-        const { getByLabelText } = render(
-            <TestContext>
-                <SaveContextProvider value={saveContextValue}>
-                    <SaveButton submitOnEnter />
-                </SaveContextProvider>
-            </TestContext>
-        );
-        expect(getByLabelText('ra.action.save').getAttribute('type')).toEqual(
-            'submit'
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                true
+            )
         );
     });
 
-    it('should render as button type when submitOnEnter is false', () => {
-        const { getByLabelText } = render(
-            <TestContext>
-                <SaveContextProvider value={saveContextValue}>
-                    <SaveButton submitOnEnter={false} />
-                </SaveContextProvider>
-            </TestContext>
-        );
-
-        expect(getByLabelText('ra.action.save').getAttribute('type')).toEqual(
-            'button'
+    it('should render an enabled button when the form is dirty', async () => {
+        render(<Dirty />);
+        fireEvent.click(await screen.findByText('Make change'));
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            )
         );
     });
 
-    it('should trigger submit action when clicked if no saving is in progress', () => {
+    it('should render as submit type by default', async () => {
+        render(<Basic />);
+        await waitFor(() =>
+            expect(
+                screen.getByLabelText('ra.action.save').getAttribute('type')
+            ).toEqual('submit')
+        );
+    });
+
+    it('should render as button type when type prop is "button"', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <Form>
+                    <SaveButton type="button" />
+                </Form>
+            </AdminContext>
+        );
+
+        await waitFor(() =>
+            expect(
+                screen.getByLabelText('ra.action.save').getAttribute('type')
+            ).toEqual('button')
+        );
+    });
+
+    it('should trigger submit action when clicked if no saving is in progress', async () => {
         const onSubmit = jest.fn();
-        const { getByLabelText } = render(
-            <TestContext>
-                <SaveContextProvider value={saveContextValue}>
-                    <FormContextProvider value={formContextValue}>
-                        <SaveButton
-                            handleSubmitWithRedirect={onSubmit}
-                            saving={false}
-                        />
-                    </FormContextProvider>
-                </SaveContextProvider>
-            </TestContext>
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <Form onSubmit={onSubmit}>
+                    <SaveButton alwaysEnable />
+                </Form>
+            </AdminContext>
         );
 
-        fireEvent.click(getByLabelText('ra.action.save'));
-        expect(onSubmit).toHaveBeenCalled();
-    });
+        fireEvent.click(screen.getByLabelText('ra.action.save'));
 
-    it('should not trigger submit action when clicked if saving is in progress', () => {
-        const onSubmit = jest.fn();
-
-        const { getByLabelText } = render(
-            <TestContext>
-                <SaveContextProvider value={saveContextValue}>
-                    <SaveButton handleSubmitWithRedirect={onSubmit} saving />
-                </SaveContextProvider>
-            </TestContext>
-        );
-
-        fireEvent.click(getByLabelText('ra.action.save'));
-        expect(onSubmit).not.toHaveBeenCalled();
-    });
-
-    it('should show a notification if the form is not valid', () => {
-        const onSubmit = jest.fn();
-        let dispatchSpy;
-
-        const { getByLabelText } = render(
-            <TestContext>
-                {({ store }) => {
-                    dispatchSpy = jest.spyOn(store, 'dispatch');
-                    return (
-                        <SaveContextProvider value={saveContextValue}>
-                            <SaveButton
-                                handleSubmitWithRedirect={onSubmit}
-                                invalid
-                            />
-                        </SaveContextProvider>
-                    );
-                }}
-            </TestContext>
-        );
-
-        fireEvent.click(getByLabelText('ra.action.save'));
-        expect(dispatchSpy).toHaveBeenCalledWith({
-            payload: {
-                message: 'ra.message.invalid_form',
-                messageArgs: {},
-                type: 'warning',
-                undoable: false,
-            },
-            type: 'RA/SHOW_NOTIFICATION',
+        await waitFor(() => {
+            expect(onSubmit).toHaveBeenCalled();
         });
-        expect(onSubmit).toHaveBeenCalled();
+    });
+
+    it('should not trigger submit action when clicked if saving is in progress', async () => {
+        const onSubmit = jest.fn();
+
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <Form onSubmit={onSubmit}>
+                    <SaveButton />
+                </Form>
+            </AdminContext>
+        );
+
+        fireEvent.click(screen.getByLabelText('ra.action.save'));
+        await waitFor(() => {
+            expect(onSubmit).not.toHaveBeenCalled();
+        });
+    });
+
+    it('should allow to override the onSuccess side effects', async () => {
+        const dataProvider = testDataProvider({
+            getOne: () =>
+                // @ts-ignore
+                Promise.resolve({
+                    data: { id: 123, title: 'lorem' },
+                }),
+            update: (_, { data }) =>
+                // @ts-ignore
+                Promise.resolve({ data }),
+        });
+        const onSuccess = jest.fn();
+        const EditToolbar = props => (
+            <Toolbar {...props}>
+                <SaveButton mutationOptions={{ onSuccess }} type="button" />
+            </Toolbar>
+        );
+        render(
+            <AdminContext dataProvider={dataProvider}>
+                <Edit {...defaultEditProps}>
+                    <SimpleForm toolbar={<EditToolbar />}>
+                        <TextInput source="title" />
+                    </SimpleForm>
+                </Edit>
+            </AdminContext>
+        );
+        // waitFor for the dataProvider.getOne() return
+        await screen.findByDisplayValue('lorem');
+
+        // change one input to enable the SaveButton (which is disabled when the form is pristine)
+        fireEvent.change(
+            await screen.findByLabelText('resources.posts.fields.title'),
+            {
+                target: { value: 'ipsum' },
+            }
+        );
+        fireEvent.click(screen.getByText('ra.action.save'));
+        await waitFor(() => {
+            expect(onSuccess).toHaveBeenCalledWith(
+                {
+                    id: 123,
+                    title: 'ipsum',
+                },
+                {
+                    id: '123',
+                    data: { id: 123, title: 'ipsum' },
+                    previousData: { id: 123, title: 'lorem' },
+                    resource: 'posts',
+                    meta: undefined,
+                },
+                { snapshot: expect.any(Array) },
+                expect.anything()
+            );
+        });
+    });
+
+    it('should allow to override the onError side effects', async () => {
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        const dataProvider = testDataProvider({
+            getOne: () =>
+                // @ts-ignore
+                Promise.resolve({
+                    data: { id: 123, title: 'lorem' },
+                }),
+            update: () => Promise.reject({ message: 'not good' }),
+        });
+        const onError = jest.fn();
+        const EditToolbar = props => (
+            <Toolbar {...props}>
+                <SaveButton mutationOptions={{ onError }} type="button" />
+            </Toolbar>
+        );
+        render(
+            <AdminContext dataProvider={dataProvider}>
+                <Edit {...defaultEditProps}>
+                    <SimpleForm toolbar={<EditToolbar />}>
+                        <TextInput source="title" />
+                    </SimpleForm>
+                </Edit>
+            </AdminContext>
+        );
+        // waitFor for the dataProvider.getOne() return
+        await screen.findByDisplayValue('lorem');
+
+        // change one input to enable the SaveButton (which is disabled when the form is pristine)
+        fireEvent.change(
+            await screen.findByLabelText('resources.posts.fields.title'),
+            {
+                target: { value: 'ipsum' },
+            }
+        );
+        fireEvent.click(screen.getByText('ra.action.save'));
+        await waitFor(() => {
+            expect(onError).toHaveBeenCalledWith(
+                {
+                    message: 'not good',
+                },
+                {
+                    id: '123',
+                    data: { id: 123, title: 'ipsum' },
+                    previousData: { id: 123, title: 'lorem' },
+                    resource: 'posts',
+                    meta: undefined,
+                },
+                { snapshot: expect.any(Array) },
+                expect.anything()
+            );
+        });
+    });
+
+    it('should allow to transform the record before save', async () => {
+        const update = jest
+            .fn()
+            .mockImplementationOnce((_, { data }) => Promise.resolve({ data }));
+        const dataProvider = testDataProvider({
+            getOne: () =>
+                // @ts-ignore
+                Promise.resolve({
+                    data: { id: 123, title: 'lorem' },
+                }),
+            update,
+        });
+        const transform = jest.fn().mockImplementationOnce(data => ({
+            ...data,
+            transformed: true,
+        }));
+        const EditToolbar = props => (
+            <Toolbar {...props}>
+                <SaveButton transform={transform} type="button" />
+            </Toolbar>
+        );
+        render(
+            <AdminContext dataProvider={dataProvider}>
+                <Edit {...defaultEditProps}>
+                    <SimpleForm toolbar={<EditToolbar />}>
+                        <TextInput source="title" />
+                    </SimpleForm>
+                </Edit>
+            </AdminContext>
+        );
+        // waitFor for the dataProvider.getOne() return
+        await screen.findByDisplayValue('lorem');
+        // change one input to enable the SaveButton (which is disabled when the form is pristine)
+        fireEvent.change(
+            await screen.findByLabelText('resources.posts.fields.title'),
+            {
+                target: { value: 'ipsum' },
+            }
+        );
+        fireEvent.click(screen.getByText('ra.action.save'));
+        await waitFor(() => {
+            expect(transform).toHaveBeenCalledWith(
+                { id: 123, title: 'ipsum' },
+                { previousData: { id: 123, title: 'lorem' } }
+            );
+            expect(update).toHaveBeenCalledWith('posts', {
+                id: '123',
+                data: { id: 123, title: 'ipsum', transformed: true },
+                previousData: { id: 123, title: 'lorem' },
+            });
+        });
     });
 
     const defaultEditProps = {
-        basePath: '',
         id: '123',
         resource: 'posts',
         location: {
@@ -193,148 +317,210 @@ describe('<SaveButton />', () => {
             path: '/customers/123',
             url: '/customers/123',
         },
-        undoable: false,
+        mutationMode: 'pessimistic' as MutationMode,
     };
 
-    it('should allow to override the onSuccess side effects', async () => {
-        const dataProvider = ({
+    it('should disable <SaveButton/> if an input is being validated asynchronously', async () => {
+        const dataProvider = testDataProvider({
             getOne: () =>
+                // @ts-ignore
                 Promise.resolve({
                     data: { id: 123, title: 'lorem' },
                 }),
-            update: (_, { data }) => Promise.resolve({ data }),
-        } as unknown) as DataProvider;
-        const onSuccess = jest.fn();
-        const EditToolbar = props => (
-            <Toolbar {...props}>
-                <SaveButton onSuccess={onSuccess} />
-            </Toolbar>
-        );
-        const {
-            queryByDisplayValue,
-            getByLabelText,
-            getByText,
-        } = renderWithRedux(
-            <DataProviderContext.Provider value={dataProvider}>
-                <Edit {...defaultEditProps}>
-                    <SimpleForm toolbar={<EditToolbar />}>
-                        <TextInput source="title" />
-                    </SimpleForm>
-                </Edit>
-            </DataProviderContext.Provider>,
-            { admin: { resources: { posts: { data: {} } } } }
+        });
+
+        const validateAsync = async value => {
+            await new Promise(resolve => setTimeout(resolve, 250));
+            if (value === 'ipsum') {
+                return 'Already used!';
+            }
+            return undefined;
+        };
+
+        render(
+            <AdminContext dataProvider={dataProvider}>
+                <Form mode="onChange">
+                    <TextInput
+                        label="title"
+                        source="title"
+                        validate={validateAsync}
+                    />
+                    <SaveButton />
+                </Form>
+            </AdminContext>
         );
         // waitFor for the dataProvider.getOne() return
         await waitFor(() => {
-            expect(queryByDisplayValue('lorem')).toBeDefined();
+            expect(screen.queryByDisplayValue('lorem')).toBeDefined();
         });
+
         // change one input to enable the SaveButton (which is disabled when the form is pristine)
-        fireEvent.change(getByLabelText('resources.posts.fields.title'), {
+        fireEvent.change(screen.getByLabelText('title'), {
             target: { value: 'ipsum' },
         });
-        fireEvent.click(getByText('ra.action.save'));
+
         await waitFor(() => {
-            expect(onSuccess).toHaveBeenCalledWith({
-                data: { id: 123, title: 'ipsum' },
-            });
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                true
+            );
+        });
+        // The SaveButton should be enabled again after validation
+        await waitFor(() => {
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            );
         });
     });
 
-    it('should allow to override the onFailure side effects', async () => {
-        jest.spyOn(console, 'error').mockImplementationOnce(() => {});
-        const dataProvider = ({
-            getOne: () =>
-                Promise.resolve({
-                    data: { id: 123, title: 'lorem' },
-                }),
-            update: () => Promise.reject({ message: 'not good' }),
-        } as unknown) as DataProvider;
-        const onFailure = jest.fn();
-        const EditToolbar = props => (
-            <Toolbar {...props}>
-                <SaveButton onFailure={onFailure} />
-            </Toolbar>
+    it('should display a notification on save when invalid and is not of type submit', async () => {
+        const Notification = () => {
+            const { notifications } = useNotificationContext();
+            return notifications.length > 0 ? (
+                <div>{notifications[0].message}</div>
+            ) : null;
+        };
+
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <>
+                    <Form onSubmit={jest.fn()}>
+                        <TextInput source="name" validate={required()} />
+                        <SaveButton
+                            alwaysEnable
+                            type="button"
+                            mutationOptions={{
+                                onSuccess: jest.fn(),
+                            }}
+                        />
+                    </Form>
+                    <Notification />
+                </>
+            </AdminContext>
         );
-        const {
-            queryByDisplayValue,
-            getByLabelText,
-            getByText,
-        } = renderWithRedux(
-            <DataProviderContext.Provider value={dataProvider}>
-                <Edit {...defaultEditProps}>
-                    <SimpleForm toolbar={<EditToolbar />}>
-                        <TextInput source="title" />
-                    </SimpleForm>
-                </Edit>
-            </DataProviderContext.Provider>,
-            { admin: { resources: { posts: { data: {} } } } }
-        );
-        // waitFor for the dataProvider.getOne() return
+
+        fireEvent.click(screen.getByText('ra.action.save'));
         await waitFor(() => {
-            expect(queryByDisplayValue('lorem')).toBeDefined();
-        });
-        // change one input to enable the SaveButton (which is disabled when the form is pristine)
-        fireEvent.change(getByLabelText('resources.posts.fields.title'), {
-            target: { value: 'ipsum' },
-        });
-        fireEvent.click(getByText('ra.action.save'));
-        await waitFor(() => {
-            expect(onFailure).toHaveBeenCalledWith({
-                message: 'not good',
-            });
+            screen.getByText('ra.message.invalid_form');
         });
     });
 
-    it('should allow to transform the record before save', async () => {
-        const update = jest
-            .fn()
-            .mockImplementationOnce((_, { data }) => Promise.resolve({ data }));
-        const dataProvider = ({
-            getOne: () =>
-                Promise.resolve({
-                    data: { id: 123, title: 'lorem' },
-                }),
-            update,
-        } as unknown) as DataProvider;
-        const transform = jest.fn().mockImplementationOnce(data => ({
-            ...data,
-            transformed: true,
-        }));
-        const EditToolbar = props => (
-            <Toolbar {...props}>
-                <SaveButton transform={transform} />
-            </Toolbar>
+    it('should render enabled if alwaysEnable is true', async () => {
+        render(<AlwaysEnable />);
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            )
         );
-        const {
-            queryByDisplayValue,
-            getByLabelText,
-            getByText,
-        } = renderWithRedux(
-            <DataProviderContext.Provider value={dataProvider}>
-                <Edit {...defaultEditProps}>
-                    <SimpleForm toolbar={<EditToolbar />}>
-                        <TextInput source="title" />
+    });
+
+    it('should be enabled if the form is prefilled', async () => {
+        render(<EnabledWhenFormIsPrefilled />);
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            )
+        );
+    });
+
+    it('should enable/disable consistently in a complex form', async () => {
+        render(<ComplexForm />);
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                true
+            )
+        );
+        fireEvent.change(await screen.getByDisplayValue('Lorem ipsum'), {
+            target: { value: 'Lorem ipsum dolor' },
+        });
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            )
+        );
+        fireEvent.click(screen.getByText('ra.action.save'));
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                true
+            )
+        );
+        fireEvent.change(await screen.getByDisplayValue('bazinga'), {
+            target: { value: 'bazingaaaa' },
+        });
+
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            )
+        );
+        fireEvent.click(screen.getByText('ra.action.save'));
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                true
+            )
+        );
+        fireEvent.click(screen.getByLabelText('ra.action.add'));
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            )
+        );
+        await waitFor(() =>
+            expect(
+                screen.queryAllByLabelText('resources.posts.fields.tags.name')
+                    .length
+            ).toEqual(2)
+        );
+        fireEvent.change(
+            screen.getAllByLabelText('resources.posts.fields.tags.name')[1],
+            {
+                target: { value: 'plop' },
+            }
+        );
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                false
+            )
+        );
+        fireEvent.click(screen.getByText('ra.action.save'));
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                true
+            )
+        );
+    });
+
+    it('should not be enabled if no inputs have changed', async () => {
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
+                    <SimpleForm
+                        resource="myresource"
+                        onSubmit={jest.fn}
+                        defaultValues={{
+                            test: 'test',
+                        }}
+                    >
+                        <TextInput source="test" />
+                        <ArrayInput resource="foo" source="arr">
+                            <SimpleFormIterator>
+                                <NumberInput source="id" />
+                            </SimpleFormIterator>
+                        </ArrayInput>
                     </SimpleForm>
-                </Edit>
-            </DataProviderContext.Provider>,
-            { admin: { resources: { posts: { data: {} } } } }
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        // waitFor for the dataProvider.getOne() return
-        await waitFor(() => {
-            expect(queryByDisplayValue('lorem')).toBeDefined();
-        });
-        // change one input to enable the SaveButton (which is disabled when the form is pristine)
-        fireEvent.change(getByLabelText('resources.posts.fields.title'), {
-            target: { value: 'ipsum' },
-        });
-        fireEvent.click(getByText('ra.action.save'));
-        await waitFor(() => {
-            expect(transform).toHaveBeenCalledWith({ id: 123, title: 'ipsum' });
-            expect(update).toHaveBeenCalledWith('posts', {
-                id: '123',
-                data: { id: 123, title: 'ipsum', transformed: true },
-                previousData: { id: 123, title: 'lorem' },
-            });
-        });
+
+        const testInput = screen.getByLabelText(
+            'resources.myresource.fields.test'
+        );
+        fireEvent.focus(testInput);
+        fireEvent.blur(testInput);
+
+        await waitFor(() =>
+            expect(screen.getByLabelText('ra.action.save')['disabled']).toEqual(
+                true
+            )
+        );
     });
 });

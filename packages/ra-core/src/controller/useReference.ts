@@ -1,24 +1,40 @@
-import { Record } from '../types';
-import { Refetch, useGetMany } from '../dataProvider';
+import { RaRecord, Identifier } from '../types';
+import { UseGetManyHookValue, useGetManyAggregate } from '../dataProvider';
+import { UseQueryOptions } from '@tanstack/react-query';
 
-interface Option {
-    id: string;
+interface UseReferenceProps<
+    RecordType extends RaRecord = any,
+    ErrorType = Error,
+> {
+    id: Identifier;
     reference: string;
+    options?: Omit<
+        UseQueryOptions<RecordType[], ErrorType>,
+        'queryFn' | 'queryKey'
+    > & {
+        meta?: any;
+    };
 }
 
-export interface UseReferenceProps {
-    loading: boolean;
-    loaded: boolean;
-    referenceRecord?: Record;
-    error?: any;
-    refetch: Refetch;
+export interface UseReferenceResult<
+    RecordType extends RaRecord = any,
+    ErrorType = Error,
+> {
+    isLoading: boolean;
+    isPaused?: boolean;
+    isPending: boolean;
+    isPlaceholderData?: boolean;
+    isFetching: boolean;
+    referenceRecord?: RecordType;
+    error?: ErrorType | null;
+    refetch: UseGetManyHookValue<RecordType, ErrorType>['refetch'];
 }
 
 /**
- * @typedef ReferenceProps
+ * @typedef UseReferenceResult
  * @type {Object}
- * @property {boolean} loading: boolean indicating if the reference is loading
- * @property {boolean} loaded: boolean indicating if the reference has loaded
+ * @property {boolean} isFetching: boolean indicating if the reference is loading
+ * @property {boolean} isLoading: boolean indicating if the reference has loaded at least once
  * @property {Object} referenceRecord: the referenced record.
  */
 
@@ -30,7 +46,7 @@ export interface UseReferenceProps {
  *
  * @example
  *
- * const { loading, loaded, referenceRecord } = useReference({
+ * const { isLoading, referenceRecord } = useReference({
  *     id: 7,
  *     reference: 'users',
  * });
@@ -38,20 +54,44 @@ export interface UseReferenceProps {
  * @param {Object} option
  * @param {string} option.reference The linked resource name
  * @param {string} option.id The id of the reference
+ * @param {Object} option.options Options passed to the dataProvider
  *
- * @returns {ReferenceProps} The reference record
+ * @returns {UseReferenceResult} The reference record
  */
-export const useReference = ({ reference, id }: Option): UseReferenceProps => {
-    const { data, error, loading, loaded, refetch } = useGetMany(reference, [
-        id,
-    ]);
+export const useReference = <
+    RecordType extends RaRecord = RaRecord,
+    ErrorType = Error,
+>({
+    reference,
+    id,
+    options = {},
+}: UseReferenceProps<RecordType, ErrorType>): UseReferenceResult<
+    RecordType,
+    ErrorType
+> => {
+    const { meta, ...otherQueryOptions } = options;
+    const {
+        data,
+        error,
+        isLoading,
+        isFetching,
+        isPaused,
+        isPending,
+        isPlaceholderData,
+        refetch,
+    } = useGetManyAggregate<RecordType, ErrorType>(
+        reference,
+        { ids: [id], meta },
+        otherQueryOptions
+    );
     return {
-        referenceRecord: error ? undefined : data[0],
+        referenceRecord: data ? data[0] : undefined,
         refetch,
         error,
-        loading,
-        loaded,
+        isLoading,
+        isFetching,
+        isPaused,
+        isPending,
+        isPlaceholderData,
     };
 };
-
-export default useReference;

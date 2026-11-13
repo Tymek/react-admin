@@ -1,122 +1,153 @@
 import * as React from 'react';
-import { Children, isValidElement, cloneElement, ReactNode } from 'react';
-import PropTypes from 'prop-types';
-import classnames from 'classnames';
-import { Record } from 'ra-core';
+import { Children, isValidElement, type ReactNode } from 'react';
+import {
+    type ComponentsOverrides,
+    styled,
+    type Theme,
+} from '@mui/material/styles';
+import {
+    Stack,
+    type StackProps,
+    type SxProps,
+    useThemeProps,
+} from '@mui/material';
+import clsx from 'clsx';
+import {
+    type RaRecord,
+    useRecordContext,
+    OptionalRecordContextProvider,
+} from 'ra-core';
+import { Labeled } from '../Labeled';
 
-import CardContentInner from '../layout/CardContentInner';
-import Labeled from '../input/Labeled';
+/**
+ * Layout for a Show view showing fields in one column.
+ *
+ * It pulls the record from the RecordContext. It renders the record fields in
+ * a single-column layout (via Material UI's `<Stack>` component).
+ * `<SimpleShowLayout>` delegates the actual rendering of fields to its children.
+ * It wraps each field inside a `<Labeled>` component to add a label.
+ *
+ * @example
+ * // in src/posts.js
+ * import * as React from "react";
+ * import { Show, SimpleShowLayout, TextField } from 'react-admin';
+ *
+ * export const PostShow = () => (
+ *     <Show>
+ *         <SimpleShowLayout>
+ *             <TextField source="title" />
+ *         </SimpleShowLayout>
+ *     </Show>
+ * );
+ *
+ * // in src/App.js
+ * import * as React from "react";
+ * import { Admin, Resource } from 'react-admin';
+ *
+ * import { PostShow } from './posts';
+ *
+ * const App = () => (
+ *     <Admin dataProvider={...}>
+ *         <Resource name="posts" show={PostShow} />
+ *     </Admin>
+ * );
+ *
+ * @param {SimpleShowLayoutProps} props
+ * @param {string} props.className A className to apply to the page content.
+ * @param {ElementType} props.component The component to use as root component (div by default).
+ * @param {ReactNode} props.divider An optional divider between each field, passed to `<Stack>`.
+ * @param {number} props.spacing The spacing to use between each field, passed to `<Stack>`. Defaults to 1.
+ * @param {Object} props.sx Custom style object.
+ */
+export const SimpleShowLayout = (inProps: SimpleShowLayoutProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { className, children, spacing = 1, sx, ...rest } = props;
+    const record = useRecordContext(props);
+    if (!record) {
+        return null;
+    }
+    return (
+        <OptionalRecordContextProvider value={props.record}>
+            <Root className={className} sx={sx}>
+                <Stack
+                    spacing={spacing}
+                    {...sanitizeRestProps(rest)}
+                    className={SimpleShowLayoutClasses.stack}
+                >
+                    {Children.map(children, field =>
+                        field && isValidElement<any>(field) ? (
+                            <Labeled
+                                key={field.props.source}
+                                className={clsx(
+                                    'ra-field',
+                                    field.props.source &&
+                                        `ra-field-${field.props.source}`,
+                                    SimpleShowLayoutClasses.row,
+                                    field.props.className
+                                )}
+                            >
+                                {field}
+                            </Labeled>
+                        ) : null
+                    )}
+                </Stack>
+            </Root>
+        </OptionalRecordContextProvider>
+    );
+};
+
+export interface SimpleShowLayoutProps extends StackProps {
+    children: ReactNode;
+    className?: string;
+    record?: RaRecord;
+    sx?: SxProps<Theme>;
+}
+
+const PREFIX = 'RaSimpleShowLayout';
+
+export const SimpleShowLayoutClasses = {
+    stack: `${PREFIX}-stack`,
+    row: `${PREFIX}-row`,
+};
+
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    flex: 1,
+    padding: `${theme.spacing(1)} ${theme.spacing(2)}`,
+    [`& .${SimpleShowLayoutClasses.stack}`]: {},
+    [`& .${SimpleShowLayoutClasses.row}`]: {
+        display: 'inline',
+    },
+}));
 
 const sanitizeRestProps = ({
-    children,
-    className,
     record,
     resource,
-    basePath,
-    version,
     initialValues,
     translate,
     ...rest
 }: any) => rest;
 
-/**
- * Simple Layout for a Show view, showing fields in one column.
- *
- * Receives the current `record` from the parent `<Show>` component,
- * and passes it to its children. Children should be Field-like components.
- *
- * @example
- *     // in src/posts.js
- *     import * as React from "react";
- *     import { Show, SimpleShowLayout, TextField } from 'react-admin';
- *
- *     export const PostShow = (props) => (
- *         <Show {...props}>
- *             <SimpleShowLayout>
- *                 <TextField source="title" />
- *             </SimpleShowLayout>
- *         </Show>
- *     );
- *
- *     // in src/App.js
- *     import * as React from "react";
- *     import { Admin, Resource } from 'react-admin';
- *
- *     import { PostShow } from './posts';
- *
- *     const App = () => (
- *         <Admin dataProvider={...}>
- *             <Resource name="posts" show={PostShow} />
- *         </Admin>
- *     );
- *     export default App;
- */
-const SimpleShowLayout = ({
-    basePath,
-    className,
-    children,
-    record,
-    resource,
-    version,
-    ...rest
-}: SimpleShowLayoutProps) => (
-    <CardContentInner
-        className={className}
-        key={version}
-        {...sanitizeRestProps(rest)}
-    >
-        {Children.map(children, field =>
-            field && isValidElement<any>(field) ? (
-                <div
-                    key={field.props.source}
-                    className={classnames(
-                        `ra-field ra-field-${field.props.source}`,
-                        field.props.className
-                    )}
-                >
-                    {field.props.addLabel ? (
-                        <Labeled
-                            record={record}
-                            resource={resource}
-                            basePath={basePath}
-                            label={field.props.label}
-                            source={field.props.source}
-                            disabled={false}
-                            fullWidth={field.props.fullWidth}
-                        >
-                            {field}
-                        </Labeled>
-                    ) : typeof field.type === 'string' ? (
-                        field
-                    ) : (
-                        cloneElement(field, {
-                            record,
-                            resource,
-                            basePath,
-                        })
-                    )}
-                </div>
-            ) : null
-        )}
-    </CardContentInner>
-);
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaSimpleShowLayout: 'root' | 'stack' | 'row';
+    }
 
-export interface SimpleShowLayoutProps {
-    basePath?: string;
-    className?: string;
-    children: ReactNode;
-    record?: Record;
-    resource?: string;
-    version?: number;
+    interface ComponentsPropsList {
+        RaSimpleShowLayout: Partial<SimpleShowLayoutProps>;
+    }
+
+    interface Components {
+        RaSimpleShowLayout?: {
+            defaultProps?: ComponentsPropsList['RaSimpleShowLayout'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaSimpleShowLayout'];
+        };
+    }
 }
-
-SimpleShowLayout.propTypes = {
-    basePath: PropTypes.string,
-    className: PropTypes.string,
-    children: PropTypes.node,
-    record: PropTypes.object,
-    resource: PropTypes.string,
-    version: PropTypes.number,
-};
-
-export default SimpleShowLayout;

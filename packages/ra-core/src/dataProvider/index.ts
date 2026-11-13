@@ -2,55 +2,42 @@ import convertLegacyDataProvider from './convertLegacyDataProvider';
 import DataProviderContext from './DataProviderContext';
 import HttpError from './HttpError';
 import * as fetchUtils from './fetch';
-import Mutation from './Mutation';
-import Query from './Query';
-import cacheDataProviderProxy from './cacheDataProviderProxy';
 import undoableEventEmitter from './undoableEventEmitter';
-import useDataProvider from './useDataProvider';
-import useMutation, { UseMutationValue } from './useMutation';
-import withDataProvider from './withDataProvider';
-import useGetOne, { UseGetOneHookValue } from './useGetOne';
-import useGetList from './useGetList';
-import { useGetMainList } from './useGetMainList';
-import useGetMany from './useGetMany';
-import useGetManyReference from './useGetManyReference';
-import useGetMatching from './useGetMatching';
-import useUpdate from './useUpdate';
-import useUpdateMany from './useUpdateMany';
-import useCreate from './useCreate';
-import useDelete from './useDelete';
-import useDeleteMany from './useDeleteMany';
-import useRefreshWhenVisible from './useRefreshWhenVisible';
-import useIsAutomaticRefreshEnabled from './useIsAutomaticRefreshEnabled';
 
-export * from './useQueryWithStore';
-export * from './useQuery';
+export * from './addOfflineSupportToQueryClient';
+export * from './combineDataProviders';
+export * from './dataFetchActions';
+export * from './defaultDataProvider';
+export * from './testDataProvider';
+export * from './withLifecycleCallbacks';
+export * from './useDataProvider';
+export * from './useIsDataLoaded';
+export * from './useLoading';
+export * from './useRefresh';
+export * from './useGetOne';
+export * from './useGetList';
+export * from './useGetMany';
+export * from './useGetManyAggregate';
+export * from './useGetManyReference';
+export * from './useGetRecordId';
+export * from './useCreate';
+export * from './useUpdate';
+export * from './useUpdateMany';
+export * from './useDelete';
+export * from './useDeleteMany';
+export * from './useInfiniteGetList';
+export * from './undo/';
+export * from './useMutationWithMutationMode';
 
-export type { UseMutationValue, UseGetOneHookValue };
+export type { Options } from './fetch';
 
 export {
-    cacheDataProviderProxy,
     convertLegacyDataProvider,
     DataProviderContext,
     fetchUtils,
     HttpError,
-    Mutation,
-    Query,
+    /**
+     * @deprecated use the useTakeUndoableMutation hook instead
+     */
     undoableEventEmitter,
-    useDataProvider,
-    useMutation,
-    useGetOne,
-    useGetList,
-    useGetMainList,
-    useGetMany,
-    useGetManyReference,
-    useGetMatching,
-    useUpdate,
-    useUpdateMany,
-    useCreate,
-    useDelete,
-    useDeleteMany,
-    useRefreshWhenVisible,
-    withDataProvider,
-    useIsAutomaticRefreshEnabled,
 };

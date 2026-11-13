@@ -1,176 +1,200 @@
 import * as React from 'react';
-import { FC, Fragment, useState, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import ActionDelete from '@material-ui/icons/Delete';
-import { fade } from '@material-ui/core/styles/colorManipulator';
-import inflection from 'inflection';
-import { makeStyles } from '@material-ui/core/styles';
+import { Fragment, useState } from 'react';
+import ActionDelete from '@mui/icons-material/Delete';
+
 import {
-    useTranslate,
-    useDeleteMany,
-    useRefresh,
-    useNotify,
-    useUnselectAll,
-    CRUD_DELETE_MANY,
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import {
     useResourceContext,
+    useTranslate,
+    type RaRecord,
+    UseBulkDeleteControllerParams,
+    useBulkDeleteController,
+    useListContext,
 } from 'ra-core';
 
-import Confirm from '../layout/Confirm';
-import Button, { ButtonProps } from './Button';
-import { BulkActionProps } from '../types';
+import { Confirm } from '../layout';
+import { Button, type ButtonProps } from './Button';
+import { humanize, inflect } from 'inflection';
 
-const useStyles = makeStyles(
-    theme => ({
-        deleteButton: {
-            color: theme.palette.error.main,
-            '&:hover': {
-                backgroundColor: fade(theme.palette.error.main, 0.12),
-                // Reset on mouse devices
-                '@media (hover: none)': {
-                    backgroundColor: 'transparent',
+export const BulkDeleteWithConfirmButton = React.forwardRef(
+    function BulkDeleteWithConfirmButton(
+        inProps: BulkDeleteWithConfirmButtonProps,
+        ref: React.ForwardedRef<HTMLButtonElement>
+    ) {
+        const props = useThemeProps({
+            props: inProps,
+            name: PREFIX,
+        });
+        const {
+            confirmTitle = 'ra.message.bulk_delete_title',
+            confirmContent = 'ra.message.bulk_delete_content',
+            confirmColor = 'primary',
+            icon = defaultIcon,
+            label = 'ra.action.delete',
+            mutationMode = 'pessimistic',
+            mutationOptions,
+            onClick,
+            ...rest
+        } = props;
+        const { selectedIds } = useListContext();
+        const { handleDelete, isPending } = useBulkDeleteController({
+            mutationMode,
+            ...rest,
+            mutationOptions: {
+                ...mutationOptions,
+                onSettled(...args) {
+                    // In pessimistic mode, we wait for the mutation to be completed (either successfully or with an error) before closing
+                    if (mutationMode === 'pessimistic') {
+                        setOpen(false);
+                    }
+                    mutationOptions?.onSettled?.(...args);
                 },
             },
-        },
-    }),
-    { name: 'RaBulkDeleteWithConfirmButton' }
+        });
+
+        const [isOpen, setOpen] = useState(false);
+        const resource = useResourceContext(props);
+        const translate = useTranslate();
+
+        const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.stopPropagation();
+            setOpen(true);
+        };
+
+        const handleDialogClose = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setOpen(false);
+        };
+
+        const handleConfirm = (e: React.MouseEvent<HTMLButtonElement>) => {
+            e.stopPropagation();
+            // We close the dialog immediately here for optimistic/undoable modes instead of in onSuccess/onError
+            // to avoid reimplementing the default side effects
+            if (mutationMode !== 'pessimistic') {
+                setOpen(false);
+            }
+            handleDelete();
+
+            if (typeof onClick === 'function') {
+                onClick(e);
+            }
+        };
+
+        return (
+            <Fragment>
+                <StyledButton
+                    ref={ref}
+                    onClick={handleClick}
+                    label={label}
+                    color="error"
+                    {...sanitizeRestProps(rest)}
+                >
+                    {icon}
+                </StyledButton>
+                <Confirm
+                    isOpen={isOpen}
+                    loading={isPending}
+                    title={confirmTitle}
+                    content={confirmContent}
+                    confirmColor={confirmColor}
+                    titleTranslateOptions={{
+                        smart_count: selectedIds.length,
+                        name: translate(
+                            `resources.${resource}.forcedCaseName`,
+                            {
+                                smart_count: selectedIds.length,
+                                _: humanize(
+                                    translate(`resources.${resource}.name`, {
+                                        smart_count: selectedIds.length,
+                                        _: resource
+                                            ? inflect(
+                                                  resource,
+                                                  selectedIds.length
+                                              )
+                                            : undefined,
+                                    }),
+                                    true
+                                ),
+                            }
+                        ),
+                    }}
+                    contentTranslateOptions={{
+                        smart_count: selectedIds.length,
+                        name: translate(
+                            `resources.${resource}.forcedCaseName`,
+                            {
+                                smart_count: selectedIds.length,
+                                _: humanize(
+                                    translate(`resources.${resource}.name`, {
+                                        smart_count: selectedIds.length,
+                                        _: resource
+                                            ? inflect(
+                                                  resource,
+                                                  selectedIds.length
+                                              )
+                                            : undefined,
+                                    }),
+                                    true
+                                ),
+                            }
+                        ),
+                    }}
+                    onConfirm={handleConfirm}
+                    onClose={handleDialogClose}
+                />
+            </Fragment>
+        );
+    }
 );
+
+const sanitizeRestProps = ({
+    classes,
+    label,
+    resource,
+    successMessage,
+    mutationOptions,
+    ...rest
+}: Omit<BulkDeleteWithConfirmButtonProps, 'icon' | 'mutationMode'>) => rest;
+
+export interface BulkDeleteWithConfirmButtonProps<
+    RecordType extends RaRecord = any,
+    MutationOptionsError = unknown,
+> extends ButtonProps,
+        UseBulkDeleteControllerParams<RecordType, MutationOptionsError> {
+    confirmContent?: React.ReactNode;
+    confirmTitle?: React.ReactNode;
+    confirmColor?: 'primary' | 'warning';
+    icon?: React.ReactNode;
+}
+
+const PREFIX = 'RaBulkDeleteWithConfirmButton';
+
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(() => ({}));
 
 const defaultIcon = <ActionDelete />;
 
-const BulkDeleteWithConfirmButton: FC<BulkDeleteWithConfirmButtonProps> = props => {
-    const {
-        basePath,
-        classes: classesOverride,
-        confirmTitle = 'ra.message.bulk_delete_title',
-        confirmContent = 'ra.message.bulk_delete_content',
-        icon = defaultIcon,
-        label,
-        onClick,
-        selectedIds,
-        ...rest
-    } = props;
-    const [isOpen, setOpen] = useState(false);
-    const classes = useStyles(props);
-    const notify = useNotify();
-    const unselectAll = useUnselectAll();
-    const refresh = useRefresh();
-    const translate = useTranslate();
-    const resource = useResourceContext(props);
-    const [deleteMany, { loading }] = useDeleteMany(resource, selectedIds, {
-        action: CRUD_DELETE_MANY,
-        onSuccess: () => {
-            refresh();
-            notify('ra.notification.deleted', 'info', {
-                smart_count: selectedIds.length,
-            });
-            unselectAll(resource);
-        },
-        onFailure: error => {
-            notify(
-                typeof error === 'string'
-                    ? error
-                    : error.message || 'ra.notification.http_error',
-                'warning',
-                {
-                    _:
-                        typeof error === 'string'
-                            ? error
-                            : error && error.message
-                            ? error.message
-                            : undefined,
-                }
-            );
-            setOpen(false);
-        },
-    });
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaBulkDeleteWithConfirmButton: 'root';
+    }
 
-    const handleClick = e => {
-        setOpen(true);
-        e.stopPropagation();
-    };
+    interface ComponentsPropsList {
+        RaBulkDeleteWithConfirmButton: Partial<BulkDeleteWithConfirmButtonProps>;
+    }
 
-    const handleDialogClose = () => {
-        setOpen(false);
-    };
-
-    const handleDelete = e => {
-        deleteMany();
-
-        if (typeof onClick === 'function') {
-            onClick(e);
-        }
-    };
-
-    return (
-        <Fragment>
-            <Button
-                onClick={handleClick}
-                label={label}
-                className={classes.deleteButton}
-                {...sanitizeRestProps(rest)}
-            >
-                {icon}
-            </Button>
-            <Confirm
-                isOpen={isOpen}
-                loading={loading}
-                title={confirmTitle}
-                content={confirmContent}
-                translateOptions={{
-                    smart_count: selectedIds.length,
-                    name: translate(`resources.${resource}.forcedCaseName`, {
-                        smart_count: selectedIds.length,
-                        _: inflection.humanize(
-                            translate(`resources.${resource}.name`, {
-                                smart_count: selectedIds.length,
-                                _: inflection.inflect(
-                                    resource,
-                                    selectedIds.length
-                                ),
-                            }),
-                            true
-                        ),
-                    }),
-                }}
-                onConfirm={handleDelete}
-                onClose={handleDialogClose}
-            />
-        </Fragment>
-    );
-};
-
-const sanitizeRestProps = ({
-    basePath,
-    classes,
-    filterValues,
-    label,
-    ...rest
-}: Omit<
-    BulkDeleteWithConfirmButtonProps,
-    'resource' | 'selectedIds' | 'icon'
->) => rest;
-
-export interface BulkDeleteWithConfirmButtonProps
-    extends BulkActionProps,
-        ButtonProps {
-    confirmContent?: React.ReactNode;
-    confirmTitle?: string;
-    icon?: ReactElement;
+    interface Components {
+        RaBulkDeleteWithConfirmButton?: {
+            defaultProps?: ComponentsPropsList['RaBulkDeleteWithConfirmButton'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaBulkDeleteWithConfirmButton'];
+        };
+    }
 }
-
-BulkDeleteWithConfirmButton.propTypes = {
-    basePath: PropTypes.string,
-    classes: PropTypes.object,
-    confirmTitle: PropTypes.string,
-    confirmContent: PropTypes.string,
-    label: PropTypes.string,
-    resource: PropTypes.string,
-    selectedIds: PropTypes.arrayOf(PropTypes.any),
-    icon: PropTypes.element,
-};
-
-BulkDeleteWithConfirmButton.defaultProps = {
-    label: 'ra.action.delete',
-};
-
-export default BulkDeleteWithConfirmButton;

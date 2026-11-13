@@ -1,21 +1,15 @@
 import * as React from 'react';
-import Progress, {
-    LinearProgressProps as ProgressProps,
-} from '@material-ui/core/LinearProgress';
-import PropTypes from 'prop-types';
-import { makeStyles } from '@material-ui/core/styles';
-import classnames from 'classnames';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import {
+    Box,
+    LinearProgress as MuiLinearProgress,
+    type LinearProgressProps as ProgressProps,
+} from '@mui/material';
 import { useTimeout } from 'ra-core';
-
-const useStyles = makeStyles(
-    theme => ({
-        root: {
-            margin: `${theme.spacing(1)}px 0`,
-            width: `${theme.spacing(20)}px`,
-        },
-    }),
-    { name: 'RaLinearProgress' }
-);
 
 /**
  * Progress bar formatted to replace an input or a field in a form layout
@@ -32,20 +26,27 @@ const useStyles = makeStyles(
  *
  * @param {Props} props
  */
-const LinearProgress = ({ timeout = 1000, ...props }: LinearProgressProps) => {
-    const { classes: classesOverride, className, ...rest } = props;
-    const classes = useStyles(props);
+export const LinearProgress = (inProps: LinearProgressProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { className, timeout = 1000, ...rest } = props;
+
     const oneSecondHasPassed = useTimeout(timeout);
 
     return oneSecondHasPassed ? (
-        <Progress className={classnames(classes.root, className)} {...rest} />
-    ) : null;
-};
-
-LinearProgress.propTypes = {
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    timeout: PropTypes.number,
+        <StyledProgress className={className} {...rest} />
+    ) : (
+        <Box
+            component="span"
+            sx={{
+                my: 1,
+                height: 4,
+                display: 'block',
+            }}
+        />
+    );
 };
 
 // What? TypeScript loses the displayName if we don't set it explicitly
@@ -55,4 +56,31 @@ export interface LinearProgressProps extends ProgressProps {
     timeout?: number;
 }
 
-export default LinearProgress;
+const PREFIX = 'RaLinearProgress';
+
+const StyledProgress = styled(MuiLinearProgress, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    margin: `${theme.spacing(1)} 0`,
+    width: theme.spacing(20),
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaLinearProgress: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaLinearProgress: Partial<LinearProgressProps>;
+    }
+
+    interface Components {
+        RaLinearProgress?: {
+            defaultProps?: ComponentsPropsList['RaLinearProgress'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaLinearProgress'];
+        };
+    }
+}

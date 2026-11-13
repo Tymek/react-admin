@@ -1,61 +1,89 @@
 import * as React from 'react';
-import { FC } from 'react';
-import PropTypes from 'prop-types';
-import BulkDeleteWithConfirmButton, {
+import { MutationMode, useCanAccess, useResourceContext } from 'ra-core';
+import { useThemeProps } from '@mui/material/styles';
+
+import {
+    BulkDeleteWithConfirmButton,
     BulkDeleteWithConfirmButtonProps,
 } from './BulkDeleteWithConfirmButton';
-import BulkDeleteWithUndoButton, {
+import {
+    BulkDeleteWithUndoButton,
     BulkDeleteWithUndoButtonProps,
 } from './BulkDeleteWithUndoButton';
 
 /**
  * Deletes the selected rows.
  *
- * To be used inside the <List bulkActionButtons> prop (where it's enabled by default).
+ * To be used inside the <Datagrid bulkActionButtons> prop (where it's enabled by default).
  *
  * @example // basic usage
- * import * as React from 'react';
- * import { Fragment } from 'react';
- * import { BulkDeleteButton, BulkExportButton } from 'react-admin';
+ * import { BulkDeleteButton, BulkExportButton, List, Datagrid } from 'react-admin';
  *
- * const PostBulkActionButtons = ({ basePath }) => (
- *     <Fragment>
+ * const PostBulkActionButtons = () => (
+ *     <>
  *         <BulkExportButton />
- *         <BulkDeleteButton basePath={basePath} />
- *     </Fragment>
+ *         <BulkDeleteButton />
+ *     </>
  * );
  *
- * export const PostList = (props) => (
- *     <List {...props} bulkActionButtons={<PostBulkActionButtons />}>
- *         ...
+ * export const PostList = () => (
+ *     <List>
+ *        <Datagrid bulkActionButtons={<PostBulkActionButtons />}>
+ *             ...
+ *       </Datagrid>
  *     </List>
  * );
  */
-const BulkDeleteButton: FC<BulkDeleteButtonProps> = ({ undoable, ...props }) =>
-    undoable ? (
-        <BulkDeleteWithUndoButton {...props} />
+export const BulkDeleteButton = React.forwardRef(function BulkDeleteButton(
+    inProps: BulkDeleteButtonProps,
+    ref: React.ForwardedRef<HTMLButtonElement>
+) {
+    const { mutationMode = 'undoable', ...props } = useThemeProps({
+        name: PREFIX,
+        props: inProps,
+    });
+
+    const resource = useResourceContext(props);
+    if (!resource) {
+        throw new Error(
+            '<BulkDeleteButton> components should be used inside a <Resource> component or provided with a resource prop.'
+        );
+    }
+    const { canAccess, isPending } = useCanAccess({
+        action: 'delete',
+        resource,
+    });
+    if (!canAccess || isPending) {
+        return null;
+    }
+    return mutationMode === 'undoable' ? (
+        <BulkDeleteWithUndoButton ref={ref} {...props} />
     ) : (
-        <BulkDeleteWithConfirmButton {...props} />
+        <BulkDeleteWithConfirmButton
+            ref={ref}
+            mutationMode={mutationMode}
+            {...props}
+        />
     );
+});
 
 interface Props {
-    undoable?: boolean;
+    mutationMode?: MutationMode;
 }
 
 export type BulkDeleteButtonProps = Props &
     (BulkDeleteWithUndoButtonProps | BulkDeleteWithConfirmButtonProps);
 
-BulkDeleteButton.propTypes = {
-    basePath: PropTypes.string,
-    label: PropTypes.string,
-    resource: PropTypes.string,
-    selectedIds: PropTypes.arrayOf(PropTypes.any),
-    undoable: PropTypes.bool,
-    icon: PropTypes.element,
-};
+const PREFIX = 'RaBulkDeleteButton';
 
-BulkDeleteButton.defaultProps = {
-    undoable: true,
-};
+declare module '@mui/material/styles' {
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<BulkDeleteButtonProps>;
+    }
 
-export default BulkDeleteButton;
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+        };
+    }
+}

@@ -4,7 +4,7 @@ Generates a large JSON object full of fake data for simulating the backend of a 
 
 Used to simulate a REST / GraphQL backend in [react-admin](https://github.com/marmelab/react-admin). To get a glimpse of the test data, browse the [react-admin demo](https://marmelab.com/react-admin-demo/#/).
 
-[![react-admin-demo](https://marmelab.com/react-admin/img/react-admin-demo-still.png)](https://vimeo.com/268958716)
+[![react-admin-demo](https://marmelab.com/react-admin/img/react-admin-demo-still.png)](https://www.youtube.com/watch?v=bJEo1O1oT6o)
 
 ## Usage
 
@@ -18,7 +18,7 @@ console.log(data);
     customers: [ /* ...900 customers */],
     categories: [ /* ...12 categories */],
     products: [ /* ...120 products */],
-    commands: [ /* ...600 orders */],
+    orders: [ /* ...600 orders */],
     invoices: [ /* ...about 500 invoices */],
     reviews: [ /* ... */],
 }
@@ -42,7 +42,7 @@ console.log(data);
   - latest_purchase
   - has_newsletter: boolean
   - groups: array
-  - nb_commands: integer
+  - nb_orders: integer
   - total_spent: integer
 - categories
   - id: number
@@ -58,7 +58,7 @@ console.log(data);
   - image: string
   - description: string
   - stock: integer
-- commands
+- orders
   - id: integer
   - reference: string
   - date: date
@@ -74,7 +74,7 @@ console.log(data);
 - invoices
   - id: integer
   - date: date
-  - command_id: integer
+  - order_id: integer
   - customer_id: integer
   - total_ex_taxes: float
   - delivery_fees: float
@@ -85,7 +85,7 @@ console.log(data);
   - id: integer
   - date: date
   - status: 'pending' | 'accepted' | 'rejected'
-  - command_id: integer
+  - order_id: integer
   - product_id: integer
   - customer_id: integer
   - rating: integer

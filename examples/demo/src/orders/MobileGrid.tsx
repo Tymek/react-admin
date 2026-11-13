@@ -1,8 +1,6 @@
 // in src/comments.js
 import * as React from 'react';
-import { FC } from 'react';
-import { Card, CardHeader, CardContent } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
+import { Box, Card, CardHeader, CardContent, Typography } from '@mui/material';
 import {
     DateField,
     EditButton,
@@ -10,119 +8,80 @@ import {
     TextField,
     BooleanField,
     useTranslate,
-    RecordMap,
-    Identifier,
-    Record,
+    useListContext,
+    RecordContextProvider,
 } from 'react-admin';
 
 import CustomerReferenceField from '../visitors/CustomerReferenceField';
+import { Order } from '../types';
 
-const useListStyles = makeStyles(theme => ({
-    card: {
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        margin: '0.5rem 0',
-    },
-    cardTitleContent: {
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    cardContent: theme.typography.body1,
-    cardContentRow: {
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        margin: '0.5rem 0',
-    },
-}));
-
-interface MobileGridProps {
-    ids?: Identifier[];
-    data?: RecordMap<Record>;
-    basePath?: string;
-}
-
-const MobileGrid: FC<MobileGridProps> = ({ ids, data, basePath }) => {
+const MobileGrid = () => {
+    const { data, error, isPending } = useListContext<Order>();
     const translate = useTranslate();
-    const classes = useListStyles();
-
-    if (!ids || !data || !basePath) {
+    if (isPending || error || data.length === 0) {
         return null;
     }
-
     return (
-        <div style={{ margin: '1em' }}>
-            {ids.map(id => (
-                <Card key={id} className={classes.card}>
-                    <CardHeader
-                        title={
-                            <div className={classes.cardTitleContent}>
-                                <span>
-                                    {translate('resources.commands.name', 1)}
-                                    :&nbsp;
+        <Box
+            sx={{
+                margin: '0.5em',
+            }}
+        >
+            {data.map(record => (
+                <RecordContextProvider key={record.id} value={record}>
+                    <Card sx={{ margin: '0.5rem 0' }}>
+                        <CardHeader
+                            title={
+                                <>
+                                    {translate('resources.orders.name', 1)} #
                                     <TextField
-                                        record={data[id]}
                                         source="reference"
+                                        variant="body1"
                                     />
-                                </span>
-                                <EditButton
-                                    resource="commands"
-                                    basePath={basePath}
-                                    record={data[id]}
-                                />
-                            </div>
-                        }
-                    />
-                    <CardContent className={classes.cardContent}>
-                        <span className={classes.cardContentRow}>
-                            {translate('resources.customers.name', 1)}:&nbsp;
+                                </>
+                            }
+                            titleTypographyProps={{ variant: 'body1' }}
+                            action={<EditButton />}
+                        />
+                        <CardContent sx={{ pt: 0 }}>
                             <CustomerReferenceField
-                                record={data[id]}
-                                basePath={basePath}
+                                source="customer_id"
+                                sx={{ display: 'block', mb: 1 }}
                             />
-                        </span>
-                        <span className={classes.cardContentRow}>
-                            {translate('resources.reviews.fields.date')}:&nbsp;
-                            <DateField
-                                record={data[id]}
-                                source="date"
-                                showTime
-                            />
-                        </span>
-                        <span className={classes.cardContentRow}>
-                            {translate(
-                                'resources.commands.fields.basket.total'
-                            )}
-                            :&nbsp;
-                            <NumberField
-                                record={data[id]}
-                                source="total"
-                                options={{ style: 'currency', currency: 'USD' }}
-                            />
-                        </span>
-                        <span className={classes.cardContentRow}>
-                            {translate('resources.commands.fields.status')}
-                            :&nbsp;
-                            <TextField source="status" record={data[id]} />
-                        </span>
-                        <span className={classes.cardContentRow}>
-                            {translate('resources.commands.fields.returned')}
-                            :&nbsp;
-                            <BooleanField record={data[id]} source="returned" />
-                        </span>
-                    </CardContent>
-                </Card>
+                            <Typography variant="body2" gutterBottom>
+                                {translate('resources.reviews.fields.date')}
+                                :&nbsp;
+                                <DateField source="date" showTime />
+                            </Typography>
+                            <Typography variant="body2" gutterBottom>
+                                {translate(
+                                    'resources.orders.fields.basket.total'
+                                )}
+                                :&nbsp;
+                                <NumberField
+                                    source="total"
+                                    options={{
+                                        style: 'currency',
+                                        currency: 'USD',
+                                    }}
+                                />
+                            </Typography>
+                            <Typography variant="body2" gutterBottom>
+                                {translate('resources.orders.fields.status')}
+                                :&nbsp;
+                                <TextField source="status" />
+                            </Typography>
+                            <Typography variant="body2">
+                                {translate('resources.orders.fields.returned')}
+                                :&nbsp;
+                                <BooleanField source="returned" />
+                            </Typography>
+                        </CardContent>
+                    </Card>
+                </RecordContextProvider>
             ))}
-        </div>
+        </Box>
     );
-};
-
-MobileGrid.defaultProps = {
-    data: {},
-    ids: [],
 };
 
 export default MobileGrid;

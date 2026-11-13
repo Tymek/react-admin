@@ -1,16 +1,12 @@
 import * as React from 'react';
-import { FunctionComponent, ComponentType } from 'react';
 
-import CoreAdminContext from './CoreAdminContext';
-import CoreAdminUI from './CoreAdminUI';
-import { AdminProps } from '../types';
-
-export type ChildrenFunction = () => ComponentType[];
+import { CoreAdminContext, CoreAdminContextProps } from './CoreAdminContext';
+import { CoreAdminUI, CoreAdminUIProps } from './CoreAdminUI';
 
 /**
  * Main admin component, entry point to the application.
  *
- * Initializes the various contexts (auth, data, i18n, redux, router)
+ * Initializes the various contexts (auth, data, i18n, router)
  * and defines the main routes.
  *
  * Expects a list of resources as children, or a function returning a list of
@@ -28,9 +24,9 @@ export type ChildrenFunction = () => ComponentType[];
  * } from 'ra-core';
  *
  * const App = () => (
- *     <Core dataProvider={myDataProvider}>
+ *     <CoreAdmin dataProvider={myDataProvider}>
  *         <Resource name="posts" list={ListGuesser} />
- *     </Core>
+ *     </CoreAdmin>
  * );
  *
  * // dynamic list of resources based on permissions
@@ -86,50 +82,52 @@ export type ChildrenFunction = () => ComponentType[];
  *     );
  * };
  */
-const CoreAdmin: FunctionComponent<AdminProps> = ({
-    appLayout,
-    authProvider,
-    catchAll,
-    children,
-    customReducers,
-    customRoutes = [],
-    customSagas,
-    dashboard,
-    dataProvider,
-    disableTelemetry,
-    history,
-    i18nProvider,
-    initialState,
-    layout,
-    loading,
-    loginPage,
-    logoutButton,
-    menu, // deprecated, use a custom layout instead
-    theme,
-    title = 'React Admin',
-}) => {
+export const CoreAdmin = (props: CoreAdminProps) => {
+    const {
+        accessDenied,
+        authenticationError,
+        authProvider,
+        basename,
+        catchAll,
+        children,
+        dashboard,
+        dataProvider,
+        disableTelemetry,
+        error,
+        i18nProvider,
+        layout,
+        loading,
+        loginPage,
+        queryClient,
+        ready,
+        requireAuth,
+        routerProvider,
+        store,
+        title = 'React Admin',
+    } = props;
     return (
         <CoreAdminContext
             authProvider={authProvider}
+            basename={basename}
             dataProvider={dataProvider}
             i18nProvider={i18nProvider}
-            history={history}
-            customReducers={customReducers}
-            customSagas={customSagas}
-            initialState={initialState}
+            queryClient={queryClient}
+            routerProvider={routerProvider}
+            store={store}
         >
             <CoreAdminUI
-                layout={appLayout || layout}
-                customRoutes={customRoutes}
+                accessDenied={accessDenied}
+                authenticationError={authenticationError}
+                catchAll={catchAll}
                 dashboard={dashboard}
                 disableTelemetry={disableTelemetry}
-                menu={menu}
-                catchAll={catchAll}
-                theme={theme}
-                title={title}
+                error={error}
+                layout={layout}
                 loading={loading}
                 loginPage={loginPage}
-                logout={authProvider ? logoutButton : undefined}
+                ready={ready}
+                requireAuth={requireAuth}
+                title={title}
             >
                 {children}
             </CoreAdminUI>
@@ -137,4 +135,4 @@ const CoreAdmin: FunctionComponent<AdminProps> = ({
     );
 };
 
-export default CoreAdmin;
+export type CoreAdminProps = CoreAdminContextProps & CoreAdminUIProps;

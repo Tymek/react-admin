@@ -1,11 +1,9 @@
-import * as React from 'react';
-import { useEffect, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import { Box, Link } from '@material-ui/core';
-import AttachMoneyIcon from '@material-ui/icons/AttachMoney';
-import { useGetList } from 'react-admin';
-import { startOfMonth, format } from 'date-fns';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import { Box, Stack, Typography } from '@mui/material';
 import { ResponsiveBar } from '@nivo/bar';
+import { format, startOfMonth } from 'date-fns';
+import { useMemo } from 'react';
+import { useGetList } from 'react-admin';
 
 import { Deal } from '../types';
 
@@ -16,22 +14,27 @@ const multiplier = {
     delayed: 0.3,
 };
 
+const threeMonthsAgo = new Date(
+    new Date().setMonth(new Date().getMonth() - 6)
+).toISOString();
+
 export const DealsChart = () => {
-    const { data, ids, loaded } = useGetList<Deal>(
-        'deals',
-        { perPage: 100, page: 1 },
-        {
-            field: 'start_at',
+    const { data, isPending } = useGetList<Deal>('deals', {
+        pagination: { perPage: 100, page: 1 },
+        sort: {
+            field: 'created_at',
             order: 'ASC',
-        }
-    );
-    const [months, setMonths] = useState<any[]>([]);
-
-    useEffect(() => {
-        const deals = ids.map(id => data[id]);
-
-        const dealsByMonth = deals.reduce((acc, deal) => {
-            const month = startOfMonth(new Date(deal.start_at)).toISOString();
+        },
+        filter: {
+            'created_at@gte': threeMonthsAgo,
+        },
+    });
+    const months = useMemo(() => {
+        if (!data) return [];
+        const dealsByMonth = data.reduce((acc, deal) => {
+            const month = startOfMonth(
+                deal.created_at ?? new Date()
+            ).toISOString();
             if (!acc[month]) {
                 acc[month] = [];
             }
@@ -41,7 +44,7 @@ export const DealsChart = () => {
 
         const amountByMonth = Object.keys(dealsByMonth).map(month => {
             return {
-                date: format(new Date(month), 'MMM'),
+                date: format(month, 'MMM'),
                 won: dealsByMonth[month]
                     .filter((deal: Deal) => deal.stage === 'won')
                     .reduce((acc: number, deal: Deal) => {
@@ -66,11 +69,10 @@ export const DealsChart = () => {
             };
         });
 
-        setMonths(amountByMonth);
-    }, [ids, data]);
+        return amountByMonth;
+    }, [data]);
 
-    if (!loaded) return null; // FIXME return skeleton instead
-
+    if (isPending) return null; // FIXME return skeleton instead
     const range = months.reduce(
         (acc, month) => {
             acc.min = Math.min(acc.min, month.lost);
@@ -79,30 +81,23 @@ export const DealsChart = () => {
         },
         { min: 0, max: 0 }
     );
-
     return (
-        <>
-            <Box display="flex" alignItems="center">
-                <Box ml={2} mr={2} display="flex">
-                    <AttachMoneyIcon color="disabled" fontSize="large" />
+        <Stack>
+            <Box display="flex" alignItems="center" mb={1}>
+                <Box mr={1} display="flex">
+                    <AttachMoneyIcon color="disabled" fontSize="medium" />
                 </Box>
-                <Link
-                    underline="none"
-                    variant="h5"
-                    color="textSecondary"
-                    component={RouterLink}
-                    to="/deals"
-                >
+                <Typography variant="h5" color="textSecondary">
                     Upcoming Deal Revenue
-                </Link>
+                </Typography>
             </Box>
-            <Box height={500}>
+            <Box height={400}>
                 <ResponsiveBar
                     data={months}
                     indexBy="date"
                     keys={['won', 'pending', 'lost']}
                     colors={['#61cdbb', '#97e3d5', '#e25c3b']}
-                    margin={{ top: 50, right: 50, bottom: 50, left: 0 }}
+                    margin={{ top: 30, right: 50, bottom: 30, left: 0 }}
                     padding={0.3}
                     valueScale={{
                         type: 'linear',
@@ -155,6 +150,6 @@ export const DealsChart = () => {
                     }
                 />
             </Box>
-        </>
+        </Stack>
     );
 };

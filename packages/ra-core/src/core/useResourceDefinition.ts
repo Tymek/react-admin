@@ -1,39 +1,75 @@
-import { useSelector } from 'react-redux';
-import merge from 'lodash/merge';
-import { getResources } from '../reducer';
-import { ResourceDefinition } from '../types';
-import { useResourceContext } from './useResourceContext';
 import { useMemo } from 'react';
+import defaults from 'lodash/defaults.js';
+
+import { useResourceDefinitions } from './useResourceDefinitions';
+import { useResourceContext } from './useResourceContext';
+import {
+    RecordToStringFunction,
+    ResourceDefinition,
+    ResourceOptions,
+} from '../types';
 
 /**
- * Hook which returns the definition of the requested resource
+ * Hook to get the definition of a given resource
+ *
+ * @example // Get the current resource definition (based on ResourceContext)
+ *
+ * const definition = useResourceDefinition();
+ * console.log(definition);
+ * // {
+ * //   name: 'posts',
+ * //   hasList: true,
+ * //   hasEdit: true,
+ * //   hasShow: true,
+ * //   hasCreate: true,
+ * //   options: {},
+ * //   icon: PostIcon,
+ * // }
+ *
+ * @example // Pass a resource prop to check a different resource definition
+ *
+ * const definition = useResourceDefinition({ resource: 'posts' });
  */
-export const useResourceDefinition = (
-    props: UseResourceDefinitionOptions
-): ResourceDefinition => {
+export const useResourceDefinition = <
+    OptionsType extends ResourceOptions = any,
+>(
+    props?: UseResourceDefinitionOptions
+): ResourceDefinition<OptionsType> => {
     const resource = useResourceContext(props);
-    const resources = useSelector(getResources);
-    const { hasCreate, hasEdit, hasList, hasShow } = props;
+    const resourceDefinitions = useResourceDefinitions();
+    const { hasCreate, hasEdit, hasList, hasShow, recordRepresentation } =
+        props || {};
 
     const definition = useMemo(() => {
-        const definitionFromRedux = resources.find(r => r?.name === resource);
-        return merge({}, definitionFromRedux, {
-            hasCreate,
-            hasEdit,
-            hasList,
-            hasShow,
-        });
-    }, [resource, resources, hasCreate, hasEdit, hasList, hasShow]);
+        return defaults(
+            {},
+            {
+                hasCreate,
+                hasEdit,
+                hasList,
+                hasShow,
+                recordRepresentation,
+            },
+            resource ? resourceDefinitions[resource] : {}
+        ) as ResourceDefinition<OptionsType>;
+    }, [
+        resource,
+        resourceDefinitions,
+        hasCreate,
+        hasEdit,
+        hasList,
+        hasShow,
+        recordRepresentation,
+    ]);
 
     return definition;
 };
 
 export interface UseResourceDefinitionOptions {
     readonly resource?: string;
-    readonly options?: any;
     readonly hasList?: boolean;
     readonly hasEdit?: boolean;
     readonly hasShow?: boolean;
     readonly hasCreate?: boolean;
-    readonly icon?: any;
+    readonly recordRepresentation?: React.ReactNode | RecordToStringFunction;
 }

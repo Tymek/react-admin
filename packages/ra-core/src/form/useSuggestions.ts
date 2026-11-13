@@ -1,22 +1,23 @@
-import { useCallback, isValidElement } from 'react';
-import set from 'lodash/set';
-import useChoices, { OptionText, UseChoicesOptions } from './useChoices';
+import { useCallback, isValidElement, ReactElement } from 'react';
+import set from 'lodash/set.js';
+import {
+    useChoices,
+    OptionText,
+    UseChoicesOptions,
+} from './choices/useChoices';
 import { useTranslate } from '../i18n';
 
 /*
  * Returns helper functions for suggestions handling.
  *
  * @param allowDuplicates A boolean indicating whether a suggestion can be added several times
- * @param allowEmpty A boolean indicating whether an empty suggestion should be added
  * @param choices An array of available choices
- * @param emptyText The text to use for the empty suggestion. Defaults to an empty string
- * @param emptyValue The value to use for the empty suggestion. Defaults to `null`
  * @param limitChoicesToValue A boolean indicating whether the initial suggestions should be limited to the currently selected one(s)
  * @param matchSuggestion Optional unless `optionText` is a React element. Function which check whether a choice matches a filter. Must return a boolean.
  * @param optionText Either a string defining the property to use to get the choice text, a function or a React element
  * @param optionValue The property to use to get the choice value
- * @param selectedItem The currently selected item. May be an array of selected items
- * @param suggestionLimit The maximum number of suggestions returned, excluding the empty one if `allowEmpty` is `true`
+ * @param selectedItem The currently selected item. Maybe an array of selected items
+ * @param suggestionLimit The maximum number of suggestions returned
  * @param translateChoice A boolean indicating whether to option text should be translated
  *
  * @returns An object with helper functions:
@@ -24,15 +25,12 @@ import { useTranslate } from '../i18n';
  * - getChoiceValue: Returns the choice value
  * - getSuggestions: A function taking a filter value (string) and returning the matching suggestions
  */
-const useSuggestions = ({
+export const useSuggestions = ({
     allowCreate,
-    allowDuplicates,
-    allowEmpty,
     choices,
     createText = 'ra.action.create',
     createValue = '@@create',
-    emptyText = '',
-    emptyValue = null,
+    createHintValue = '@@ra-create-hint',
     limitChoicesToValue,
     matchSuggestion,
     optionText,
@@ -46,19 +44,17 @@ const useSuggestions = ({
         optionText,
         optionValue,
         translateChoice,
+        createValue,
+        createHintValue,
     });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const getSuggestions = useCallback(
         getSuggestionsFactory({
             allowCreate,
-            allowDuplicates,
-            allowEmpty,
             choices,
             createText,
             createValue,
-            emptyText: translate(emptyText, { _: emptyText }),
-            emptyValue,
             getChoiceText,
             getChoiceValue,
             limitChoicesToValue,
@@ -70,13 +66,9 @@ const useSuggestions = ({
         }),
         [
             allowCreate,
-            allowDuplicates,
-            allowEmpty,
             choices,
             createText,
             createValue,
-            emptyText,
-            emptyValue,
             getChoiceText,
             getChoiceValue,
             limitChoicesToValue,
@@ -96,20 +88,14 @@ const useSuggestions = ({
     };
 };
 
-export default useSuggestions;
-
 const escapeRegExp = value =>
     value ? value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : ''; // $& means the whole matched string
 
 export interface UseSuggestionsOptions extends UseChoicesOptions {
     allowCreate?: boolean;
     allowDuplicates?: boolean;
-    allowEmpty?: boolean;
-    choices: any[];
+    choices?: any[];
     createText?: string;
-    createValue?: any;
-    emptyText?: string;
-    emptyValue?: any;
     limitChoicesToValue?: boolean;
     matchSuggestion?: (
         filter: string,
@@ -123,25 +109,23 @@ export interface UseSuggestionsOptions extends UseChoicesOptions {
 /**
  * Default matcher implementation which check whether the suggestion text matches the filter.
  */
-const defaultMatchSuggestion = getChoiceText => (
-    filter,
-    suggestion,
-    exact = false
-) => {
-    const suggestionText = getChoiceText(suggestion);
+const defaultMatchSuggestion =
+    getChoiceText =>
+    (filter, suggestion, exact = false) => {
+        const suggestionText = getChoiceText(suggestion);
 
-    const isReactElement = isValidElement(suggestionText);
-    const regex = escapeRegExp(filter);
+        const isReactElement = isValidElement(suggestionText);
+        const regex = escapeRegExp(filter);
 
-    return isReactElement
-        ? false
-        : suggestionText &&
-              suggestionText.match(
-                  // We must escape any RegExp reserved characters to avoid errors
-                  // For example, the filter might contains * which must be escaped as \*
-                  new RegExp(exact ? `^${regex}$` : regex, 'i')
-              );
-};
+        return isReactElement
+            ? false
+            : suggestionText &&
+                  !!suggestionText.match(
+                      // We must escape any RegExp reserved characters to avoid errors
+                      // For example, the filter might contain * which must be escaped as \*
+                      new RegExp(exact ? `^${regex}$` : regex, 'i')
+                  );
+    };
 
 /**
  * Get the suggestions to display after applying a fuzzy search on the available choices
@@ -165,129 +149,90 @@ const defaultMatchSuggestion = getChoiceText => (
  *
  * // Will return [{ id: 2, name: 'publisher' }]
  */
-export const getSuggestionsFactory = ({
-    allowCreate = false,
-    allowDuplicates = false,
-    allowEmpty = false,
-    choices = [],
-    createText = 'ra.action.create',
-    createValue = '@@create',
-    emptyText = '',
-    emptyValue = null,
-    optionText = 'name',
-    optionValue = 'id',
-    getChoiceText,
-    getChoiceValue,
-    limitChoicesToValue = false,
-    matchSuggestion = defaultMatchSuggestion(getChoiceText),
-    selectedItem,
-    suggestionLimit = 0,
-}: UseSuggestionsOptions & {
-    getChoiceText: (choice: any) => string;
-    getChoiceValue: (choice: any) => string;
-}) => filter => {
-    let suggestions = [];
-    // if an item is selected and matches the filter
-    if (
-        selectedItem &&
-        !Array.isArray(selectedItem) &&
-        matchSuggestion(filter, selectedItem)
-    ) {
-        if (limitChoicesToValue) {
-            // display only the selected item
+export const getSuggestionsFactory =
+    ({
+        allowCreate = false,
+        choices = [],
+        createText = 'ra.action.create',
+        createValue = '@@create',
+        optionText = 'name',
+        optionValue = 'id',
+        getChoiceText,
+        getChoiceValue,
+        limitChoicesToValue = false,
+        matchSuggestion = defaultMatchSuggestion(getChoiceText),
+        selectedItem,
+        suggestionLimit = 0,
+    }: UseSuggestionsOptions & {
+        getChoiceText: (choice: any) => string | ReactElement;
+        getChoiceValue: (choice: any) => string;
+    }) =>
+    filter => {
+        let suggestions: any[] = [];
+        // if an item is selected and matches the filter
+        if (
+            selectedItem &&
+            !Array.isArray(selectedItem) &&
+            matchSuggestion(filter, selectedItem)
+        ) {
+            if (limitChoicesToValue) {
+                // display only the selected item
+                suggestions = choices.filter(
+                    choice =>
+                        getChoiceValue(choice) === getChoiceValue(selectedItem)
+                );
+            } else {
+                suggestions = [...choices];
+            }
+        } else {
             suggestions = choices.filter(
                 choice =>
-                    getChoiceValue(choice) === getChoiceValue(selectedItem)
-            );
-        } else if (!allowDuplicates) {
-            // ignore the filter to show more choices
-            suggestions = removeAlreadySelectedSuggestions(
-                choices,
-                selectedItem,
-                getChoiceValue
-            );
-        } else {
-            suggestions = choices;
-        }
-    } else {
-        suggestions = choices.filter(choice => matchSuggestion(filter, choice));
-        if (!allowDuplicates) {
-            suggestions = removeAlreadySelectedSuggestions(
-                suggestions,
-                selectedItem,
-                getChoiceValue
+                    matchSuggestion(filter, choice) ||
+                    (selectedItem != null &&
+                        (!Array.isArray(selectedItem)
+                            ? getChoiceValue(choice) ===
+                              getChoiceValue(selectedItem)
+                            : selectedItem.some(
+                                  selected =>
+                                      getChoiceValue(choice) ===
+                                      getChoiceValue(selected)
+                              )))
             );
         }
-    }
 
-    suggestions = limitSuggestions(suggestions, suggestionLimit);
+        suggestions = limitSuggestions(suggestions, suggestionLimit);
 
-    const hasExactMatch = suggestions.some(suggestion =>
-        matchSuggestion(filter, suggestion, true)
-    );
-
-    if (allowCreate) {
-        const filterIsSelectedItem =
-            // If the selectedItem is an array (for example AutocompleteArrayInput)
-            // we should't try to match
-            !!selectedItem && !Array.isArray(selectedItem)
-                ? matchSuggestion(filter, selectedItem, true)
-                : false;
-        if (!hasExactMatch && !filterIsSelectedItem) {
-            suggestions.push(
-                getSuggestion({
-                    optionText,
-                    optionValue,
-                    text: createText,
-                    value: createValue,
-                })
-            );
-        }
-    }
-
-    if (allowEmpty) {
-        suggestions.unshift(
-            getSuggestion({
-                optionText,
-                optionValue,
-                text: emptyText,
-                value: emptyValue,
-            })
+        const hasExactMatch = suggestions.some(suggestion =>
+            matchSuggestion(filter, suggestion, true)
         );
-    }
-    return suggestions;
-};
 
-/**
- * @example
- *
- * removeAlreadySelectedSuggestions(
- *  [{ id: 1, name: 'foo'}, { id: 2, name: 'bar' }],
- *  [{ id: 1, name: 'foo'}]
- * );
- *
- * // Will return [{ id: 2, name: 'bar' }]
- *
- * @param suggestions List of suggestions
- * @param selectedItems List of selection
- * @param getChoiceValue Converter function from suggestion to value
- */
-const removeAlreadySelectedSuggestions = (
-    suggestions: any[],
-    selectedItems: any[] | any,
-    getChoiceValue: (suggestion: any) => any
-) => {
-    if (!selectedItems) {
-        return suggestions;
-    }
-    const selectedValues = Array.isArray(selectedItems)
-        ? selectedItems.map(getChoiceValue)
-        : [getChoiceValue(selectedItems)];
+        if (allowCreate) {
+            const filterIsSelectedItem =
+                // If the selectedItem is an array (for example AutocompleteArrayInput)
+                // we shouldn't try to match
+                !!selectedItem && !Array.isArray(selectedItem)
+                    ? matchSuggestion(filter, selectedItem, true)
+                    : false;
+            if (!hasExactMatch && !filterIsSelectedItem) {
+                suggestions.push(
+                    getSuggestion({
+                        optionText,
+                        optionValue,
+                        text: createText,
+                        value: createValue,
+                    })
+                );
+            }
+        }
 
-    return suggestions.filter(
-        suggestion => !selectedValues.includes(getChoiceValue(suggestion))
-    );
-};
+        // Only keep unique items. Necessary because we might have fetched
+        // the currently selected choice in addition of the possible choices
+        // that may also contain it
+        const result = suggestions.filter(
+            (suggestion, index) => suggestions.indexOf(suggestion) === index
+        );
+        return result;
+    };
 
 /**
  * @example
@@ -312,7 +257,7 @@ const limitSuggestions = (suggestions: any[], limit: any = 0) =>
  *  [{ id: 1, name: 'foo'}, { id: 2, name: 'bar' }],
  * );
  *
- * // Will return [{ id: null, name: '' }, { id: 1, name: 'foo' }, , { id: 2, name: 'bar' }]
+ * // Will return [{ id: null, name: '' }, { id: 1, name: 'foo' }, { id: 2, name: 'bar' }]
  *
  * @param suggestions List of suggestions
  * @param options

@@ -1,50 +1,211 @@
-name: "Test - action"
+name: 'Test - action'
 
-on: 
+on:
   push:
-    paths-ignore:
-      - 'docs/**'
     branches:
       - master
       - next
+    tags:
+      - '*'
   pull_request:
-    paths-ignore:
-      - 'docs/**'
+
+permissions:
+  contents: read
 
 jobs:
-  unit-test:
+  typecheck:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
     - name: Use Node.js LTS
-      uses: actions/setup-node@v1
+      uses: actions/setup-node@v4
       with:
-        node-version: '14.x'
-    - uses: bahmutov/npm-install@v1
+        node-version: '22.x'
+        cache: 'yarn'
+    - name: Install dependencies
+      run: yarn
+    - name: Lint
+      run: make lint        
     - name: Build
       run: make build
-    - name: Lint
-      run: make lint
-    - name: Unit Tests
-      run: make test-unit
-      env:
-        CI: true
+    - name: Zip packages build artifact
+      run: zip packages-build.zip -r examples/data-generator/dist packages/*/dist
+    - name: Upload packages build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: packages-build
+        path: packages-build.zip
+        retention-days: 1
+
+  simple-example-typecheck:
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Use Node.js LTS
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+        cache: 'yarn'
+    - name: Install dependencies
+      run: yarn
+    - name: Download packages build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: packages-build
+    - name: Unzip packages build artifact
+      run: unzip -o -u packages-build.zip
+    - name: Type check simple example
+      run: cd examples/simple && yarn type-check
+
+  doc-videos-format-check:
+    runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Videos format check
+        run: make check-documentation-videos-format
+
+  doc-check:
+    runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Jekyll build
+        run: docker run -v="${PWD}/docs:/site" bretfisher/jekyll build
+
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn
+      - name: Unit Tests
+        run: make test-unit
+        env:
+          CI: true
 
   e2e-test:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-    - name: Use Node.js LTS
-      uses: actions/setup-node@v1
-      with:
-        node-version: '14.x'
-    - uses: bahmutov/npm-install@v1
-    - name: Build
-      run: make build
-    - name: e2e Tests
-      run: make test-e2e
-      env:
-        CI: true
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn
+      - name: e2e Tests
+        run: make test-e2e
+        env:
+          CI: true
 
+  e-commerce:
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn
+      - name: Download packages build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-build
+      - name: Unzip packages build artifact
+        run: unzip -o -u packages-build.zip
+      - name: Build e-commerce
+        run: make build-demo
+        env:
+          # Needed as workaround for Vite https://github.com/vitejs/vite/issues/2433#issuecomment-831399876
+          # value = (your memory in GiB, 6.51 for GH Actions) * 1024 - 512
+          NODE_OPTIONS: '--max-old-space-size=6163'
+      - name: Zip demo build
+        run: zip demo-build.zip -r examples/demo/dist examples/demo/package.json
+      - name: Upload demo build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-build
+          path: demo-build.zip
+          retention-days: 1
+
+  crm:
+    runs-on: ubuntu-latest
+    if: github.ref_type != 'tag'
+    needs: [typecheck]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn
+      - name: Download packages build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-build
+      - name: Unzip packages build artifact
+        run: unzip -o -u packages-build.zip
+      - name: Build crm
+        run: make build-crm
+
+  create-react-admin:
+    runs-on: ubuntu-latest
+    name: create-react-admin
+    needs: []
+    if: success() && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/next')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn
+      - name: Build create-react-admin
+        run: make build-create-react-admin install
+      - name: Create new project
+        run: ./node_modules/.bin/create-react-admin myadmin --data-provider ra-data-fakerest --auth-provider local-auth-provider --resource posts --resource comments --install npm
+      - name: Run the tests
+        working-directory: ./myadmin
+        run: npm run test
+
+  update-sandbox-repository:
+    runs-on: ubuntu-latest
+    # Only run on new tags that target a release (not latest nor next) and avoid alpha and beta tags
+    if: github.event_name == 'push' && github.ref_type == 'tag' && contains(github.ref, 'refs/tags/v') && !contains('beta', github.ref) && !contains('alpha', github.ref)
+    needs: [typecheck, simple-example-typecheck, unit-test, e2e-test]
+    steps:
+        - name: Checkout
+          uses: actions/checkout@v3
+        - name: Use Node.js LTS
+          uses: actions/setup-node@v3
+          with:
+              node-version: '22.x'
+        - name: Update Sandbox Repository
+          env:
+              SSH_SANDBOX_DEPLOY_KEY: ${{ secrets.SSH_SANDBOX_DEPLOY_KEY }}
+              SANDBOX_REPOSITORY: ${{ secrets.SANDBOX_REPOSITORY }}
+          run: make update-sandbox

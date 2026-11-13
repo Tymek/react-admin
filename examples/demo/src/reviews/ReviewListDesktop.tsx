@@ -1,68 +1,95 @@
 import * as React from 'react';
-import { FC } from 'react';
 import {
-    Identifier,
-    Datagrid,
+    BulkDeleteButton,
+    DataTable,
     DateField,
-    TextField,
-    DatagridProps,
+    Identifier,
+    useCreatePath,
 } from 'react-admin';
-import { makeStyles } from '@material-ui/core/styles';
+import { useNavigate } from 'react-router';
 
 import ProductReferenceField from '../products/ProductReferenceField';
 import CustomerReferenceField from '../visitors/CustomerReferenceField';
 import StarRatingField from './StarRatingField';
-import rowStyle from './rowStyle';
+import rowSx from './rowSx';
+import BulkAcceptButton from './BulkAcceptButton';
+import BulkRejectButton from './BulkRejectButton';
+import { type Review } from '../types';
 
-const useListStyles = makeStyles({
-    headerRow: {
-        borderLeftColor: 'transparent',
-        borderLeftWidth: 5,
-        borderLeftStyle: 'solid',
-    },
-    headerCell: {
-        padding: '6px 8px 6px 8px',
-    },
-    rowCell: {
-        padding: '6px 8px 6px 8px',
-    },
-    comment: {
-        maxWidth: '18em',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-    },
-});
-
-export interface ReviewListDesktopProps extends DatagridProps {
+export interface ReviewListDesktopProps {
     selectedRow?: Identifier;
 }
 
-const ReviewListDesktop: FC<ReviewListDesktopProps> = ({
-    selectedRow,
-    ...props
-}) => {
-    const classes = useListStyles();
+const ReviewsBulkActionButtons = () => (
+    <>
+        <BulkAcceptButton />
+        <BulkRejectButton />
+        <BulkDeleteButton />
+    </>
+);
+
+const Table = DataTable<Review>;
+const Column = DataTable.Col<Review>;
+
+const ReviewListDesktop = ({ selectedRow }: ReviewListDesktopProps) => {
+    const navigate = useNavigate();
+    const createPath = useCreatePath();
     return (
-        <Datagrid
-            rowClick="edit"
-            // @ts-ignore
-            rowStyle={rowStyle(selectedRow)}
-            classes={{
-                headerRow: classes.headerRow,
-                headerCell: classes.headerCell,
-                rowCell: classes.rowCell,
+        <Table
+            rowClick={(id, resource) => {
+                // As we display the edit view in a drawer, we don't the default rowClick behavior that will scroll to the top of the page
+                // So we navigate manually without specifying the _scrollToTop state
+                navigate(
+                    createPath({
+                        resource,
+                        id,
+                        type: 'edit',
+                    })
+                );
+                // Disable the default rowClick behavior
+                return false;
             }}
-            optimized
-            {...props}
+            rowSx={rowSx(selectedRow)}
+            bulkActionButtons={<ReviewsBulkActionButtons />}
+            sx={{
+                '& .RaDataTable-thead': {
+                    borderLeftColor: 'transparent',
+                    borderLeftWidth: 5,
+                    borderLeftStyle: 'solid',
+                },
+            }}
         >
-            <DateField source="date" />
-            <CustomerReferenceField link={false} />
-            <ProductReferenceField link={false} />
-            <StarRatingField size="small" />
-            <TextField source="comment" cellClassName={classes.comment} />
-            <TextField source="status" />
-        </Datagrid>
+            <Column source="date" field={DateField} />
+            {/* FIXME: Sort by reference field does not work with ra-data-graphql */}
+            <Column
+                source="customer.last_name"
+                label="resources.reviews.fields.customer_id"
+            >
+                <CustomerReferenceField source="customer_id" link={false} />
+            </Column>
+            {/* FIXME: Sort by reference field does not work with ra-data-graphql */}
+            <Column
+                source="product.reference"
+                label="resources.reviews.fields.product_id"
+            >
+                <ProductReferenceField source="product_id" link={false} />
+            </Column>
+            <Column
+                source="rating"
+                label="resources.reviews.fields.rating"
+                field={StarRatingField}
+            />
+            <Column
+                source="comment"
+                sx={{
+                    maxWidth: '18em',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                }}
+            />
+            <Column source="status" />
+        </Table>
     );
 };
 

@@ -1,140 +1,106 @@
 import * as React from 'react';
 import expect from 'expect';
-import { SaveContextProvider, SideEffectContextProvider } from 'ra-core';
-import { renderWithRedux } from 'ra-test';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { ResourceContextProvider, testDataProvider } from 'ra-core';
 
-import SimpleForm from './SimpleForm';
-import TextInput from '../input/TextInput';
+import { AdminContext } from '../AdminContext';
+import { SimpleForm } from './SimpleForm';
+import { TextInput } from '../input';
+import { GlobalValidation, InputBasedValidation } from './SimpleForm.stories';
 
 describe('<SimpleForm />', () => {
-    const saveContextValue = {
-        save: jest.fn(),
-        saving: false,
-        setOnFailure: jest.fn(),
-    };
-    const sideEffects = {};
-
     it('should embed a form with given component children', () => {
-        const { queryByLabelText } = renderWithRedux(
-            <SaveContextProvider value={saveContextValue}>
-                <SideEffectContextProvider value={sideEffects}>
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
                     <SimpleForm>
                         <TextInput source="name" />
                         <TextInput source="city" />
                     </SimpleForm>
-                </SideEffectContextProvider>
-            </SaveContextProvider>
+                </ResourceContextProvider>
+            </AdminContext>
         );
         expect(
-            queryByLabelText('resources.undefined.fields.name')
+            screen.queryByLabelText('resources.posts.fields.name')
         ).not.toBeNull();
         expect(
-            queryByLabelText('resources.undefined.fields.city')
+            screen.queryByLabelText('resources.posts.fields.city')
         ).not.toBeNull();
     });
 
     it('should display <Toolbar />', () => {
-        const { queryByLabelText } = renderWithRedux(
-            <SaveContextProvider value={saveContextValue}>
-                <SideEffectContextProvider value={sideEffects}>
+        render(
+            <AdminContext dataProvider={testDataProvider()}>
+                <ResourceContextProvider value="posts">
                     <SimpleForm>
                         <TextInput source="name" />
                         <TextInput source="city" />
                     </SimpleForm>
-                </SideEffectContextProvider>
-            </SaveContextProvider>
+                </ResourceContextProvider>
+            </AdminContext>
         );
-        expect(queryByLabelText('ra.action.save')).not.toBeNull();
+        expect(screen.queryByLabelText('ra.action.save')).not.toBeNull();
     });
 
-    it('should pass submitOnEnter to <Toolbar />', () => {
-        const Toolbar = ({ submitOnEnter }: any): any => (
-            <p>submitOnEnter: {submitOnEnter.toString()}</p>
-        );
+    describe('validation', () => {
+        it('should support translations with global validation', async () => {
+            const mock = jest
+                .spyOn(console, 'warn')
+                .mockImplementation(() => {});
+            render(<GlobalValidation />);
+            fireEvent.change(await screen.findByLabelText('Title'), {
+                target: { value: '' },
+            });
+            fireEvent.change(await screen.findByLabelText('Author'), {
+                target: { value: '' },
+            });
+            fireEvent.change(await screen.findByLabelText('Year'), {
+                target: { value: '2003' },
+            });
+            fireEvent.click(await screen.findByLabelText('Save'));
+            await screen.findByText('The title is required');
+            await screen.findByText('The author is required');
+            await screen.findByText('The year must be less than 2000');
+            expect(mock).toHaveBeenCalledWith(
+                "Missing translation for key 'The title is required'"
+            );
+            expect(mock).not.toHaveBeenCalledWith(
+                "Missing translation for key 'The author is required'"
+            );
+            expect(mock).not.toHaveBeenCalledWith(
+                "Missing translation for key 'The year must be less than 2000'"
+            );
+            mock.mockRestore();
+        });
 
-        const { queryByText, rerender } = renderWithRedux(
-            <SaveContextProvider value={saveContextValue}>
-                <SideEffectContextProvider value={sideEffects}>
-                    <SimpleForm submitOnEnter={false} toolbar={<Toolbar />}>
-                        <TextInput source="name" />
-                    </SimpleForm>
-                </SideEffectContextProvider>
-            </SaveContextProvider>
-        );
-
-        expect(queryByText('submitOnEnter: false')).not.toBeNull();
-
-        rerender(
-            <SaveContextProvider value={saveContextValue}>
-                <SideEffectContextProvider value={sideEffects}>
-                    <SimpleForm submitOnEnter toolbar={<Toolbar />}>
-                        <TextInput source="name" />
-                    </SimpleForm>
-                </SideEffectContextProvider>
-            </SaveContextProvider>
-        );
-
-        expect(queryByText('submitOnEnter: true')).not.toBeNull();
-    });
-
-    it('should not alter default margin or variant', () => {
-        const { queryByLabelText } = renderWithRedux(
-            <SaveContextProvider value={saveContextValue}>
-                <SideEffectContextProvider value={sideEffects}>
-                    <SimpleForm>
-                        <TextInput source="name" />
-                    </SimpleForm>
-                </SideEffectContextProvider>
-            </SaveContextProvider>
-        );
-        const inputElement = queryByLabelText(
-            'resources.undefined.fields.name'
-        );
-        expect(inputElement.classList).toContain('MuiFilledInput-input');
-        expect(inputElement.parentElement.parentElement.classList).toContain(
-            'MuiFormControl-marginDense'
-        );
-    });
-
-    it('should pass variant and margin to child inputs', () => {
-        const { queryByLabelText } = renderWithRedux(
-            <SaveContextProvider value={saveContextValue}>
-                <SideEffectContextProvider value={sideEffects}>
-                    <SimpleForm variant="outlined" margin="normal">
-                        <TextInput source="name" />
-                    </SimpleForm>
-                </SideEffectContextProvider>
-            </SaveContextProvider>
-        );
-        const inputElement = queryByLabelText(
-            'resources.undefined.fields.name'
-        );
-        expect(inputElement.classList).toContain('MuiOutlinedInput-input');
-        expect(inputElement.parentElement.parentElement.classList).toContain(
-            'MuiFormControl-marginNormal'
-        );
-    });
-
-    it('should allow input children to override variant and margin', () => {
-        const { queryByLabelText } = renderWithRedux(
-            <SaveContextProvider value={saveContextValue}>
-                <SideEffectContextProvider value={sideEffects}>
-                    <SimpleForm variant="standard" margin="none">
-                        <TextInput
-                            source="name"
-                            variant="outlined"
-                            margin="normal"
-                        />
-                    </SimpleForm>
-                </SideEffectContextProvider>
-            </SaveContextProvider>
-        );
-        const inputElement = queryByLabelText(
-            'resources.undefined.fields.name'
-        );
-        expect(inputElement.classList).toContain('MuiOutlinedInput-input');
-        expect(inputElement.parentElement.parentElement.classList).toContain(
-            'MuiFormControl-marginNormal'
-        );
+        it('should support translations with per input validation', async () => {
+            const mock = jest
+                .spyOn(console, 'warn')
+                .mockImplementation(() => {});
+            render(<InputBasedValidation />);
+            fireEvent.change(await screen.findByLabelText('Title *'), {
+                target: { value: '' },
+            });
+            fireEvent.change(await screen.findByLabelText('Author *'), {
+                target: { value: '' },
+            });
+            fireEvent.change(await screen.findByLabelText('Year'), {
+                target: { value: '2003' },
+            });
+            fireEvent.click(await screen.findByLabelText('Save'));
+            await screen.findByText('The title is required');
+            await screen.findByText('The author is required');
+            await screen.findByText('The year must be less than 2000');
+            expect(mock).toHaveBeenCalledWith(
+                "Missing translation for key 'The title is required'"
+            );
+            expect(mock).not.toHaveBeenCalledWith(
+                "Missing translation for key 'The author is required'"
+            );
+            expect(mock).not.toHaveBeenCalledWith(
+                "Missing translation for key 'The year must be less than 2000'"
+            );
+            mock.mockRestore();
+        });
     });
 });

@@ -1,50 +1,38 @@
 import * as React from 'react';
-import { FC } from 'react';
-import PropTypes from 'prop-types';
-import ThumbUp from '@material-ui/icons/ThumbUp';
+import ThumbUp from '@mui/icons-material/ThumbUp';
 
 import {
     Button,
     useUpdateMany,
     useNotify,
-    useRefresh,
     useUnselectAll,
-    CRUD_UPDATE_MANY,
-    BulkActionProps,
     Identifier,
+    useListContext,
 } from 'react-admin';
 
 const noSelection: Identifier[] = [];
 
-const BulkAcceptButton: FC<BulkActionProps> = ({
-    selectedIds = noSelection,
-}) => {
+const BulkAcceptButton = () => {
+    const { selectedIds = noSelection } = useListContext();
     const notify = useNotify();
-    const refresh = useRefresh();
     const unselectAll = useUnselectAll('reviews');
 
-    const [approve, { loading }] = useUpdateMany(
+    const [updateMany, { isPending }] = useUpdateMany(
         'reviews',
-        selectedIds,
-        { status: 'accepted' },
+        { ids: selectedIds, data: { status: 'accepted' } },
         {
-            action: CRUD_UPDATE_MANY,
-            undoable: true,
+            mutationMode: 'undoable',
             onSuccess: () => {
-                notify(
-                    'resources.reviews.notification.approved_success',
-                    'info',
-                    {},
-                    true
-                );
-                refresh();
+                notify('resources.reviews.notifications.approved_success', {
+                    type: 'info',
+                    undoable: true,
+                });
                 unselectAll();
             },
-            onFailure: () => {
-                notify(
-                    'resources.reviews.notification.approved_error',
-                    'warning'
-                );
+            onError: () => {
+                notify('resources.reviews.notifications.approved_error', {
+                    type: 'error',
+                });
             },
         }
     );
@@ -52,16 +40,12 @@ const BulkAcceptButton: FC<BulkActionProps> = ({
     return (
         <Button
             label="resources.reviews.action.accept"
-            onClick={approve}
-            disabled={loading}
+            onClick={() => updateMany()}
+            disabled={isPending}
         >
             <ThumbUp />
         </Button>
     );
-};
-
-BulkAcceptButton.propTypes = {
-    selectedIds: PropTypes.arrayOf(PropTypes.any).isRequired,
 };
 
 export default BulkAcceptButton;

@@ -1,171 +1,111 @@
 import * as React from 'react';
-import { Children, cloneElement, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import { CreateControllerProps, useCreateContext } from 'ra-core';
-import { Card } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import classnames from 'classnames';
-import { CreateProps } from '../types';
-import { TitleForRecord } from '../layout';
+import type { ElementType, ReactNode } from 'react';
+import {
+    Card,
+    type ComponentsOverrides,
+    styled,
+    type SxProps,
+    type Theme,
+} from '@mui/material';
+import { CreateControllerResult, useCreateContext } from 'ra-core';
+import clsx from 'clsx';
+
+import { Title } from '../layout';
+import { CreateProps } from './Create';
 
 export const CreateView = (props: CreateViewProps) => {
     const {
         actions,
         aside,
         children,
-        classes: classesOverride,
+        render,
         className,
-        component: Content,
+        component: Content = Card,
         title,
         ...rest
     } = props;
 
-    const classes = useStyles(props);
+    const createContext = useCreateContext();
 
-    const {
-        basePath,
-        defaultTitle,
-        hasList,
-        record,
-        redirect,
-        resource,
-        save,
-        saving,
-        version,
-    } = useCreateContext(props);
+    const { resource, defaultTitle } = createContext;
 
     return (
-        <div
-            className={classnames('create-page', classes.root, className)}
-            {...sanitizeRestProps(rest)}
-        >
-            <TitleForRecord
-                title={title}
-                record={record}
-                defaultTitle={defaultTitle}
-            />
-            {actions &&
-                cloneElement(actions, {
-                    basePath,
-                    resource,
-                    hasList,
-                    //  Ensure we don't override any user provided props
-                    ...actions.props,
-                })}
+        <Root className={clsx('create-page', className)} {...rest}>
+            {title !== false && (
+                <Title
+                    title={title}
+                    defaultTitle={defaultTitle}
+                    preferenceKey={`${resource}.create.title`}
+                />
+            )}
+            {actions}
             <div
-                className={classnames(classes.main, {
-                    [classes.noActions]: !actions,
+                className={clsx(CreateClasses.main, {
+                    [CreateClasses.noActions]: !actions,
                 })}
             >
-                <Content className={classes.card}>
-                    {cloneElement(Children.only(children), {
-                        basePath,
-                        record,
-                        redirect:
-                            typeof children.props.redirect === 'undefined'
-                                ? redirect
-                                : children.props.redirect,
-                        resource,
-                        save:
-                            typeof children.props.save === 'undefined'
-                                ? save
-                                : children.props.save,
-                        saving,
-                        version,
-                    })}
+                <Content className={CreateClasses.card}>
+                    {render ? render(createContext) : children}
                 </Content>
-                {aside &&
-                    cloneElement(aside, {
-                        basePath,
-                        record,
-                        resource,
-                        save:
-                            typeof children.props.save === 'undefined'
-                                ? save
-                                : children.props.save,
-                        saving,
-                        version,
-                    })}
+                {aside}
             </div>
-        </div>
+        </Root>
     );
 };
 
-interface CreateViewProps
-    extends CreateProps,
-        Omit<CreateControllerProps, 'resource'> {
-    children: ReactElement;
+export interface CreateViewProps
+    extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {
+    actions?: ReactNode | false;
+    aside?: ReactNode;
+    component?: ElementType;
+    sx?: SxProps<Theme>;
+    title?: ReactNode;
+    render?: (createContext: CreateControllerResult) => ReactNode;
+    children?: ReactNode;
 }
 
-CreateView.propTypes = {
-    actions: PropTypes.element,
-    aside: PropTypes.element,
-    basePath: PropTypes.string,
-    children: PropTypes.element,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    defaultTitle: PropTypes.any,
-    hasList: PropTypes.bool,
-    hasShow: PropTypes.bool,
-    record: PropTypes.object,
-    redirect: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
-    resource: PropTypes.string,
-    save: PropTypes.func,
-    title: PropTypes.node,
-    onSuccess: PropTypes.func,
-    onFailure: PropTypes.func,
-    setOnSuccess: PropTypes.func,
-    setOnFailure: PropTypes.func,
-    setTransform: PropTypes.func,
+const PREFIX = 'RaCreate';
+
+export const CreateClasses = {
+    main: `${PREFIX}-main`,
+    noActions: `${PREFIX}-noActions`,
+    card: `${PREFIX}-card`,
 };
 
-CreateView.defaultProps = {
-    classes: {},
-    component: Card,
-};
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    [`& .${CreateClasses.main}`]: {
+        display: 'flex',
+    },
 
-const useStyles = makeStyles(
-    theme => ({
-        root: {},
-        main: {
-            display: 'flex',
+    [`& .${CreateClasses.noActions}`]: {
+        [theme.breakpoints.up('sm')]: {
+            marginTop: '1em',
         },
-        noActions: {
-            [theme.breakpoints.up('sm')]: {
-                marginTop: '1em',
-            },
-        },
-        card: {
-            flex: '1 1 auto',
-        },
-    }),
-    { name: 'RaCreate' }
-);
+    },
 
-const sanitizeRestProps = ({
-    basePath = null,
-    defaultTitle = null,
-    hasCreate = null,
-    hasEdit = null,
-    hasList = null,
-    hasShow = null,
-    history = null,
-    loaded = null,
-    loading = null,
-    location = null,
-    match = null,
-    onFailure = null,
-    onFailureRef = null,
-    onSuccess = null,
-    onSuccessRef = null,
-    options = null,
-    permissions = null,
-    save = null,
-    saving = null,
-    setOnFailure = null,
-    setOnSuccess = null,
-    setTransform = null,
-    transform = null,
-    transformRef = null,
-    ...rest
-}) => rest;
+    [`& .${CreateClasses.card}`]: {
+        flex: '1 1 auto',
+    },
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaCreate: 'root' | 'main' | 'noActions' | 'card';
+    }
+
+    interface ComponentsPropsList {
+        RaCreate: Partial<CreateProps>;
+    }
+
+    interface Components {
+        RaCreate?: {
+            defaultProps?: ComponentsPropsList['RaCreate'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaCreate'];
+        };
+    }
+}

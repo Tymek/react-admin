@@ -1,35 +1,56 @@
-import React, {
-    useCallback,
-    useEffect,
-    useRef,
-    useState,
-    useMemo,
-    isValidElement,
-} from 'react';
-import Downshift, { DownshiftProps } from 'downshift';
-import get from 'lodash/get';
-import classNames from 'classnames';
-import { TextField, InputAdornment, IconButton } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import ClearIcon from '@material-ui/icons/Clear';
-import { TextFieldProps } from '@material-ui/core/TextField';
 import {
-    useInput,
+    Autocomplete,
+    type AutocompleteChangeReason,
+    type AutocompleteCloseReason,
+    type AutocompleteProps,
+    Chip,
+    createFilterOptions,
+    TextField,
+    type TextFieldProps,
+    major as muiMajor,
+    useForkRef,
+} from '@mui/material';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import clsx from 'clsx';
+import debounce from 'lodash/debounce.js';
+import get from 'lodash/get.js';
+import isEqual from 'lodash/isEqual.js';
+import {
+    type ChoicesProps,
     FieldTitle,
-    ChoicesInputProps,
+    type RaRecord,
+    type SupportCreateSuggestionOptions,
+    useChoicesContext,
+    useEvent,
+    useGetRecordRepresentation,
+    useInput,
     useSuggestions,
+    type UseSuggestionsOptions,
+    useSupportCreateSuggestion,
+    useTimeout,
     useTranslate,
     warning,
 } from 'ra-core';
-
-import InputHelperText from './InputHelperText';
-import AutocompleteSuggestionList from './AutocompleteSuggestionList';
-import AutocompleteSuggestionItem from './AutocompleteSuggestionItem';
-import { AutocompleteInputLoader } from './AutocompleteInputLoader';
+import * as React from 'react';
 import {
-    SupportCreateSuggestionOptions,
-    useSupportCreateSuggestion,
-} from './useSupportCreateSuggestion';
+    isValidElement,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
+import { Offline } from '../Offline';
+import type { CommonInputProps } from './CommonInputProps';
+import { InputHelperText } from './InputHelperText';
+import { sanitizeInputRestProps } from './sanitizeInputRestProps';
+
+const defaultFilterOptions = createFilterOptions();
 
 /**
  * An Input component for an autocomplete field, using an array of objects for the options
@@ -64,17 +85,22 @@ import {
  * const optionRenderer = choice => `${choice.first_name} ${choice.last_name}`;
  * <AutocompleteInput source="author_id" choices={choices} optionText={optionRenderer} />
  *
- * `optionText` also accepts a React Element, that will be cloned and receive
- * the related choice as the `record` prop. You can use Field components there.
- * Note that you must also specify the `matchSuggestion` prop
+ * `optionText` also accepts a React Element, that can access
+ * the related choice through the `useRecordContext` hook. You can use Field components there.
+ * Note that you must also specify the `matchSuggestion` and `inputText` props
  * @example
  * const choices = [
  *    { id: 123, first_name: 'Leo', last_name: 'Tolstoi' },
  *    { id: 456, first_name: 'Jane', last_name: 'Austen' },
  * ];
- * const matchSuggestion = (filterValue, choice) => choice.first_name.match(filterValue) || choice.last_name.match(filterValue);
- * const FullNameField = ({ record }) => <span>{record.first_name} {record.last_name}</span>;
- * <SelectInput source="gender" choices={choices} optionText={<FullNameField />} matchSuggestion={matchSuggestion} />
+ * const matchSuggestion = (filterValue, choice) => choice.first_name.match(filterValue) || choice.last_name.match(filterValue)
+ * const inputText = (record) => `${record.fullName} (${record.language})`;
+ *
+ * const FullNameField = () => {
+ *     const record = useRecordContext();
+ *     return <span>{record.first_name} {record.last_name}</span>;
+ * }
+ * <AutocompleteInput source="author" choices={choices} optionText={<FullNameField />} matchSuggestion={matchSuggestion} inputText={inputText} />
  *
  * The choices are translated by default, so you can use translation identifiers as choices:
  * @example
@@ -88,550 +114,964 @@ import {
  * @example
  * <AutocompleteInput source="gender" choices={choices} translateChoice={false}/>
  *
- * The object passed as `options` props is passed to the material-ui <TextField> component
+ * The object passed as `options` props is passed to the Material UI <TextField> component
  *
  * @example
  * <AutocompleteInput source="author_id" options={{ color: 'secondary', InputLabelProps: { shrink: true } }} />
  */
-export const AutocompleteInput = (props: AutocompleteInputProps) => {
+export const AutocompleteInput = <
+    OptionType extends RaRecord = RaRecord,
+    Multiple extends boolean | undefined = false,
+    DisableClearable extends boolean | undefined = boolean | undefined,
+    SupportCreate extends boolean | undefined = false,
+>(
+    inProps: AutocompleteInputProps<
+        OptionType,
+        Multiple,
+        DisableClearable,
+        SupportCreate
+    >
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
-        allowEmpty,
+        choices: choicesProp,
         className,
-        classes: classesOverride,
-        clearAlwaysVisible,
-        choices = [],
-        createLabel,
-        createItemLabel,
-        createValue,
+        clearOnBlur = true,
+        clearText = 'ra.action.clear_input_value',
+        closeText = 'ra.action.close',
         create,
-        disabled,
+        createLabel,
+        createItemLabel = 'ra.action.create_item',
+        createValue,
+        createHintValue,
+        debounce: debounceDelay = 250,
+        defaultValue,
         emptyText,
-        emptyValue,
+        emptyValue = '',
+        field: fieldOverride,
         format,
-        fullWidth,
         helperText,
         id: idOverride,
-        input: inputOverride,
         inputText,
+        isFetching: isFetchingProp,
+        isLoading: isLoadingProp,
+        isPending: isPendingProp,
         isRequired: isRequiredOverride,
         label,
         limitChoicesToValue,
-        loaded,
-        loading,
-        margin = 'dense',
+        loadingText = 'ra.message.loading',
         matchSuggestion,
-        meta: metaOverride,
+        margin,
+        fieldState: fieldStateOverride,
+        filterToQuery: filterToQueryProp = DefaultFilterToQuery,
+        formState: formStateOverride,
+        multiple = false,
+        noOptionsText,
+        offline = defaultOffline,
         onBlur,
         onChange,
+        onClose: onCloseProp,
         onCreate,
-        onFocus,
-        options: {
-            suggestionsContainerProps,
-            labelProps,
-            InputProps,
-            ...options
-        } = {
-            suggestionsContainerProps: undefined,
-            labelProps: undefined,
-            InputProps: undefined,
-        },
-        optionText = 'name',
-        optionValue = 'id',
+        onOpen: onOpenProp,
+        openText = 'ra.action.open',
+        optionText,
+        optionValue,
         parse,
-        refetch,
-        resettable,
-        resource,
+        resource: resourceProp,
+        shouldRenderSuggestions,
         setFilter,
-        shouldRenderSuggestions: shouldRenderSuggestionsOverride,
-        source,
-        suggestionLimit,
-        translateChoice = true,
+        size,
+        source: sourceProp,
+        suggestionLimit = Infinity,
+        TextFieldProps,
+        translateChoice,
         validate,
-        variant = 'filled',
+        variant,
+        onInputChange,
+        disabled,
+        readOnly,
+        getOptionDisabled: getOptionDisabledProp,
         ...rest
     } = props;
 
-    if (isValidElement(optionText) && !inputText) {
-        throw new Error(`If the optionText prop is a React element, you must also specify the inputText prop:
-        <AutocompleteInput
-            inputText={(record) => record.title}
-        />`);
-    }
+    const filterToQuery = useEvent(filterToQueryProp);
 
-    warning(
-        isValidElement(optionText) && !matchSuggestion,
-        `If the optionText prop is a React element, you must also specify the matchSuggestion prop:
-<AutocompleteInput
-    matchSuggestion={(filterValue, suggestion) => true}
-/>
-        `
-    );
+    const {
+        allChoices,
+        isPaused,
+        isPending,
+        isPlaceholderData,
+        error: fetchError,
+        resource,
+        source,
+        setFilters,
+        isFromReference,
+    } = useChoicesContext({
+        choices: choicesProp,
+        isFetching: isFetchingProp,
+        isLoading: isLoadingProp,
+        isPending: isPendingProp,
+        resource: resourceProp,
+        source: sourceProp,
+    });
 
-    warning(
-        source === undefined,
-        `If you're not wrapping the AutocompleteInput inside a ReferenceInput, you must provide the source prop`
-    );
-
-    warning(
-        choices === undefined,
-        `If you're not wrapping the AutocompleteInput inside a ReferenceInput, you must provide the choices prop`
-    );
-
-    const classes = useStyles(props);
-    let inputEl = useRef<HTMLInputElement>();
-    let anchorEl = useRef<any>();
     const translate = useTranslate();
 
     const {
         id,
-        input,
+        field,
         isRequired,
-        meta: { touched, error, submitError },
+        fieldState: { error, invalid },
     } = useInput({
-        format,
+        defaultValue,
         id: idOverride,
-        input: inputOverride,
-        meta: metaOverride,
+        field: fieldOverride,
+        fieldState: fieldStateOverride,
+        formState: formStateOverride,
+        isRequired: isRequiredOverride,
         onBlur,
         onChange,
-        onFocus,
         parse,
+        format,
         resource,
         source,
         validate,
+        disabled,
+        readOnly,
         ...rest,
+    });
+
+    const finalChoices = useMemo(
+        () =>
+            // eslint-disable-next-line eqeqeq
+            emptyText == undefined || isRequired || multiple
+                ? allChoices
+                : [
+                      {
+                          [optionValue || 'id']: emptyValue,
+                          [typeof optionText === 'string'
+                              ? optionText
+                              : 'name']: translate(emptyText, {
+                              _: emptyText,
+                          }),
+                      },
+                  ].concat(allChoices || []),
+        [
+            allChoices,
+            emptyValue,
+            emptyText,
+            isRequired,
+            multiple,
+            optionText,
+            optionValue,
+            translate,
+        ]
+    );
+
+    const selectedChoice = useSelectedChoice<
+        OptionType,
+        Multiple,
+        DisableClearable,
+        SupportCreate
+    >(field.value, {
+        choices: finalChoices,
+        // @ts-ignore
+        multiple,
+        optionValue,
+    });
+
+    useEffect(() => {
+        if (emptyValue == null) {
+            throw new Error(
+                `emptyValue being set to null or undefined is not supported. Use parse to turn the empty string into null.`
+            );
+        }
+    }, [emptyValue]);
+
+    useEffect(() => {
+        // eslint-disable-next-line eqeqeq
+        if (isValidElement(optionText) && emptyText != undefined) {
+            throw new Error(
+                `optionText of type React element is not supported when setting emptyText`
+            );
+        }
+        // eslint-disable-next-line eqeqeq
+        if (isValidElement(optionText) && inputText == undefined) {
+            throw new Error(`
+If you provided a React element for the optionText prop, you must also provide the inputText prop (used for the text input)`);
+        }
+        if (
+            isValidElement(optionText) &&
+            !isFromReference &&
+            // eslint-disable-next-line eqeqeq
+            matchSuggestion == undefined
+        ) {
+            throw new Error(`
+If you provided a React element for the optionText prop, you must also provide the matchSuggestion prop (used to match the user input with a choice)`);
+        }
+    }, [optionText, inputText, matchSuggestion, emptyText, isFromReference]);
+
+    useEffect(() => {
+        warning(
+            multiple &&
+                (props.emptyText !== undefined ||
+                    props.emptyValue !== undefined),
+            `emptyText and emptyValue are not supported when multiple is true (e.g. in <AutocompleteArrayInput>): the empty value of a multi-valued input is an empty array, so it needs no empty choice. These props are ignored.`
+        );
+    }, [multiple, props.emptyText, props.emptyValue]);
+
+    useEffect(() => {
+        warning(
+            /* eslint-disable eqeqeq */
+            shouldRenderSuggestions != undefined && noOptionsText == undefined,
+            `When providing a shouldRenderSuggestions function, we recommend you also provide the noOptionsText prop and set it to a text explaining users why no options are displayed. It supports translation keys.`
+        );
+        /* eslint-enable eqeqeq */
+    }, [shouldRenderSuggestions, noOptionsText]);
+
+    const getRecordRepresentation = useGetRecordRepresentation(resource);
+
+    const { getChoiceText, getChoiceValue, getSuggestions } = useSuggestions({
+        choices: finalChoices,
+        limitChoicesToValue,
+        matchSuggestion,
+        optionText:
+            optionText ??
+            (isFromReference ? getRecordRepresentation : undefined),
+        optionValue,
+        createValue,
+        createHintValue,
+        selectedItem: selectedChoice,
+        suggestionLimit,
+        translateChoice: translateChoice ?? !isFromReference,
     });
 
     const [filterValue, setFilterValue] = useState('');
 
-    const getSuggestionFromValue = useCallback(
-        value => choices.find(choice => get(choice, optionValue) === value),
-        [choices, optionValue]
-    );
+    const [isOpen, setIsOpen] = useState(false);
+    const canRenderSuggestions =
+        shouldRenderSuggestions == undefined || // eslint-disable-line eqeqeq
+        shouldRenderSuggestions(filterValue);
 
-    const selectedItem = useMemo(
-        () => getSuggestionFromValue(input.value) || null,
-        [input.value, getSuggestionFromValue]
-    );
-
-    const { getChoiceText, getChoiceValue, getSuggestions } = useSuggestions({
-        allowEmpty,
-        choices,
-        emptyText,
-        emptyValue,
-        limitChoicesToValue,
-        matchSuggestion,
-        optionText,
-        optionValue,
-        selectedItem,
-        suggestionLimit,
-        translateChoice,
+    const handleOpen = useEvent((event: React.SyntheticEvent) => {
+        setIsOpen(true);
+        onOpenProp?.(event);
     });
 
-    const handleChange = useCallback(
-        async (item: any, newItem: any) => {
-            const value = getChoiceValue(newItem || item);
-            if (value == null && filterValue) {
-                setFilterValue('');
+    const handleClose = useEvent(
+        (event: React.SyntheticEvent, reason: AutocompleteCloseReason) => {
+            setIsOpen(false);
+            onCloseProp?.(event, reason);
+        }
+    );
+
+    const handleChange = useEvent((newValue: any) => {
+        if (multiple) {
+            if (Array.isArray(newValue)) {
+                field.onChange(newValue.map(getChoiceValue), newValue);
+            } else {
+                field.onChange(
+                    [...(field.value ?? []), getChoiceValue(newValue)],
+                    newValue
+                );
             }
-
-            input.onChange(value);
-        },
-        [filterValue, getChoiceValue, input]
-    );
-
-    const {
-        getCreateItem,
-        handleChange: handleChangeWithCreateSupport,
-        createElement,
-    } = useSupportCreateSuggestion({
-        create,
-        createLabel,
-        createItemLabel,
-        createValue,
-        handleChange,
-        filter: filterValue,
-        onCreate,
+        } else {
+            field.onChange(getChoiceValue(newValue) ?? emptyValue, newValue);
+        }
     });
 
-    const handleFilterChange = useCallback(
-        (eventOrValue: React.ChangeEvent<{ value: string }> | string) => {
-            const event = eventOrValue as React.ChangeEvent<{ value: string }>;
-            const value = event.target
-                ? event.target.value
-                : (eventOrValue as string);
-
+    // eslint-disable-next-line
+    const debouncedSetFilter = useCallback(
+        debounce(filter => {
             if (setFilter) {
-                setFilter(value);
+                return setFilter(filter);
             }
-        },
-        [setFilter]
+
+            if (choicesProp) {
+                return;
+            }
+
+            setFilters(filterToQuery(filter));
+        }, debounceDelay),
+        [debounceDelay, setFilters, setFilter]
     );
 
     // We must reset the filter every time the value changes to ensure we
     // display at least some choices even if the input has a value.
     // Otherwise, it would only display the currently selected one and the user
     // would have to first clear the input before seeing any other choices
+    const currentValue = useRef(field.value);
     useEffect(() => {
-        handleFilterChange('');
-
-        // If we have a value, set the filter to its text so that
-        // Downshift displays it correctly
-        setFilterValue(
-            typeof input.value === 'undefined' ||
-                input.value === null ||
-                selectedItem === null
-                ? ''
-                : inputText
-                ? inputText(getChoiceText(selectedItem).props.record)
-                : getChoiceText(selectedItem)
-        );
-    }, [
-        input.value,
-        handleFilterChange,
-        selectedItem,
-        getChoiceText,
-        inputText,
-    ]);
-
-    // This function ensures that the suggestion list stay aligned to the
-    // input element even if it moves (because user scrolled for example)
-    const updateAnchorEl = () => {
-        if (!inputEl.current) {
-            return;
+        if (!isEqual(currentValue.current, field.value)) {
+            currentValue.current = field.value;
+            debouncedSetFilter('');
         }
+    }, [field.value]); // eslint-disable-line
 
-        const inputPosition = inputEl.current.getBoundingClientRect() as DOMRect;
+    const {
+        getCreateItem,
+        handleChange: handleChangeWithCreateSupport,
+        createElement,
+        createId,
+        getOptionDisabled: getOptionDisabledWithCreateSupport,
+    } = useSupportCreateSuggestion({
+        create,
+        createLabel,
+        createItemLabel,
+        createValue,
+        createHintValue,
+        handleChange,
+        filter: filterValue,
+        onCreate,
+        optionText,
+    });
 
-        // It works by implementing a mock element providing the only method used
-        // by the PopOver component, getBoundingClientRect, which will return a
-        // position based on the input position
-        if (!anchorEl.current) {
-            anchorEl.current = { getBoundingClientRect: () => inputPosition };
-        } else {
-            const anchorPosition = anchorEl.current.getBoundingClientRect();
-
-            if (
-                anchorPosition.x !== inputPosition.x ||
-                anchorPosition.y !== inputPosition.y
-            ) {
-                anchorEl.current = {
-                    getBoundingClientRect: () => inputPosition,
-                };
-            }
-        }
-    };
-
-    const storeInputRef = input => {
-        inputEl.current = input;
-        updateAnchorEl();
-    };
-
-    const handleBlur = useCallback(
-        event => {
-            handleFilterChange('');
-
-            // If we had a value before, set the filter back to its text so that
-            // Downshift displays it correctly
-            setFilterValue(
-                input.value
-                    ? inputText
-                        ? inputText(getChoiceText(selectedItem).props.record)
-                        : getChoiceText(selectedItem)
-                    : ''
+    const getOptionDisabled = useCallback(
+        option => {
+            return (
+                getOptionDisabledWithCreateSupport(option) ||
+                (getOptionDisabledProp && getOptionDisabledProp(option))
             );
-            input.onBlur(event);
         },
-        [getChoiceText, handleFilterChange, input, inputText, selectedItem]
+        [getOptionDisabledProp, getOptionDisabledWithCreateSupport]
     );
 
-    const handleFocus = useCallback(
-        openMenu => event => {
-            openMenu(event);
-            input.onFocus(event);
-        },
-        [input]
-    );
-
-    const shouldRenderSuggestions = val => {
-        if (
-            shouldRenderSuggestionsOverride !== undefined &&
-            typeof shouldRenderSuggestionsOverride === 'function'
-        ) {
-            return shouldRenderSuggestionsOverride(val);
-        }
-
-        return true;
-    };
-
-    const { endAdornment, ...InputPropsWithoutEndAdornment } = InputProps || {};
-
-    const handleClickClearButton = useCallback(
-        openMenu => event => {
-            event.stopPropagation();
-            setFilterValue('');
-            input.onChange('');
-            openMenu(event);
-            input.onFocus(event);
-        },
-        [input]
-    );
-
-    const getEndAdornment = openMenu => {
-        if (!resettable) {
-            if (endAdornment) {
-                return endAdornment;
+    const getOptionLabel = useCallback(
+        (option: any, isListItem: boolean = false) => {
+            // eslint-disable-next-line eqeqeq
+            if (option == undefined) {
+                return '';
             }
-            if (loading) {
-                return <AutocompleteInputLoader />;
+
+            // Value selected with enter, right from the input
+            if (typeof option === 'string') {
+                return option;
             }
-        } else if (!filterValue) {
-            const label = translate('ra.action.clear_input_value');
-            if (clearAlwaysVisible) {
-                // show clear button, inactive
-                return (
-                    <InputAdornment position="end">
-                        <IconButton
-                            className={classes.clearButton}
-                            aria-label={label}
-                            title={label}
-                            disableRipple
-                            disabled={true}
-                        >
-                            <ClearIcon
-                                className={classNames(
-                                    classes.clearIcon,
-                                    classes.visibleClearIcon
-                                )}
-                            />
-                        </IconButton>
-                        {loading && <AutocompleteInputLoader />}
-                    </InputAdornment>
+
+            if (option?.id === createId) {
+                return get(
+                    option,
+                    typeof optionText === 'string' ? optionText : 'name'
                 );
-            } else {
-                if (endAdornment) {
-                    return endAdornment;
-                } else {
-                    // show spacer
-                    return (
-                        <InputAdornment position="end">
-                            <span className={classes.clearButton}>&nbsp;</span>
-                            {loading && <AutocompleteInputLoader />}
-                        </InputAdornment>
-                    );
+            }
+
+            if (!isListItem && option[optionValue || 'id'] === emptyValue) {
+                return get(
+                    option,
+                    typeof optionText === 'string' ? optionText : 'name'
+                );
+            }
+
+            if (!isListItem && inputText !== undefined) {
+                return inputText(option);
+            }
+
+            return getChoiceText(option);
+        },
+        [
+            getChoiceText,
+            inputText,
+            createId,
+            optionText,
+            optionValue,
+            emptyValue,
+        ]
+    );
+    const getOptionLabelString = useCallback(
+        (option: any, isListItem: boolean = false) => {
+            const optionLabel = getOptionLabel(option, isListItem);
+            // Can be a ReactNode when it's the create option.
+            return typeof optionLabel === 'string' ? optionLabel : '';
+        },
+        [getOptionLabel]
+    );
+
+    const finalOnBlur = useCallback(
+        (event): void => {
+            if (clearOnBlur && !multiple) {
+                const optionLabel = getOptionLabel(selectedChoice);
+                if (!isEqual(optionLabel, filterValue)) {
+                    setFilterValue(optionLabel);
+                    debouncedSetFilter('');
                 }
             }
-        } else {
-            // show clear
-            const label = translate('ra.action.clear_input_value');
-            return (
-                <InputAdornment position="end">
-                    <IconButton
-                        className={classes.clearButton}
-                        aria-label={label}
-                        title={label}
-                        disableRipple
-                        onClick={handleClickClearButton(openMenu)}
-                        onMouseDown={handleMouseDownClearButton}
-                        disabled={disabled}
-                    >
-                        <ClearIcon
-                            className={classNames(classes.clearIcon, {
-                                [classes.visibleClearIcon]:
-                                    clearAlwaysVisible || filterValue,
-                            })}
-                        />
-                    </IconButton>
-                    {loading && <AutocompleteInputLoader />}
-                </InputAdornment>
-            );
+            field.onBlur(event);
+        },
+        [
+            clearOnBlur,
+            field,
+            getOptionLabel,
+            selectedChoice,
+            filterValue,
+            debouncedSetFilter,
+            multiple,
+        ]
+    );
+
+    useEffect(() => {
+        if (!multiple) {
+            const optionLabel = getOptionLabel(selectedChoice);
+            if (typeof optionLabel === 'string') {
+                setFilterValue(optionLabel);
+            } else {
+                throw new Error(
+                    'When optionText returns a React element, you must also provide the inputText prop'
+                );
+            }
         }
+    }, [getOptionLabel, multiple, selectedChoice]);
+
+    const handleInputChange: AutocompleteProps<
+        OptionType,
+        Multiple,
+        DisableClearable,
+        SupportCreate
+    >['onInputChange'] = useEvent((event, newInputValue, reason) => {
+        if (
+            event?.type === 'change' ||
+            !doesQueryMatchSelection(newInputValue)
+        ) {
+            const createOptionLabel =
+                typeof createItemLabel === 'string'
+                    ? translate(createItemLabel, {
+                          item: filterValue,
+                          _: createItemLabel,
+                      })
+                    : undefined;
+            const isCreate = newInputValue === createOptionLabel;
+            const valueToSet = isCreate ? filterValue : newInputValue;
+            setFilterValue(valueToSet);
+            debouncedSetFilter(newInputValue);
+        }
+        if (reason === 'clear') {
+            setFilterValue('');
+            debouncedSetFilter('');
+        }
+        // When filterSelectedOptions=false, a user can delete characters from the input
+        // and re-select the same option — the input should update immediately without blur.
+        // MUI fires reason='reset' (not 'selectOption') for this case.
+        // - event !== null: MUI's useEffect also fires reason='reset' with event=null for
+        //   programmatic value resets, which should not update the filter.
+        // - doesQueryMatchSelection: when a create option is clicked, MUI fires reason='reset'
+        //   with the create label as newInputValue, which should not override the user's text.
+        if (
+            reason === 'reset' &&
+            event !== null &&
+            doesQueryMatchSelection(newInputValue)
+        ) {
+            setFilterValue(newInputValue);
+            debouncedSetFilter('');
+        }
+        onInputChange?.(event, newInputValue, reason);
+    });
+
+    const doesQueryMatchSelection = useCallback(
+        (filter: string) => {
+            let selectedItemTexts;
+
+            if (multiple) {
+                selectedItemTexts = selectedChoice.map(item =>
+                    getOptionLabel(item)
+                );
+            } else {
+                selectedItemTexts = [getOptionLabel(selectedChoice)];
+            }
+
+            return selectedItemTexts.includes(filter);
+        },
+        [getOptionLabel, multiple, selectedChoice]
+    );
+    const doesQueryMatchSuggestion = useCallback(
+        filter => {
+            const hasOption = finalChoices
+                ? finalChoices.some(choice => getOptionLabel(choice) === filter)
+                : false;
+
+            return doesQueryMatchSelection(filter) || hasOption;
+        },
+        [finalChoices, getOptionLabel, doesQueryMatchSelection]
+    );
+
+    const filterOptions = (options, params) => {
+        let filteredOptions =
+            isFromReference || // When used inside a reference, AutocompleteInput shouldn't do the filtering as it's done by the reference input
+            matchSuggestion || // When using element as optionText (and matchSuggestion), options are filtered by getSuggestions, so they shouldn't be filtered here
+            limitChoicesToValue // When limiting choices to values (why? it's legacy!), options are also filtered by getSuggestions, so they shouldn't be filtered here
+                ? options
+                : defaultFilterOptions(options, params); // Otherwise, we let Material UI's Autocomplete do the filtering
+
+        // add create option if necessary
+        const { inputValue } = params;
+        if (onCreate || create) {
+            if (inputValue === '' && filterValue === '' && createLabel) {
+                // create option with createLabel
+                filteredOptions = filteredOptions.concat(getCreateItem(''));
+            } else if (
+                inputValue &&
+                filterValue &&
+                !doesQueryMatchSuggestion(filterValue)
+            ) {
+                filteredOptions = filteredOptions.concat(
+                    // create option with createItemLabel
+                    getCreateItem(inputValue)
+                );
+            }
+        }
+
+        return filteredOptions;
     };
 
+    const handleAutocompleteChange = useCallback(
+        (event: any, newValue: any, reason: AutocompleteChangeReason) => {
+            // This prevents auto-submitting a form inside a dialog passed to the `create` prop
+            event.preventDefault();
+            if (
+                reason === 'blur' &&
+                typeof newValue === 'string' &&
+                doesQueryMatchSelection(newValue)
+            ) {
+                return;
+            }
+            if (reason === 'createOption') {
+                // When users press the enter key after typing a new value, we can handle it as if they clicked on the create option
+                handleChangeWithCreateSupport(
+                    getCreateItem(
+                        Array.isArray(newValue)
+                            ? newValue[newValue.length - 1]
+                            : newValue
+                    )
+                );
+                return;
+            }
+            handleChangeWithCreateSupport(
+                newValue != null ? newValue : emptyValue
+            );
+        },
+        [
+            doesQueryMatchSelection,
+            emptyValue,
+            getCreateItem,
+            handleChangeWithCreateSupport,
+        ]
+    );
+
+    const oneSecondHasPassed = useTimeout(1000, filterValue);
+
+    const suggestions = useMemo(() => {
+        if (!isFromReference && (matchSuggestion || limitChoicesToValue)) {
+            return getSuggestions(filterValue);
+        }
+        return finalChoices?.slice(0, suggestionLimit) || [];
+    }, [
+        finalChoices,
+        filterValue,
+        getSuggestions,
+        limitChoicesToValue,
+        matchSuggestion,
+        suggestionLimit,
+        isFromReference,
+    ]);
+
+    const isOptionEqualToValue = (option, value) => {
+        return String(getChoiceValue(option)) === String(getChoiceValue(value));
+    };
+    const renderHelperText = !!fetchError || helperText !== false || invalid;
+
+    const handleInputRef = useForkRef(field.ref, TextFieldProps?.inputRef);
+    // isPending is true: there's no cached data and no query attempt was finished yet
+    // isPaused is true: the query was paused (e.g. due to a network issue)
+    // Both true: we're offline, have no data to show
+    // If the component that provides the ChoicesContext does not handle this case, we should should render the offline element
+    if (isPending && isPaused && offline !== false && offline !== undefined) {
+        return offline;
+    }
+
+    const renderChips = (value, getProps: (args: { index: number }) => any) =>
+        value.map((option, index) => {
+            // We have to extract the key because react 19 does not allow to spread the key prop
+            const { key, ...chipProps } = getProps({ index });
+            // @ts-expect-error slotProps do not yet exist in MUI v5
+            const mergedSlotProps = props.slotProps?.chip
+                ? // @ts-expect-error slotProps do not yet exist in MUI v5
+                  props.slotProps.chip
+                : props.ChipProps;
+            return (
+                <Chip
+                    label={
+                        isValidElement(optionText)
+                            ? inputText
+                                ? inputText(option)
+                                : ''
+                            : getChoiceText(option)
+                    }
+                    size="small"
+                    key={key}
+                    {...chipProps}
+                    {...mergedSlotProps}
+                />
+            );
+        });
+
+    const finalLoadingText =
+        typeof loadingText === 'string'
+            ? translate(loadingText, {
+                  _: loadingText,
+              })
+            : loadingText;
     return (
         <>
-            <Downshift
-                inputValue={filterValue}
-                onChange={handleChangeWithCreateSupport}
-                selectedItem={selectedItem}
-                itemToString={item => getChoiceValue(item)}
-                {...rest}
-            >
-                {({
-                    getInputProps,
-                    getItemProps,
-                    getLabelProps,
-                    getMenuProps,
-                    isOpen,
-                    highlightedIndex,
-                    openMenu,
-                }) => {
-                    const isMenuOpen =
-                        isOpen && shouldRenderSuggestions(filterValue);
+            <StyledAutocomplete
+                className={clsx('ra-input', `ra-input-${source}`, className)}
+                clearText={translate(clearText, { _: clearText })}
+                closeText={translate(closeText, { _: closeText })}
+                loadingText={
+                    isPaused && isPlaceholderData
+                        ? offline !== false && offline !== undefined
+                            ? offline
+                            : finalLoadingText
+                        : finalLoadingText
+                }
+                openOnFocus
+                openText={translate(openText, { _: openText })}
+                id={id}
+                isOptionEqualToValue={isOptionEqualToValue}
+                filterSelectedOptions
+                disabled={disabled || readOnly}
+                renderInput={params => {
                     const {
-                        id: downshiftId, // We want to ignore this to correctly link our label and the input
-                        value,
-                        onBlur,
-                        onChange,
-                        onFocus,
-                        ref,
-                        size,
-                        color,
-                        ...inputProps
-                    } = getInputProps({
-                        onBlur: handleBlur,
-                        onFocus: handleFocus(openMenu),
-                        ...InputProps,
-                    });
-                    const suggestions = [
-                        ...getSuggestions(filterValue),
-                        ...(onCreate || create ? [getCreateItem()] : []),
-                    ];
-
+                        InputProps: paramsInputProps,
+                        inputProps: paramsHtmlInputProps,
+                        InputLabelProps: paramsInputLabelProps,
+                        // @ts-expect-error slotProps do not yet exist in MUI v5
+                        slotProps: paramsSlotProps,
+                        ...textFieldParams
+                    } = params;
+                    const {
+                        InputProps: userInputProps,
+                        inputProps: userHtmlInputProps,
+                        InputLabelProps: userInputLabelProps,
+                        // @ts-expect-error slotProps do not yet exist in MUI v5
+                        slotProps: userSlotProps,
+                        ...textFieldProps
+                    } = TextFieldProps ?? {};
+                    const input = {
+                        readOnly,
+                        ...paramsInputProps,
+                        ...paramsSlotProps?.input,
+                        ...userInputProps,
+                        ...userSlotProps?.input,
+                    };
+                    const htmlInput = {
+                        ...paramsHtmlInputProps,
+                        ...paramsSlotProps?.htmlInput,
+                        ...userHtmlInputProps,
+                        ...userSlotProps?.htmlInput,
+                    };
+                    const inputLabel = {
+                        ...paramsInputLabelProps,
+                        ...paramsSlotProps?.inputLabel,
+                        ...userInputLabelProps,
+                        ...userSlotProps?.inputLabel,
+                    };
+                    const mergedSlotProps =
+                        muiMajor >= 6
+                            ? {
+                                  slotProps: {
+                                      ...paramsSlotProps,
+                                      ...userSlotProps,
+                                      input,
+                                      htmlInput,
+                                      inputLabel,
+                                  },
+                              }
+                            : {
+                                  InputProps: input,
+                                  inputProps: htmlInput,
+                                  InputLabelProps: inputLabel,
+                              };
                     return (
-                        <div className={classes.container}>
-                            <TextField
-                                id={id}
-                                name={input.name}
-                                InputProps={{
-                                    inputRef: storeInputRef,
-                                    endAdornment: getEndAdornment(openMenu),
-                                    onBlur,
-                                    onChange: event => {
-                                        setFilterValue(event.target.value);
-                                        handleFilterChange(event);
-                                        onChange!(
-                                            event as React.ChangeEvent<
-                                                HTMLInputElement
-                                            >
-                                        );
-                                    },
-                                    onFocus,
-                                    ...InputPropsWithoutEndAdornment,
-                                }}
-                                error={!!(touched && (error || submitError))}
-                                label={
+                        <TextField
+                            name={field.name}
+                            label={
+                                label !== '' && label !== false ? (
                                     <FieldTitle
                                         label={label}
-                                        {...labelProps}
                                         source={source}
-                                        resource={resource}
-                                        isRequired={
-                                            typeof isRequiredOverride !==
-                                            'undefined'
-                                                ? isRequiredOverride
-                                                : isRequired
-                                        }
+                                        resource={resourceProp}
+                                        isRequired={isRequired}
                                     />
-                                }
-                                InputLabelProps={getLabelProps({
-                                    htmlFor: id,
-                                })}
-                                helperText={
+                                ) : null
+                            }
+                            error={!!fetchError || invalid}
+                            helperText={
+                                renderHelperText ? (
                                     <InputHelperText
-                                        touched={touched}
-                                        error={error || submitError}
+                                        error={
+                                            error?.message ||
+                                            fetchError?.message
+                                        }
                                         helperText={helperText}
                                     />
-                                }
-                                disabled={disabled}
-                                variant={variant}
-                                margin={margin}
-                                fullWidth={fullWidth}
-                                value={filterValue}
-                                className={className}
-                                size={size as any}
-                                color={color as any}
-                                {...inputProps}
-                                {...options}
-                            />
-                            <AutocompleteSuggestionList
-                                isOpen={isMenuOpen}
-                                menuProps={getMenuProps(
-                                    {},
-                                    // https://github.com/downshift-js/downshift/issues/235
-                                    { suppressRefError: true }
-                                )}
-                                inputEl={inputEl.current}
-                                suggestionsContainerProps={
-                                    suggestionsContainerProps
-                                }
-                                className={classes.suggestionsContainer}
-                            >
-                                {suggestions.map((suggestion, index) => (
-                                    <AutocompleteSuggestionItem
-                                        key={getChoiceValue(suggestion)}
-                                        suggestion={suggestion}
-                                        index={index}
-                                        highlightedIndex={highlightedIndex}
-                                        isSelected={
-                                            input.value ===
-                                            getChoiceValue(suggestion)
-                                        }
-                                        filterValue={filterValue}
-                                        getSuggestionText={getChoiceText}
-                                        {...getItemProps({
-                                            item: suggestion,
-                                        })}
-                                    />
-                                ))}
-                            </AutocompleteSuggestionList>
-                        </div>
+                                ) : null
+                            }
+                            margin={margin}
+                            variant={variant}
+                            className={clsx({
+                                [AutocompleteInputClasses.textField]: true,
+                                [AutocompleteInputClasses.emptyLabel]:
+                                    label === false || label === '',
+                            })}
+                            {...textFieldParams}
+                            {...textFieldProps}
+                            {...mergedSlotProps}
+                            size={size}
+                            inputRef={handleInputRef}
+                        />
                     );
                 }}
-            </Downshift>
+                multiple={multiple}
+                {...(muiMajor >= 7
+                    ? // In MUI v7, renderValue replaces renderTags, but it is also
+                      // called in single-selection mode with a non-array value.
+                      // renderChips expects an array, so only use it when multiple.
+                      multiple
+                        ? { renderValue: renderChips }
+                        : {}
+                    : { renderTags: renderChips })}
+                noOptionsText={
+                    typeof noOptionsText === 'string'
+                        ? translate(noOptionsText, { _: noOptionsText })
+                        : noOptionsText
+                }
+                selectOnFocus
+                clearOnBlur={clearOnBlur}
+                {...sanitizeInputRestProps(rest)}
+                freeSolo={!!create || !!onCreate}
+                open={isOpen && canRenderSuggestions}
+                onOpen={handleOpen}
+                onClose={handleClose}
+                handleHomeEndKeys={!!create || !!onCreate}
+                filterOptions={filterOptions}
+                options={
+                    isPaused && isPlaceholderData
+                        ? []
+                        : canRenderSuggestions
+                          ? suggestions
+                          : []
+                }
+                getOptionKey={(option: any) => option?.id}
+                getOptionLabel={getOptionLabelString}
+                inputValue={filterValue}
+                loading={
+                    (isPending &&
+                        (!finalChoices || finalChoices.length === 0) &&
+                        oneSecondHasPassed) ||
+                    (isPaused && isPlaceholderData)
+                }
+                value={selectedChoice}
+                onChange={handleAutocompleteChange}
+                onBlur={finalOnBlur}
+                onInputChange={handleInputChange}
+                renderOption={(props, record: RaRecord) => {
+                    // We have to extract the key because react 19 does not allow to spread the key prop
+                    const { key: ignoredKey, ...rest } = props;
+                    // We don't use MUI key which is generated from the option label because we may have options with the same label but with different values
+                    const key = getChoiceValue(record);
+                    const optionLabel = getOptionLabel(record, true);
+
+                    return (
+                        <li key={key} {...rest}>
+                            {optionLabel === '' ? ' ' : optionLabel}
+                        </li>
+                    );
+                }}
+                getOptionDisabled={getOptionDisabled}
+            />
             {createElement}
         </>
     );
 };
 
-const handleMouseDownClearButton = event => {
-    event.preventDefault();
+const PREFIX = 'RaAutocompleteInput';
+
+export const AutocompleteInputClasses = {
+    textField: `${PREFIX}-textField`,
+    emptyLabel: `${PREFIX}-emptyLabel`,
 };
 
-const useStyles = makeStyles(
-    theme => ({
-        container: {
-            flexGrow: 1,
-            position: 'relative',
-        },
-        clearIcon: {
-            height: 16,
+const StyledAutocomplete = styled(Autocomplete, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    [`& .${AutocompleteInputClasses.textField}`]: {
+        minWidth: theme.spacing(20),
+    },
+    [`& .${AutocompleteInputClasses.emptyLabel} .MuiOutlinedInput-root legend`]:
+        {
             width: 0,
         },
-        visibleClearIcon: {
-            width: 16,
-        },
-        clearButton: {
-            height: 24,
-            width: 24,
-            padding: 0,
-        },
-        selectAdornment: {
-            position: 'absolute',
-            right: 24,
-        },
-        inputAdornedEnd: {
-            paddingRight: 0,
-        },
-        suggestionsContainer: {
-            zIndex: theme.zIndex.modal,
-        },
-    }),
-    { name: 'RaAutocompleteInput' }
-);
+}));
 
-interface Options {
-    suggestionsContainerProps?: any;
-    labelProps?: any;
+// @ts-ignore
+export interface AutocompleteInputProps<
+    OptionType extends any = RaRecord,
+    Multiple extends boolean | undefined = false,
+    DisableClearable extends boolean | undefined = false,
+    SupportCreate extends boolean | undefined = false,
+> extends Omit<CommonInputProps, 'source' | 'onChange'>,
+        Omit<ChoicesProps, 'disableValue'>,
+        UseSuggestionsOptions,
+        Omit<SupportCreateSuggestionOptions, 'handleChange' | 'optionText'>,
+        Omit<
+            AutocompleteProps<
+                OptionType,
+                Multiple,
+                DisableClearable,
+                SupportCreate
+            >,
+            'onChange' | 'options' | 'renderInput'
+        > {
+    children?: ReactNode;
+    debounce?: number;
+    emptyText?: string;
+    emptyValue?: any;
+    filterToQuery?: (searchText: string) => any;
+    inputText?: (option: any) => string;
+    offline?: ReactNode;
+    onChange?: (
+        // We can't know upfront what the value type will be
+        value: Multiple extends true ? any[] : any,
+        // We return an empty string when the input is cleared in single mode
+        record: Multiple extends true ? OptionType[] : OptionType | ''
+    ) => void;
+    setFilter?: (value: string) => void;
+    shouldRenderSuggestions?: any;
+    // Source is optional as AutocompleteInput can be used inside a ReferenceInput that already defines the source
+    source?: string;
+    TextFieldProps?: TextFieldProps;
 }
 
-export interface AutocompleteInputProps
-    extends ChoicesInputProps<TextFieldProps & Options>,
-        Omit<SupportCreateSuggestionOptions, 'handleChange'>,
-        Omit<DownshiftProps<any>, 'onChange'> {
-    clearAlwaysVisible?: boolean;
-    resettable?: boolean;
-    loaded?: boolean;
-    loading?: boolean;
+/**
+ * Returns the selected choice (or choices if multiple) by matching the input value with the choices.
+ */
+const useSelectedChoice = <
+    OptionType extends any = RaRecord,
+    Multiple extends boolean | undefined = false,
+    DisableClearable extends boolean | undefined = false,
+    SupportCreate extends boolean | undefined = false,
+>(
+    value: any,
+    {
+        choices,
+        multiple,
+        optionValue,
+    }: AutocompleteInputProps<
+        OptionType,
+        Multiple,
+        DisableClearable,
+        SupportCreate
+    >
+) => {
+    const selectedChoiceRef = useRef(
+        getSelectedItems(choices, value, optionValue, multiple)
+    );
+    const [selectedChoice, setSelectedChoice] = useState<RaRecord | RaRecord[]>(
+        () => getSelectedItems(choices, value, optionValue, multiple)
+    );
+
+    // As the selected choices are objects, we want to ensure we pass the same
+    // reference to the Autocomplete as it would reset its filter value otherwise.
+    useEffect(() => {
+        const newSelectedItems = getSelectedItems(
+            choices,
+            value,
+            optionValue,
+            multiple
+        );
+
+        if (
+            !areSelectedItemsEqual(
+                selectedChoiceRef.current,
+                newSelectedItems,
+                optionValue,
+                multiple
+            )
+        ) {
+            selectedChoiceRef.current = newSelectedItems;
+            setSelectedChoice(newSelectedItems);
+        }
+    }, [choices, value, multiple, optionValue]);
+    return selectedChoice || null;
+};
+
+const getSelectedItems = (
+    choices: RaRecord[] = [],
+    value,
+    optionValue = 'id',
+    multiple
+) => {
+    if (multiple) {
+        return (Array.isArray(value ?? []) ? value : [value])
+            .map(item =>
+                choices.find(
+                    choice => String(item) === String(get(choice, optionValue))
+                )
+            )
+            .filter(item => !!item);
+    }
+    return (
+        choices.find(
+            choice => String(get(choice, optionValue)) === String(value)
+        ) || ''
+    );
+};
+
+const areSelectedItemsEqual = (
+    selectedChoice: RaRecord | RaRecord[],
+    newSelectedChoice: RaRecord | RaRecord[],
+    optionValue = 'id',
+    multiple?: boolean
+) => {
+    if (multiple) {
+        const selectedChoiceArray = (selectedChoice as RaRecord[]) ?? [];
+        const newSelectedChoiceArray = (newSelectedChoice as RaRecord[]) ?? [];
+        if (selectedChoiceArray.length !== newSelectedChoiceArray.length) {
+            return false;
+        }
+        const equalityArray = selectedChoiceArray.map(choice =>
+            newSelectedChoiceArray.some(
+                newChoice =>
+                    get(newChoice, optionValue) === get(choice, optionValue)
+            )
+        );
+        return !equalityArray.some(item => item === false);
+    }
+    return (
+        get(selectedChoice, optionValue) === get(newSelectedChoice, optionValue)
+    );
+};
+
+const DefaultFilterToQuery = searchText => ({ q: searchText });
+const defaultOffline = <Offline variant="inline" />;
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaAutocompleteInput: 'root' | 'textField';
+    }
+
+    interface ComponentsPropsList {
+        RaAutocompleteInput: Partial<AutocompleteInputProps>;
+    }
+
+    interface Components {
+        RaAutocompleteInput?: {
+            defaultProps?: ComponentsPropsList['RaAutocompleteInput'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaAutocompleteInput'];
+        };
+    }
 }

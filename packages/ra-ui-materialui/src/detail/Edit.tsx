@@ -1,14 +1,9 @@
 import * as React from 'react';
-import { ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import {
-    EditContextProvider,
-    ResourceContextProvider,
-    useCheckMinimumRequiredProps,
-    useEditController,
-} from 'ra-core';
-import { EditProps } from '../types';
-import { EditView } from './EditView';
+import { EditBase, RaRecord, EditBaseProps } from 'ra-core';
+import { useThemeProps } from '@mui/material/styles';
+
+import { EditView, EditViewProps } from './EditView';
+import { Loading } from '../layout';
 
 /**
  * Page component for the Edit view
@@ -21,13 +16,14 @@ import { EditView } from './EditView';
  *
  * The <Edit> component accepts the following props:
  *
+ * - children: Component rendering  the Form Layout
+ * - render: Alternative to children. A function to render the Form Layout. Receives the edit context as its argument.
  * - actions
  * - aside
  * - component
- * - successMessage
  * - title
  * - mutationMode
- * - undoable (deprecated)
+ * - mutationOptions
  *
  * @example
  *
@@ -35,8 +31,8 @@ import { EditView } from './EditView';
  * import * as React from "react";
  * import { Edit, SimpleForm, TextInput } from 'react-admin';
  *
- * export const PostEdit = (props) => (
- *     <Edit {...props}>
+ * export const PostEdit = () => (
+ *     <Edit>
  *         <SimpleForm>
  *             <TextInput source="title" />
  *         </SimpleForm>
@@ -56,43 +52,62 @@ import { EditView } from './EditView';
  * );
  * export default App;
  */
-export const Edit = (
-    props: EditProps & { children: ReactElement }
-): ReactElement => {
-    useCheckMinimumRequiredProps('Edit', ['children'], props);
-    const controllerProps = useEditController(props);
-    const body = (
-        <EditContextProvider value={controllerProps}>
-            <EditView {...props} {...controllerProps} />
-        </EditContextProvider>
-    );
-    return props.resource ? (
-        // support resource override via props
-        <ResourceContextProvider value={props.resource}>
-            {body}
-        </ResourceContextProvider>
-    ) : (
-        body
+export const Edit = <RecordType extends RaRecord = any>(
+    inProps: EditProps<RecordType, Error>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
+    const {
+        resource,
+        id,
+        mutationMode,
+        mutationOptions,
+        queryOptions,
+        redirect,
+        transform,
+        disableAuthentication,
+        authLoading = defaultAuthLoading,
+        loading,
+        error,
+        redirectOnError,
+        ...rest
+    } = props;
+
+    if (!props.render && !props.children) {
+        throw new Error(
+            '<Edit> requires either a `render` prop or `children` prop'
+        );
+    }
+
+    return (
+        <EditBase<RecordType>
+            resource={resource}
+            id={id}
+            mutationMode={mutationMode}
+            mutationOptions={mutationOptions}
+            queryOptions={queryOptions}
+            redirect={redirect}
+            transform={transform}
+            disableAuthentication={disableAuthentication}
+            authLoading={authLoading}
+            loading={loading}
+            // When an error component is provided, don't redirect by default so EditView can display it in the EditView container
+            redirectOnError={redirectOnError ?? (error ? false : undefined)}
+            // Disable offline support from EditBase as it is handled by EditView to keep the EditView container
+            offline={false}
+        >
+            <EditView error={error} {...rest} />
+        </EditBase>
     );
 };
 
-Edit.propTypes = {
-    actions: PropTypes.oneOfType([PropTypes.element, PropTypes.bool]),
-    aside: PropTypes.element,
-    children: PropTypes.node,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    hasCreate: PropTypes.bool,
-    hasEdit: PropTypes.bool,
-    hasShow: PropTypes.bool,
-    hasList: PropTypes.bool,
-    id: PropTypes.any.isRequired,
-    mutationMode: PropTypes.oneOf(['pessimistic', 'optimistic', 'undoable']),
-    onSuccess: PropTypes.func,
-    onFailure: PropTypes.func,
-    resource: PropTypes.string,
-    successMessage: PropTypes.string,
-    title: PropTypes.node,
-    transform: PropTypes.func,
-    undoable: PropTypes.bool,
-};
+export interface EditProps<RecordType extends RaRecord = any, ErrorType = Error>
+    extends EditBaseProps<RecordType, ErrorType>,
+        Omit<EditViewProps, 'children' | 'render'> {}
+
+const defaultAuthLoading = <Loading />;
+
+const PREFIX = 'RaEdit'; // Types declared in EditView.

@@ -1,43 +1,32 @@
 import * as React from 'react';
-import { FC, ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import { Toolbar, ToolbarProps } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import { Exporter } from 'ra-core';
+import { type FC, memo, type ReactElement } from 'react';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import type { ToolbarProps } from '@mui/material';
+import { type Exporter, FilterContext } from 'ra-core';
 
-import { ClassesOverride } from '../types';
+import { FilterForm } from './filter';
 
-const useStyles = makeStyles(
-    theme => ({
-        toolbar: {
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            paddingRight: 0,
-            [theme.breakpoints.up('xs')]: {
-                paddingLeft: 0,
-            },
-            [theme.breakpoints.down('xs')]: {
-                paddingLeft: theme.spacing(2),
-                backgroundColor: theme.palette.background.paper,
-            },
-        },
-        actions: {
-            paddingTop: theme.spacing(3),
-            minHeight: theme.spacing(5),
-            [theme.breakpoints.down('xs')]: {
-                padding: theme.spacing(1),
-                backgroundColor: theme.palette.background.paper,
-            },
-        },
-    }),
-    { name: 'RaListToolbar' }
-);
+export const ListToolbar: FC<ListToolbarProps> = memo(inProps => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { filters, actions, className, ...rest } = props;
 
-const ListToolbar: FC<ListToolbarProps> = props => {
-    const { classes: classesOverride, filters, actions, ...rest } = props;
-    const classes = useStyles(props);
-    return (
-        <Toolbar className={classes.toolbar}>
+    return Array.isArray(filters) ? (
+        <FilterContext.Provider value={filters}>
+            <Root className={className}>
+                <FilterForm />
+                <span />
+                {actions}
+            </Root>
+        </FilterContext.Provider>
+    ) : (
+        <Root className={className}>
             {filters &&
                 React.cloneElement(filters, {
                     ...rest,
@@ -47,29 +36,57 @@ const ListToolbar: FC<ListToolbarProps> = props => {
             {actions &&
                 React.cloneElement(actions, {
                     ...rest,
-                    className: classes.actions,
                     filters,
                     ...actions.props,
                 })}
-        </Toolbar>
+        </Root>
     );
-};
-
-ListToolbar.propTypes = {
-    classes: PropTypes.object,
-    filters: PropTypes.element,
-    // @ts-ignore
-    actions: PropTypes.oneOfType([PropTypes.bool, PropTypes.element]),
-    // @ts-ignore
-    exporter: PropTypes.oneOfType([PropTypes.func, PropTypes.bool]),
-};
+});
 
 export interface ListToolbarProps
     extends Omit<ToolbarProps, 'classes' | 'onSelect'> {
     actions?: ReactElement | false;
-    classes?: ClassesOverride<typeof useStyles>;
-    filters?: ReactElement;
     exporter?: Exporter | false;
+    filters?: ReactElement | ReactElement[];
+    hasCreate?: boolean;
 }
 
-export default React.memo(ListToolbar);
+const PREFIX = 'RaListToolbar';
+
+const Root = styled('div', {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    display: 'flex',
+    position: 'relative',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    width: '100%',
+    [theme.breakpoints.down('md')]: {
+        flexWrap: 'wrap',
+    },
+    [theme.breakpoints.down('sm')]: {
+        backgroundColor: (theme.vars || theme).palette.background.paper,
+        flexWrap: 'inherit',
+        flexDirection: 'column-reverse',
+    },
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaListToolbar: 'root';
+    }
+
+    interface ComponentsPropsList {
+        RaListToolbar: Partial<ListToolbarProps>;
+    }
+
+    interface Components {
+        RaListToolbar?: {
+            defaultProps?: ComponentsPropsList['RaListToolbar'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaListToolbar'];
+        };
+    }
+}

@@ -1,0 +1,42 @@
+---
+import MobileMenuFooter from '@astrojs/starlight/components/MobileMenuFooter.astro';
+import SidebarPersister from '@astrojs/starlight/components/SidebarPersister.astro';
+import SidebarSublist from '@astrojs/starlight/components/SidebarSublist.astro';
+
+const { sidebar } = Astro.locals.starlightRoute;
+---
+
+<script is:inline aria-hidden="true">
+    // This script scrolls the sidebar to the link matching the current page when the page loads
+    window.addEventListener('load', () => {
+        const sidebarContainer = document.getElementById('starlight__sidebar');
+        const currentItem = sidebarContainer.querySelector(
+            "a[aria-current='page']"
+        );
+        if (currentItem) {
+            // Check if the current item is already visible in the sidebar viewport
+            const containerRect = sidebarContainer.getBoundingClientRect();
+            const itemRect = currentItem.getBoundingClientRect();
+
+            const isItemVisible =
+                itemRect.top >= containerRect.top &&
+                itemRect.bottom <= containerRect.bottom;
+
+            // Only scroll if the item is not already visible
+            if (!isItemVisible) {
+                sidebarContainer.scrollTo({
+                    top: currentItem.offsetTop - sidebarContainer.offsetTop,
+                    behavior: 'auto',
+                });
+            }
+        }
+    });
+</script>
+
+<SidebarPersister>
+    <SidebarSublist sublist={sidebar} />
+</SidebarPersister>
+
+<div class="md:sl-hidden">
+    <MobileMenuFooter />
+</div>

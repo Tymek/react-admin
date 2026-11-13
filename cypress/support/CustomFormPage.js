@@ -8,9 +8,9 @@ export default url => ({
             "[data-testid='dialog-add-post'] button[type='submit']",
         submitAndAddButton:
             ".create-page form>div:last-child button[type='button']",
-        postSelect: '.ra-input-post_id [role="button"]',
+        postSelect: '.ra-input-post_id',
         postItem: id => `li[data-value="${id}"]`,
-        showPostCreateModalButton: '[data-testid="button-add-post"]',
+        showPostCreateModalButton: '[data-value="@@ra-create"]',
         showPostPreviewModalButton: '[data-testid="button-show-post"]',
         postCreateModal: '[data-testid="dialog-add-post"]',
         postPreviewModal: '[data-testid="dialog-show-post"]',

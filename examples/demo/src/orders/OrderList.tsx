@@ -1,60 +1,94 @@
 import * as React from 'react';
-import { FC, Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback } from 'react';
 import {
     AutocompleteInput,
     BooleanField,
-    Datagrid,
-    DatagridProps,
+    Count,
+    DataTable,
     DateField,
     DateInput,
-    Filter,
-    FilterProps,
-    Identifier,
+    ExportButton,
+    FilterButton,
     List,
-    ListContextProvider,
-    ListProps,
     NullableBooleanInput,
-    NumberField,
-    ReferenceInput,
+    NumberInput,
     ReferenceField,
+    ReferenceInput,
     SearchInput,
-    TextField,
-    TextInput,
-    useGetList,
+    ColumnsButton,
+    TopToolbar,
+    useDefaultTitle,
     useListContext,
 } from 'react-admin';
-import { useMediaQuery, Divider, Tabs, Tab, Theme } from '@material-ui/core';
+import { useMediaQuery, Divider, Tabs, Tab, Theme } from '@mui/material';
 
-import { makeStyles } from '@material-ui/core/styles';
-
-import NbItemsField from './NbItemsField';
 import CustomerReferenceField from '../visitors/CustomerReferenceField';
 import AddressField from '../visitors/AddressField';
 import MobileGrid from './MobileGrid';
-import { Customer } from '../types';
+import { Customer, Order } from '../types';
 
-const OrderFilter: FC<Omit<FilterProps, 'children'>> = props => (
-    <Filter {...props}>
-        <SearchInput source="q" alwaysOn />
-        <ReferenceInput source="customer_id" reference="customers">
-            <AutocompleteInput
-                optionText={(choice: Customer) =>
-                    choice.id // the empty choice is { id: '' }
-                        ? `${choice.first_name} ${choice.last_name}`
-                        : ''
-                }
-            />
-        </ReferenceInput>
-        <DateInput source="date_gte" />
-        <DateInput source="date_lte" />
-        <TextInput source="total_gte" />
-        <NullableBooleanInput source="returned" />
-    </Filter>
+const storeKeyByStatus = {
+    ordered: 'orders.list1',
+    delivered: 'orders.list2',
+    cancelled: 'orders.list3',
+};
+
+const ListActions = () => {
+    const { filterValues } = useListContext();
+    const status =
+        (filterValues.status as 'ordered' | 'delivered' | 'cancelled') ??
+        'ordered';
+    return (
+        <TopToolbar>
+            <FilterButton />
+            <ColumnsButton storeKey={storeKeyByStatus[status]} />
+            <ExportButton />
+        </TopToolbar>
+    );
+};
+
+const OrdersTitle = () => {
+    const title = useDefaultTitle();
+    const { defaultTitle } = useListContext();
+    return (
+        <>
+            <title>{`${title} - ${defaultTitle}`}</title>
+            <span>{defaultTitle}</span>
+        </>
+    );
+};
+
+const OrderList = () => (
+    <List
+        filterDefaultValues={{ status: 'ordered' }}
+        sort={{ field: 'date', order: 'DESC' }}
+        perPage={25}
+        filters={orderFilters}
+        actions={<ListActions />}
+        title={<OrdersTitle />}
+        queryOptions={{ meta: { embed: 'customer' } }}
+    >
+        <TabbedDatagrid />
+    </List>
 );
 
-const useDatagridStyles = makeStyles({
-    total: { fontWeight: 'bold' },
-});
+const orderFilters = [
+    <SearchInput source="q" alwaysOn />,
+    <ReferenceInput source="customer_id" reference="customers">
+        <AutocompleteInput
+            optionText={(choice?: Customer) =>
+                choice?.id // the empty choice is { id: '' }
+                    ? `${choice.first_name} ${choice.last_name}`
+                    : ''
+            }
+            sx={{ minWidth: 200 }}
+        />
+    </ReferenceInput>,
+    <DateInput source="date_gte" parse={d => new Date(d).toISOString()} />,
+    <DateInput source="date_lte" parse={d => new Date(d).toISOString()} />,
+    <NumberInput source="total_gte" />,
+    <NullableBooleanInput source="returned" />,
+];
 
 const tabs = [
     { id: 'ordered', name: 'ordered' },
@@ -62,66 +96,17 @@ const tabs = [
     { id: 'cancelled', name: 'cancelled' },
 ];
 
-interface TabbedDatagridProps extends DatagridProps {}
-
-const useGetTotals = (filterValues: any) => {
-    const { total: totalOrdered } = useGetList(
-        'commands',
-        { perPage: 1, page: 1 },
-        { field: 'id', order: 'ASC' },
-        { ...filterValues, status: 'ordered' }
-    );
-    const { total: totalDelivered } = useGetList(
-        'commands',
-        { perPage: 1, page: 1 },
-        { field: 'id', order: 'ASC' },
-        { ...filterValues, status: 'delivered' }
-    );
-    const { total: totalCancelled } = useGetList(
-        'commands',
-        { perPage: 1, page: 1 },
-        { field: 'id', order: 'ASC' },
-        { ...filterValues, status: 'cancelled' }
-    );
-
-    return {
-        ordered: totalOrdered,
-        delivered: totalDelivered,
-        cancelled: totalCancelled,
-    };
+const currencyStyle = {
+    style: 'currency' as const,
+    currency: 'USD',
 };
 
-const TabbedDatagrid: FC<TabbedDatagridProps> = props => {
+const TabbedDatagrid = () => {
     const listContext = useListContext();
-    const { ids, filterValues, setFilters, displayedFilters } = listContext;
-    const classes = useDatagridStyles();
+    const { filterValues, setFilters, displayedFilters } = listContext;
     const isXSmall = useMediaQuery<Theme>(theme =>
-        theme.breakpoints.down('xs')
+        theme.breakpoints.down('sm')
     );
-    const [ordered, setOrdered] = useState<Identifier[]>([] as Identifier[]);
-    const [delivered, setDelivered] = useState<Identifier[]>(
-        [] as Identifier[]
-    );
-    const [cancelled, setCancelled] = useState<Identifier[]>(
-        [] as Identifier[]
-    );
-    const totals = useGetTotals(filterValues) as any;
-
-    useEffect(() => {
-        if (ids && ids !== filterValues.status) {
-            switch (filterValues.status) {
-                case 'ordered':
-                    setOrdered(ids);
-                    break;
-                case 'delivered':
-                    setDelivered(ids);
-                    break;
-                case 'cancelled':
-                    setCancelled(ids);
-                    break;
-            }
-        }
-    }, [ids, filterValues.status]);
 
     const handleChange = useCallback(
         (event: React.ChangeEvent<{}>, value: any) => {
@@ -134,19 +119,12 @@ const TabbedDatagrid: FC<TabbedDatagridProps> = props => {
         [displayedFilters, filterValues, setFilters]
     );
 
-    const selectedIds =
-        filterValues.status === 'ordered'
-            ? ordered
-            : filterValues.status === 'delivered'
-            ? delivered
-            : cancelled;
-
     return (
         <Fragment>
             <Tabs
                 variant="fullWidth"
                 centered
-                value={filterValues.status}
+                value={filterValues.status ?? 'ordered'}
                 indicatorColor="primary"
                 onChange={handleChange}
             >
@@ -154,9 +132,17 @@ const TabbedDatagrid: FC<TabbedDatagridProps> = props => {
                     <Tab
                         key={choice.id}
                         label={
-                            totals[choice.name]
-                                ? `${choice.name} (${totals[choice.name]})`
-                                : choice.name
+                            <span>
+                                {choice.name} (
+                                <Count
+                                    filter={{
+                                        ...filterValues,
+                                        status: choice.name,
+                                    }}
+                                    sx={{ lineHeight: 'inherit' }}
+                                />
+                                )
+                            </span>
                         }
                         value={choice.id}
                     />
@@ -164,115 +150,83 @@ const TabbedDatagrid: FC<TabbedDatagridProps> = props => {
             </Tabs>
             <Divider />
             {isXSmall ? (
-                <ListContextProvider
-                    value={{ ...listContext, ids: selectedIds }}
-                >
-                    <MobileGrid {...props} ids={selectedIds} />
-                </ListContextProvider>
+                <MobileGrid />
             ) : (
-                <div>
-                    {filterValues.status === 'ordered' && (
-                        <ListContextProvider
-                            value={{ ...listContext, ids: ordered }}
-                        >
-                            <Datagrid {...props} optimized rowClick="edit">
-                                <DateField source="date" showTime />
-                                <TextField source="reference" />
-                                <CustomerReferenceField />
-                                <ReferenceField
-                                    source="customer_id"
-                                    reference="customers"
-                                    link={false}
-                                    label="resources.commands.fields.address"
-                                >
-                                    <AddressField />
-                                </ReferenceField>
-                                <NbItemsField />
-                                <NumberField
-                                    source="total"
-                                    options={{
-                                        style: 'currency',
-                                        currency: 'USD',
-                                    }}
-                                    className={classes.total}
-                                />
-                            </Datagrid>
-                        </ListContextProvider>
+                <>
+                    {(filterValues.status == null ||
+                        filterValues.status === 'ordered') && (
+                        <OrdersTable storeKey={storeKeyByStatus.ordered} />
                     )}
                     {filterValues.status === 'delivered' && (
-                        <ListContextProvider
-                            value={{ ...listContext, ids: delivered }}
-                        >
-                            <Datagrid {...props} rowClick="edit">
-                                <DateField source="date" showTime />
-                                <TextField source="reference" />
-                                <CustomerReferenceField />
-                                <ReferenceField
-                                    source="customer_id"
-                                    reference="customers"
-                                    link={false}
-                                    label="resources.commands.fields.address"
-                                >
-                                    <AddressField />
-                                </ReferenceField>
-                                <NbItemsField />
-                                <NumberField
-                                    source="total"
-                                    options={{
-                                        style: 'currency',
-                                        currency: 'USD',
-                                    }}
-                                    className={classes.total}
-                                />
-                                <BooleanField source="returned" />
-                            </Datagrid>
-                        </ListContextProvider>
+                        <OrdersTable storeKey={storeKeyByStatus.delivered}>
+                            <Column
+                                field={BooleanField}
+                                source="returned"
+                                align="right"
+                                sx={{ mt: -0.5, mb: -0.5 }}
+                            />
+                        </OrdersTable>
                     )}
                     {filterValues.status === 'cancelled' && (
-                        <ListContextProvider
-                            value={{ ...listContext, ids: cancelled }}
-                        >
-                            <Datagrid {...props} rowClick="edit">
-                                <DateField source="date" showTime />
-                                <TextField source="reference" />
-                                <CustomerReferenceField />
-                                <ReferenceField
-                                    source="customer_id"
-                                    reference="customers"
-                                    link={false}
-                                    label="resources.commands.fields.address"
-                                >
-                                    <AddressField />
-                                </ReferenceField>
-                                <NbItemsField />
-                                <NumberField
-                                    source="total"
-                                    options={{
-                                        style: 'currency',
-                                        currency: 'USD',
-                                    }}
-                                    className={classes.total}
-                                />
-                                <BooleanField source="returned" />
-                            </Datagrid>
-                        </ListContextProvider>
+                        <OrdersTable storeKey={storeKeyByStatus.cancelled} />
                     )}
-                </div>
+                </>
             )}
         </Fragment>
     );
 };
 
-const OrderList: FC<ListProps> = props => (
-    <List
-        {...props}
-        filterDefaultValues={{ status: 'ordered' }}
-        sort={{ field: 'date', order: 'DESC' }}
-        perPage={25}
-        filters={<OrderFilter />}
-    >
-        <TabbedDatagrid />
-    </List>
+const Column = DataTable.Col<Order>;
+const ColumnNumber = DataTable.NumberCol<Order>;
+
+const OrdersTable = React.memo(
+    ({
+        storeKey,
+        children,
+    }: {
+        storeKey: string;
+        children?: React.ReactNode;
+    }) => (
+        <DataTable
+            rowClick="edit"
+            hiddenColumns={['total_ex_taxes', 'delivery_fees', 'taxes']}
+            storeKey={storeKey}
+        >
+            <Column source="date">
+                <DateField source="date" showTime />
+            </Column>
+            <Column source="reference" />
+            {/* FIXME: Sort by reference field does not work with ra-data-graphql */}
+            <Column
+                source="customer.last_name"
+                label="resources.orders.fields.customer_id"
+            >
+                <CustomerReferenceField />
+            </Column>
+            <Column label="resources.orders.fields.address">
+                <ReferenceField
+                    source="customer_id"
+                    reference="customers"
+                    link={false}
+                >
+                    <AddressField />
+                </ReferenceField>
+            </Column>
+            <ColumnNumber
+                source="basket.length"
+                label="resources.orders.fields.nb_items"
+            />
+            <ColumnNumber source="total_ex_taxes" options={currencyStyle} />
+            <ColumnNumber source="delivery_fees" options={currencyStyle} />
+            <ColumnNumber source="taxes" options={currencyStyle} />
+            <ColumnNumber
+                source="total"
+                options={currencyStyle}
+                sx={{ fontWeight: 'bold' }}
+            />
+            {children}
+        </DataTable>
+    )
 );
 
 export default OrderList;

@@ -1,12 +1,15 @@
 import * as React from 'react';
-import { FC } from 'react';
-import { Card as MuiCard, CardContent } from '@material-ui/core';
-import { withStyles } from '@material-ui/core/styles';
-import AccessTimeIcon from '@material-ui/icons/AccessTime';
-import MonetizationOnIcon from '@material-ui/icons/MonetizationOnOutlined';
-import MailIcon from '@material-ui/icons/MailOutline';
-import LocalOfferIcon from '@material-ui/icons/LocalOfferOutlined';
-import { FilterList, FilterListItem, FilterLiveSearch } from 'react-admin';
+import { Card, CardContent } from '@mui/material';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOnOutlined';
+import MailIcon from '@mui/icons-material/MailOutlineOutlined';
+import LocalOfferIcon from '@mui/icons-material/LocalOfferOutlined';
+import {
+    FilterList,
+    FilterListItem,
+    FilterLiveSearch,
+    SavedQueriesList,
+} from 'react-admin';
 import {
     endOfYesterday,
     startOfWeek,
@@ -17,23 +20,24 @@ import {
 
 import segments from '../segments/data';
 
-const Card = withStyles(theme => ({
-    root: {
-        [theme.breakpoints.up('sm')]: {
+const Aside = () => (
+    <Card
+        sx={{
+            display: {
+                xs: 'none',
+                md: 'block',
+            },
             order: -1,
-            width: '15em',
-            marginRight: '1em',
-        },
-        [theme.breakpoints.down('sm')]: {
-            display: 'none',
-        },
-    },
-}))(MuiCard);
+            flex: '0 0 15em',
+            mr: 2,
+            mt: 6,
+            alignSelf: 'flex-start',
+        }}
+    >
+        <CardContent sx={{ pt: 1 }}>
+            <FilterLiveSearch hiddenLabel />
 
-const Aside: FC = () => (
-    <Card>
-        <CardContent>
-            <FilterLiveSearch />
+            <SavedQueriesList />
 
             <FilterList
                 label="resources.customers.filters.last_visited"
@@ -99,15 +103,15 @@ const Aside: FC = () => (
                 <FilterListItem
                     label="ra.boolean.true"
                     value={{
-                        nb_commands_gte: 1,
-                        nb_commands_lte: undefined,
+                        nb_orders_gte: 1,
+                        nb_orders_lte: undefined,
                     }}
                 />
                 <FilterListItem
                     label="ra.boolean.false"
                     value={{
-                        nb_commands_gte: undefined,
-                        nb_commands_lte: 0,
+                        nb_orders_gte: undefined,
+                        nb_orders_lte: 0,
                     }}
                 />
             </FilterList>

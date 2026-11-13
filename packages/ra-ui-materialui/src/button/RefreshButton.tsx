@@ -1,51 +1,81 @@
 import * as React from 'react';
-import { FC, ReactElement, MouseEvent, useCallback } from 'react';
-import PropTypes from 'prop-types';
-import { useDispatch } from 'react-redux';
-import NavigationRefresh from '@material-ui/icons/Refresh';
-import { refreshView } from 'ra-core';
+import { MouseEvent, useCallback } from 'react';
+import NavigationRefresh from '@mui/icons-material/Refresh';
+import { useRefresh } from 'ra-core';
+import {
+    ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 
-import Button, { ButtonProps } from './Button';
+import { Button, ButtonProps } from './Button';
 
-const RefreshButton: FC<RefreshButtonProps> = ({
-    label = 'ra.action.refresh',
-    icon = defaultIcon,
-    onClick,
-    ...rest
-}) => {
-    const dispatch = useDispatch();
+export const RefreshButton = React.forwardRef(function RefreshButton(
+    inProps: RefreshButtonProps,
+    ref: React.ForwardedRef<HTMLButtonElement>
+) {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
+    const {
+        label = 'ra.action.refresh',
+        icon = defaultIcon,
+        onClick,
+        ...rest
+    } = props;
+    const refresh = useRefresh();
     const handleClick = useCallback(
         event => {
             event.preventDefault();
-            dispatch(refreshView());
+            refresh();
             if (typeof onClick === 'function') {
                 onClick(event);
             }
         },
-        [dispatch, onClick]
+        [refresh, onClick]
     );
 
     return (
-        <Button label={label} onClick={handleClick} {...rest}>
+        <StyledButton ref={ref} label={label} onClick={handleClick} {...rest}>
             {icon}
-        </Button>
+        </StyledButton>
     );
-};
+});
 
 const defaultIcon = <NavigationRefresh />;
 
 interface Props {
     label?: string;
-    icon?: ReactElement;
+    icon?: React.ReactNode;
     onClick?: (e: MouseEvent) => void;
 }
 
 export type RefreshButtonProps = Props & ButtonProps;
 
-RefreshButton.propTypes = {
-    label: PropTypes.string,
-    icon: PropTypes.element,
-    onClick: PropTypes.func,
-};
+const PREFIX = 'RaRefreshButton';
 
-export default RefreshButton;
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<RefreshButtonProps>;
+    }
+
+    interface Components {
+        [PREFIX]?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

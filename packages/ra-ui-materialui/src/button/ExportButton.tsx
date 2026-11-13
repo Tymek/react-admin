@@ -1,52 +1,58 @@
 import * as React from 'react';
-import { useCallback, FunctionComponent } from 'react';
-import PropTypes from 'prop-types';
-import DownloadIcon from '@material-ui/icons/GetApp';
+import { useCallback } from 'react';
+import DownloadIcon from '@mui/icons-material/GetApp';
 import {
     fetchRelatedRecords,
     useDataProvider,
     useNotify,
     useListContext,
-    SortPayload,
     Exporter,
-    FilterPayload,
-    useResourceContext,
 } from 'ra-core';
-import Button, { ButtonProps } from './Button';
+import { Button, ButtonProps } from './Button';
 
-const ExportButton: FunctionComponent<ExportButtonProps> = props => {
+export const ExportButton = React.forwardRef(function ExportButton(
+    props: ExportButtonProps,
+    ref: React.ForwardedRef<HTMLButtonElement>
+) {
     const {
         maxResults = 1000,
         onClick,
         label = 'ra.action.export',
         icon = defaultIcon,
         exporter: customExporter,
-        sort, // deprecated, to be removed in v4
+        meta,
         ...rest
     } = props;
     const {
         filter,
         filterValues,
-        currentSort,
+        resource,
+        sort,
         exporter: exporterFromContext,
         total,
-    } = useListContext(props);
-    const resource = useResourceContext(props);
+        getData,
+    } = useListContext();
     const exporter = customExporter || exporterFromContext;
     const dataProvider = useDataProvider();
     const notify = useNotify();
     const handleClick = useCallback(
         event => {
-            dataProvider
-                .getList(resource, {
-                    sort: currentSort || sort,
-                    filter: filter
-                        ? { ...filterValues, ...filter }
-                        : filterValues,
-                    pagination: { page: 1, perPage: maxResults },
-                })
+            const fetchData = getData
+                ? getData({ maxResults, meta })
+                : dataProvider
+                      .getList(resource, {
+                          sort,
+                          filter: filter
+                              ? { ...filterValues, ...filter }
+                              : filterValues,
+                          pagination: { page: 1, perPage: maxResults },
+                          meta,
+                      })
+                      .then(({ data }) => data);
+
+            Promise.resolve(fetchData)
                 .then(
-                    ({ data }) =>
+                    data =>
                         exporter &&
                         exporter(
                             data,
@@ -57,28 +63,30 @@ const ExportButton: FunctionComponent<ExportButtonProps> = props => {
                 )
                 .catch(error => {
                     console.error(error);
-                    notify('ra.notification.http_error', 'warning');
+                    notify('ra.notification.http_error', { type: 'error' });
                 });
             if (typeof onClick === 'function') {
                 onClick(event);
             }
         },
         [
-            currentSort,
             dataProvider,
             exporter,
             filter,
             filterValues,
+            getData,
             maxResults,
             notify,
             onClick,
             resource,
             sort,
+            meta,
         ]
     );
 
     return (
         <Button
+            ref={ref}
             onClick={handleClick}
             label={label}
             disabled={total === 0}
@@ -87,44 +95,24 @@ const ExportButton: FunctionComponent<ExportButtonProps> = props => {
             {icon}
         </Button>
     );
-};
+});
 
 const defaultIcon = <DownloadIcon />;
 
 const sanitizeRestProps = ({
-    basePath,
-    filterValues,
     resource,
     ...rest
-}: Omit<ExportButtonProps, 'sort' | 'maxResults' | 'label' | 'exporter'>) =>
+}: Omit<ExportButtonProps, 'maxResults' | 'label' | 'exporter' | 'meta'>) =>
     rest;
 
 interface Props {
-    basePath?: string;
     exporter?: Exporter;
-    filterValues?: FilterPayload;
-    icon?: JSX.Element;
+    icon?: React.ReactNode;
     label?: string;
     maxResults?: number;
     onClick?: (e: Event) => void;
     resource?: string;
-    sort?: SortPayload;
+    meta?: any;
 }
 
 export type ExportButtonProps = Props & ButtonProps;
-
-ExportButton.propTypes = {
-    basePath: PropTypes.string,
-    exporter: PropTypes.func,
-    filterValues: PropTypes.object,
-    label: PropTypes.string,
-    maxResults: PropTypes.number,
-    resource: PropTypes.string,
-    sort: PropTypes.exact({
-        field: PropTypes.string,
-        order: PropTypes.string,
-    }),
-    icon: PropTypes.element,
-};
-
-export default ExportButton;

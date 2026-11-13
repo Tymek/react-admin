@@ -1,23 +1,46 @@
+import { chipClasses } from '@mui/material/Chip';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import expect from 'expect';
-import { fireEvent } from '@testing-library/react';
+import {
+    ListContext,
+    ListContextProvider,
+    minLength,
+    ResourceContextProvider,
+    testDataProvider,
+    ListControllerResult,
+} from 'ra-core';
 import * as React from 'react';
-import { renderWithRedux } from 'ra-test';
 
-import FilterForm, { mergeInitialValuesWithDefaultValues } from './FilterForm';
-import TextInput from '../../input/TextInput';
-import { SelectInput } from '../../input/SelectInput';
+import { AdminContext } from '../../AdminContext';
+import { ReferenceInput, SelectInput, TextInput } from '../../input';
+import { Filter } from './Filter';
+import {
+    Basic,
+    WithArrayInput,
+    WithAutoCompleteArrayInput,
+    WithComplexValueFilter,
+} from './FilterButton.stories';
+import { FilterForm } from './FilterForm';
 
 describe('<FilterForm />', () => {
-    const defaultProps = {
+    const defaultListContext = {
         resource: 'post',
-        filters: [],
-        setFilters: () => {},
+        showFilter: () => {},
         hideFilter: () => {},
         displayedFilters: {},
-        filterValues: {},
-    };
+    } as unknown as ListControllerResult;
+
+    beforeAll(() => {
+        window.scrollTo = jest.fn();
+    });
+
+    afterAll(() => {
+        jest.clearAllMocks();
+    });
 
     it('should display correctly passed filters', () => {
+        const setFilters = jest.fn();
         const filters = [
             <TextInput source="title" label="Title" />,
             <TextInput source="customer.name" label="Name" />,
@@ -27,147 +50,318 @@ describe('<FilterForm />', () => {
             'customer.name': true,
         };
 
-        const { queryAllByLabelText } = renderWithRedux(
-            <FilterForm
-                {...defaultProps}
-                filters={filters}
-                displayedFilters={displayedFilters}
-            />
+        render(
+            <AdminContext>
+                <ListContextProvider
+                    value={{
+                        ...defaultListContext,
+                        setFilters,
+                        displayedFilters,
+                    }}
+                >
+                    <FilterForm filters={filters} />
+                </ListContextProvider>
+            </AdminContext>
         );
-        expect(queryAllByLabelText('Title')).toHaveLength(1);
-        expect(queryAllByLabelText('Name')).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Title')).toHaveLength(1);
+        expect(screen.queryAllByLabelText('Name')).toHaveLength(1);
     });
 
-    describe('allowEmpty', () => {
-        it('should keep allowEmpty true if undefined', () => {
-            const filters = [
-                <SelectInput
-                    label="SelectWithUndefinedAllowEmpty"
-                    choices={[
-                        { title: 'yes', id: 1 },
-                        { title: 'no', id: 0 },
-                    ]}
-                    source="test"
-                    optionText="title"
-                />,
-            ];
-            const displayedFilters = {
-                test: true,
-            };
+    it('should display the filters in the order they were added', () => {
+        const filters = [
+            <TextInput source="q" label="Search" alwaysOn />,
+            <TextInput source="title" label="Title" />,
+            <TextInput source="body" label="Body" />,
+            <TextInput source="author" label="Author" />,
+        ];
 
-            const { queryAllByRole, queryByLabelText } = renderWithRedux(
-                <FilterForm
-                    {...defaultProps}
-                    filters={filters}
-                    displayedFilters={displayedFilters}
-                />
+        render(
+            <AdminContext>
+                <ListContextProvider
+                    value={{
+                        ...defaultListContext,
+                        displayedFilters: {
+                            body: true,
+                            author: true,
+                            title: true,
+                        },
+                    }}
+                >
+                    <FilterForm filters={filters} />
+                </ListContextProvider>
+            </AdminContext>
+        );
+        expect(
+            screen
+                .getAllByRole('textbox')
+                .map(input => input.getAttribute('name'))
+        ).toEqual(['q', 'body', 'author', 'title']);
+    });
+
+    it('should retain key values in the form inputs', () => {
+        // As key is not rendered, we just test that the React warning doesn't occur.
+        const origError = console.error;
+        console.error = message => {
+            throw new Error(message);
+        };
+
+        const setFilters = jest.fn();
+        const filters = [
+            <TextInput source="title" label="Title" key="custom-key" />,
+            <TextInput source="title" label="Title2" key="another-key" />,
+        ];
+        const displayedFilters = {
+            title: true,
+            title2: true,
+        };
+
+        expect(() => {
+            render(
+                <AdminContext>
+                    <ListContextProvider
+                        value={{
+                            ...defaultListContext,
+                            setFilters,
+                            displayedFilters,
+                        }}
+                    >
+                        <FilterForm filters={filters} />
+                    </ListContextProvider>
+                </AdminContext>
             );
+        }).not.toThrow();
+        console.error = origError;
+    });
 
-            const select = queryByLabelText('SelectWithUndefinedAllowEmpty');
-            fireEvent.mouseDown(select);
-            const options = queryAllByRole('option');
-            expect(options.length).toEqual(3);
+    it('should change the filter when the user updates an input', async () => {
+        const filters = [<TextInput source="title" label="Title" />];
+        const displayedFilters = {
+            title: true,
+        };
+        const setFilters = jest.fn();
+
+        render(
+            <AdminContext>
+                <ListContextProvider
+                    value={{
+                        ...defaultListContext,
+                        setFilters,
+                        displayedFilters,
+                    }}
+                >
+                    <FilterForm filters={filters} />
+                </ListContextProvider>
+            </AdminContext>
+        );
+        fireEvent.change(screen.queryByLabelText('Title') as Element, {
+            target: { value: 'foo' },
         });
-
-        it('should keep allowEmpty false', () => {
-            const filters = [
-                <SelectInput
-                    label="SelectWithFalseAllowEmpty"
-                    allowEmpty={false}
-                    choices={[
-                        { title: 'yes', id: 1 },
-                        { title: 'no', id: 0 },
-                    ]}
-                    source="test"
-                    optionText="title"
-                />,
-            ];
-            const displayedFilters = {
-                test: true,
-            };
-
-            const { queryAllByRole, queryByLabelText } = renderWithRedux(
-                <FilterForm
-                    {...defaultProps}
-                    filters={filters}
-                    displayedFilters={displayedFilters}
-                />
-            );
-            const select = queryByLabelText('SelectWithFalseAllowEmpty');
-            fireEvent.mouseDown(select);
-            const options = queryAllByRole('option');
-            expect(options.length).toEqual(2);
-        });
-
-        it('should keep allowEmpty true', () => {
-            const filters = [
-                <SelectInput
-                    label="SelectWithTrueAllowEmpty"
-                    allowEmpty={true}
-                    choices={[
-                        { title: 'yes', id: 1 },
-                        { title: 'no', id: 0 },
-                    ]}
-                    source="test"
-                    optionText="title"
-                />,
-            ];
-            const displayedFilters = {
-                test: true,
-            };
-
-            const { queryAllByRole, queryByLabelText } = renderWithRedux(
-                <FilterForm
-                    {...defaultProps}
-                    filters={filters}
-                    displayedFilters={displayedFilters}
-                />
-            );
-            const select = queryByLabelText('SelectWithTrueAllowEmpty');
-            fireEvent.mouseDown(select);
-            const options = queryAllByRole('option');
-            expect(options.length).toEqual(3);
+        await waitFor(() => {
+            expect(setFilters).toHaveBeenCalledWith({ title: 'foo' });
         });
     });
 
-    describe('mergeInitialValuesWithDefaultValues', () => {
-        it('should correctly merge initial values with the default values of the alwaysOn filters', () => {
-            const initialValues = {
-                title: 'initial title',
-            };
-            const filters = [
-                {
-                    props: {
-                        source: 'title',
-                        alwaysOn: true,
-                        defaultValue: 'default title',
-                    },
-                },
-                {
-                    props: {
-                        source: 'url',
-                        alwaysOn: true,
-                        defaultValue: 'default url',
-                    },
-                },
-                {
-                    props: {
-                        source: 'author.name',
-                        alwaysOn: true,
-                        defaultValue: 'default author',
-                    },
-                },
-                { props: { source: 'notMe', defaultValue: 'default url' } },
-                { props: { source: 'notMeEither' } },
-            ];
+    it('should not change the filter when the user updates an input with an invalid value', async () => {
+        const filters = [
+            <TextInput
+                source="title"
+                label="Title"
+                validate={[minLength(5)]}
+            />,
+        ];
+        const displayedFilters = {
+            title: true,
+        };
+        const setFilters = jest.fn();
 
+        render(
+            <AdminContext>
+                <ListContextProvider
+                    value={{
+                        ...defaultListContext,
+                        setFilters,
+                        displayedFilters,
+                    }}
+                >
+                    <FilterForm filters={filters} />
+                </ListContextProvider>
+            </AdminContext>
+        );
+        fireEvent.change(screen.queryByLabelText('Title') as HTMLElement, {
+            target: { value: 'foo' },
+        });
+        await waitFor(() => {
+            expect(setFilters).not.toHaveBeenCalled();
+        });
+    });
+
+    it('should provide ressource context for ReferenceInput filters', async () => {
+        const defaultProps: any = {
+            context: 'form',
+            resource: 'comments',
+            setFilters: jest.fn(),
+            hideFilter: jest.fn(),
+            showFilter: jest.fn(),
+            displayedFilters: { post_id: true },
+        };
+        const dataProvider = testDataProvider({
+            // @ts-ignore
+            getList: () => Promise.resolve({ data: [], total: 0 }),
+        });
+
+        render(
+            <AdminContext dataProvider={dataProvider}>
+                <ResourceContextProvider value="comments">
+                    <ListContext.Provider value={defaultProps}>
+                        <Filter>
+                            <ReferenceInput source="post_id" reference="posts">
+                                <SelectInput optionText="title" />
+                            </ReferenceInput>
+                        </Filter>
+                    </ListContext.Provider>
+                </ResourceContextProvider>
+            </AdminContext>
+        );
+        await waitFor(() => {
             expect(
-                mergeInitialValuesWithDefaultValues({ initialValues, filters })
-            ).toEqual({
-                title: 'initial title',
-                url: 'default url',
-                author: { name: 'default author' },
-            });
+                screen.getByText('resources.comments.fields.post_id')
+            ).not.toBeNull();
+        });
+        const filters = [
+            <TextInput
+                source="title"
+                label="Title"
+                validate={[minLength(5)]}
+            />,
+        ];
+        const displayedFilters = {
+            title: true,
+        };
+        const setFilters = jest.fn();
+
+        render(
+            <AdminContext>
+                <ListContextProvider
+                    value={{
+                        ...defaultListContext,
+                        setFilters,
+                        displayedFilters,
+                    }}
+                >
+                    <FilterForm filters={filters} />
+                </ListContextProvider>
+            </AdminContext>
+        );
+        fireEvent.change(screen.queryByLabelText('Title') as Element, {
+            target: { value: 'foo' },
+        });
+        await waitFor(() => {
+            expect(setFilters).not.toHaveBeenCalled();
         });
     });
+
+    it('should allow to add and clear a filter with a nested value', async () => {
+        render(<Basic />);
+
+        const addFilterButton = await screen.findByText('Add filter');
+        fireEvent.click(addFilterButton);
+
+        fireEvent.click(await screen.findByText('Nested'));
+        await screen.findByDisplayValue('bar');
+        await screen.findByText('1-7 of 7');
+
+        fireEvent.change(screen.getByLabelText('Nested'), {
+            target: { value: 'baz' },
+        });
+        await screen.findByText('1-6 of 6');
+
+        fireEvent.click(await screen.findByTitle('Remove this filter'));
+        await screen.findByText('1-10 of 13');
+        await waitFor(() => {
+            expect(screen.queryByText('Nested')).toBeNull();
+        });
+        expect(screen.queryByLabelText('Nested')).toBeNull();
+    });
+
+    it('should hide a removed filter with a complex object value', async () => {
+        render(<WithComplexValueFilter />);
+
+        const addFilterButton = await screen.findByText('Add filter');
+        fireEvent.click(addFilterButton);
+        fireEvent.click(await screen.findByText('Complex'));
+        await screen.findByText('1-7 of 7');
+        await screen.findByText('Complex', {
+            selector: `.${chipClasses.root} *`,
+        });
+        fireEvent.click(await screen.findByTitle('Remove this filter'));
+        await screen.findByText('1-10 of 13');
+        await waitFor(() => {
+            expect(
+                screen.queryByText('Complex', {
+                    selector: `.${chipClasses.root} *`,
+                })
+            ).toBeNull();
+        });
+    });
+
+    it('should provide a FormGroupContext', async () => {
+        render(<WithArrayInput />);
+
+        fireEvent.click(await screen.findByLabelText('Add'));
+        fireEvent.change((await screen.findAllByLabelText('Title'))[0], {
+            target: { value: 'Sint dignissimos in architecto aut' },
+        });
+        fireEvent.click(await screen.findByLabelText('Add'));
+
+        await waitFor(() => {
+            expect(screen.getAllByText('Title')).toHaveLength(3);
+        });
+        fireEvent.change((await screen.findAllByLabelText('Title'))[1], {
+            target: { value: 'Sed quo et et fugiat modi' },
+        });
+
+        await screen.findByText('1-2 of 2');
+    });
+
+    it('should not reapply previous filter form values when clearing nested AutocompleteArrayInput', async () => {
+        const user = userEvent.setup();
+        render(<WithAutoCompleteArrayInput />);
+
+        // Open Posts List
+        await user.click(await screen.findByText('Posts'));
+
+        // Set nested filter value to 'bar'
+        await user.click(await screen.findByLabelText('Add filter'));
+        await user.click(
+            await screen.findByRole('menuitemcheckbox', { name: 'Nested' })
+        );
+        const nestedInput = await screen.findByLabelText('Nested');
+        await user.click(nestedInput);
+        await user.keyboard('{ArrowDown}');
+        await user.click(await screen.findByRole('option', { name: 'bar' }));
+        fireEvent.blur(nestedInput);
+        await screen.findByText('1-7 of 7');
+        expect(screen.queryByRole('button', { name: 'bar' })).not.toBeNull();
+
+        // Navigate to Dashboard
+        await user.click(await screen.findByText('Dashboard'));
+        // Navigate back to Posts List
+        await user.click(await screen.findByText('Posts'));
+        // Filter should still be applied
+        await screen.findByText('1-7 of 7');
+        expect(screen.queryByRole('button', { name: 'bar' })).not.toBeNull();
+
+        // Clear nested filter value
+        const nestedInputField = await screen.findByLabelText('Nested', {
+            selector: 'input',
+        });
+        fireEvent.mouseDown(nestedInputField);
+        fireEvent.keyDown(nestedInputField, { key: 'Backspace' });
+        fireEvent.blur(nestedInputField);
+
+        // Wait until filter is cleared
+        await screen.findByText('1-10 of 13');
+        // Make sure the 'bar' value is not displayed anymore
+        expect(screen.queryByRole('button', { name: 'bar' })).toBeNull();
+    }, 10000);
 });

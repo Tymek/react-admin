@@ -1,52 +1,66 @@
 import * as React from 'react';
-import { FC } from 'react';
-import PropTypes from 'prop-types';
-import classNames from 'classnames';
-import { Link as RRLink, LinkProps as RRLinkProps } from 'react-router-dom';
-import { makeStyles } from '@material-ui/core/styles';
-import { ClassNameMap } from '@material-ui/styles';
+import clsx from 'clsx';
+import {
+    styled,
+    Link as MuiLink,
+    type LinkProps as MuiLinkProps,
+    type ComponentsOverrides,
+    useThemeProps,
+} from '@mui/material';
+import type { LinkBaseProps } from 'ra-core';
+import { LinkBase } from 'ra-core';
 
-const useStyles = makeStyles(
-    theme => ({
-        link: {
-            textDecoration: 'none',
-            color: theme.palette.primary.main,
-        },
-    }),
-    { name: 'RaLink' }
-);
+export const Link = (inProps: LinkProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { to, children, className, ...rest } = props;
 
-type LinkClassKey = 'link';
-
-export interface LinkProps extends RRLinkProps {
-    classes?: Partial<ClassNameMap<LinkClassKey>>;
-    className?: string;
-}
-
-const Link: FC<LinkProps> = props => {
-    const {
-        to,
-        children,
-        classes: classesOverride,
-        className,
-        ...rest
-    } = props;
-    const classes = useStyles(props);
     return (
-        <RRLink
+        <StyledMuiLink
+            component={LinkBase}
             to={to}
-            className={classNames(classes.link, className)}
+            className={clsx(LinkClasses.link, className)}
             {...rest}
         >
             {children}
-        </RRLink>
+        </StyledMuiLink>
     );
 };
 
-Link.propTypes = {
-    className: PropTypes.string,
-    children: PropTypes.node,
-    to: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+const PREFIX = 'RaLink';
+
+export const LinkClasses = {
+    link: `${PREFIX}-link`,
 };
 
-export default Link;
+const StyledMuiLink = styled(MuiLink, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({}) as typeof MuiLink; // @see https://mui.com/material-ui/guides/typescript/#complications-with-the-component-prop
+
+// @see https://mui.com/material-ui/guides/composition/#with-typescript
+export interface LinkProps
+    extends MuiLinkProps<React.ElementType<any>, LinkBaseProps> {
+    className?: string;
+}
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        [PREFIX]: 'root';
+    }
+
+    interface ComponentsPropsList {
+        [PREFIX]: Partial<LinkProps>;
+    }
+
+    interface Components {
+        RaLink?: {
+            defaultProps?: ComponentsPropsList[typeof PREFIX];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >[typeof PREFIX];
+        };
+    }
+}

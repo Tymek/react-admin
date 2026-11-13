@@ -1,124 +1,135 @@
 import * as React from 'react';
-import { FC, ReactNode } from 'react';
-import PropTypes from 'prop-types';
-import { shallowEqual, useSelector } from 'react-redux';
-import lodashGet from 'lodash/get';
-// @ts-ignore
-import { useMediaQuery, Theme } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import DefaultIcon from '@material-ui/icons/ViewList';
-import classnames from 'classnames';
-import { useGetResourceLabel, getResources, ReduxState } from 'ra-core';
+import type { ReactNode } from 'react';
+import { MenuList } from '@mui/material';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import lodashGet from 'lodash/get.js';
+import clsx from 'clsx';
 
-import DashboardMenuItem from './DashboardMenuItem';
-import MenuItemLink from './MenuItemLink';
+import { DRAWER_WIDTH, CLOSED_DRAWER_WIDTH } from './Sidebar';
+import { useSidebarState } from './useSidebarState';
+import { DashboardMenuItem } from './DashboardMenuItem';
+import { MenuItemLink } from './MenuItemLink';
+import { ResourceMenuItem } from './ResourceMenuItem';
+import { ResourceMenuItems } from './ResourceMenuItems';
+import { useHasDashboard } from 'ra-core';
 
-export const MENU_WIDTH = 240;
-export const CLOSED_MENU_WIDTH = 55;
-
-const useStyles = makeStyles(
-    theme => ({
-        main: {
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            marginTop: '0.5em',
-            [theme.breakpoints.only('xs')]: {
-                marginTop: 0,
-            },
-            [theme.breakpoints.up('md')]: {
-                marginTop: '1.5em',
-            },
-        },
-        open: {
-            width: lodashGet(theme, 'menu.width', MENU_WIDTH),
-        },
-        closed: {
-            width: lodashGet(theme, 'menu.closedWidth', CLOSED_MENU_WIDTH),
-        },
-    }),
-    { name: 'RaMenu' }
-);
-
-const Menu: FC<MenuProps> = props => {
+/**
+ * Renders a menu with one menu item per resource by default. You can also set menu items by hand.
+ *
+ * @example
+ * import * as React from 'react';
+ * import { Menu } from 'react-admin';
+ *
+ * import BookIcon from '@mui/icons-material/Book';
+ * import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
+ * import PeopleIcon from '@mui/icons-material/People';
+ * import LabelIcon from '@mui/icons-material/Label';
+ *
+ * export const MyMenu = () => (
+ *     <Menu>
+ *         <Menu.DashboardItem />
+ *         <Menu.Item to="/posts" primaryText="Posts" leftIcon={<BookIcon />}/>
+ *         <Menu.Item to="/comments" primaryText="Comments" leftIcon={<ChatBubbleIcon />}/>
+ *         <Menu.Item to="/users" primaryText="Users" leftIcon={<PeopleIcon />}/>
+ *         <Menu.Item to="/custom-route" primaryText="Miscellaneous" leftIcon={<LabelIcon />}/>
+ *     </Menu>
+ * );
+ */
+export const Menu = (inProps: MenuProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
-        classes: classesOverride,
+        children,
         className,
-        dense,
-        hasDashboard,
-        onMenuClick,
-        logout,
+        hasDashboard: hasDashboardProp,
         ...rest
     } = props;
-    const classes = useStyles(props);
-    const isXSmall = useMediaQuery((theme: Theme) =>
-        theme.breakpoints.down('xs')
-    );
-    const open = useSelector((state: ReduxState) => state.admin.ui.sidebarOpen);
-    const resources = useSelector(getResources, shallowEqual) as Array<any>;
-    const getResourceLabel = useGetResourceLabel();
+    const hasDashboard = useHasDashboard();
+    const [open] = useSidebarState();
+
     return (
-        <div
-            className={classnames(
-                classes.main,
+        <Root
+            className={clsx(
                 {
-                    [classes.open]: open,
-                    [classes.closed]: !open,
+                    [MenuClasses.open]: open,
+                    [MenuClasses.closed]: !open,
                 },
                 className
             )}
             {...rest}
         >
-            {hasDashboard && (
-                <DashboardMenuItem
-                    onClick={onMenuClick}
-                    dense={dense}
-                    sidebarIsOpen={open}
-                />
-            )}
-            {resources
-                .filter(r => r.hasList)
-                .map(resource => (
-                    <MenuItemLink
-                        key={resource.name}
-                        to={{
-                            pathname: `/${resource.name}`,
-                            state: { _scrollToTop: true },
-                        }}
-                        primaryText={getResourceLabel(resource.name, 2)}
-                        leftIcon={
-                            resource.icon ? <resource.icon /> : <DefaultIcon />
-                        }
-                        onClick={onMenuClick}
-                        dense={dense}
-                        sidebarIsOpen={open}
-                    />
-                ))}
-            {isXSmall && logout}
-        </div>
+            {hasDashboard && !children && <DashboardMenuItem />}
+            {children ?? <ResourceMenuItems />}
+        </Root>
     );
 };
 
+// NOTE: We don't extends MenuListProps here to avoid breaking changes
 export interface MenuProps {
-    classes?: object;
+    children?: ReactNode;
     className?: string;
     dense?: boolean;
-    hasDashboard?: boolean;
-    logout?: ReactNode;
-    onMenuClick?: () => void;
+    [key: string]: any;
 }
 
-Menu.propTypes = {
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    dense: PropTypes.bool,
-    hasDashboard: PropTypes.bool,
-    logout: PropTypes.element,
-    onMenuClick: PropTypes.func,
+// re-export MenuItem components for convenience
+Menu.Item = MenuItemLink;
+Menu.DashboardItem = DashboardMenuItem;
+Menu.ResourceItem = ResourceMenuItem;
+Menu.ResourceItems = ResourceMenuItems;
+
+const PREFIX = 'RaMenu';
+
+export const MenuClasses = {
+    open: `${PREFIX}-open`,
+    closed: `${PREFIX}-closed`,
 };
 
-Menu.defaultProps = {
-    onMenuClick: () => null,
-};
+const Root = styled(MenuList, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})(({ theme }) => ({
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    [theme.breakpoints.only('xs')]: {
+        marginTop: 0,
+    },
+    transition: theme.transitions.create('width', {
+        easing: theme.transitions.easing.sharp,
+        duration: theme.transitions.duration.leavingScreen,
+    }),
 
-export default Menu;
+    [`&.${MenuClasses.open}`]: {
+        width: lodashGet(theme, 'sidebar.width', DRAWER_WIDTH),
+    },
+
+    [`&.${MenuClasses.closed}`]: {
+        width: lodashGet(theme, 'sidebar.closedWidth', CLOSED_DRAWER_WIDTH),
+    },
+}));
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaMenu: 'root' | 'open' | 'closed';
+    }
+
+    interface ComponentsPropsList {
+        RaMenu: Partial<MenuProps>;
+    }
+
+    interface Components {
+        RaMenu?: {
+            defaultProps?: ComponentsPropsList['RaMenu'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaMenu'];
+        };
+    }
+}

@@ -1,209 +1,130 @@
-import * as React from 'react';
-import { useState, FormEvent, ChangeEvent } from 'react';
+import TrashIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import ContentSave from '@mui/icons-material/Save';
 import {
-    TextField,
-    ReferenceField,
-    DateField,
-    useResourceContext,
-    useDelete,
-    useUpdate,
-    useNotify,
-    useRecordContext,
-} from 'react-admin';
-import {
-    Typography,
-    Tooltip,
-    IconButton,
-    FilledInput,
+    Box,
     Button,
-} from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import EditIcon from '@material-ui/icons/Edit';
-import TrashIcon from '@material-ui/icons/Delete';
+    IconButton,
+    Stack,
+    Tooltip,
+    Typography,
+} from '@mui/material';
+import { useState } from 'react';
+import {
+    Form,
+    ReferenceField,
+    useDelete,
+    useNotify,
+    useResourceContext,
+    useUpdate,
+    WithRecord,
+} from 'react-admin';
+import { FieldValues, SubmitHandler } from 'react-hook-form';
 
+import { CompanyAvatar } from '../companies/CompanyAvatar';
+import { Avatar } from '../contacts/Avatar';
+import { RelativeDate } from '../misc/RelativeDate';
 import { Status } from '../misc/Status';
-
-const useStyles = makeStyles(theme => ({
-    root: {
-        marginBottom: theme.spacing(2),
-    },
-    metadata: {
-        marginBottom: theme.spacing(1),
-        color: theme.palette.text.secondary,
-    },
-    textarea: {
-        paddingTop: 16,
-        paddingLeft: 14,
-        paddingRight: 60,
-        paddingBottom: 14,
-        lineHeight: 1.3,
-    },
-    buttons: {
-        display: 'flex',
-        justifyContent: 'flex-end',
-        marginTop: theme.spacing(1),
-    },
-    cancel: {
-        marginRight: theme.spacing(1),
-    },
-    content: {
-        backgroundColor: '#edf3f0',
-        padding: '0 1em',
-        borderRadius: 10,
-        display: 'flex',
-        alignItems: 'stretch',
-        marginBottom: theme.spacing(1),
-    },
-    text: {
-        flex: 1,
-    },
-    paragraph: {
-        fontFamily: theme.typography.fontFamily,
-        fontSize: theme.typography.body1.fontSize,
-        lineHeight: 1.3,
-        marginBottom: theme.spacing(2.4),
-    },
-    toolbar: {
-        marginLeft: theme.spacing(2),
-        visibility: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-around',
-    },
-}));
+import { SaleName } from '../sales/SaleName';
+import { ContactNote, DealNote } from '../types';
+import { NoteAttachments } from './NoteAttachments';
+import { NoteInputs } from './NoteInputs';
 
 export const Note = ({
     showStatus,
     note,
-    isLast,
-    reference,
 }: {
     showStatus?: boolean;
-    note: any;
+    note: DealNote | ContactNote;
     isLast: boolean;
-    reference: string;
 }) => {
     const [isHover, setHover] = useState(false);
     const [isEditing, setEditing] = useState(false);
-    const [noteText, setNoteText] = useState(note.text);
     const resource = useResourceContext();
-    const record = useRecordContext();
     const notify = useNotify();
-    const classes = useStyles();
-    const [update, { loading }] = useUpdate();
 
-    const [handleDelete] = useDelete(resource, note.id, note, {
-        mutationMode: 'undoable',
-        onSuccess: () => {
-            notify('Note deleted', undefined, undefined, true);
-            update(
-                reference,
-                record.id,
-                { nb_notes: record.nb_notes - 1 },
-                record
-            );
-        },
-    });
+    const [update, { isPending }] = useUpdate();
+
+    const [deleteNote] = useDelete(
+        resource,
+        { id: note.id, previousData: note },
+        {
+            mutationMode: 'undoable',
+            onSuccess: () => {
+                notify('Note deleted', { type: 'info', undoable: true });
+            },
+        }
+    );
+
+    const handleDelete = () => {
+        deleteNote();
+    };
 
     const handleEnterEditMode = () => {
-        setEditing(true);
+        setEditing(!isEditing);
     };
 
     const handleCancelEdit = () => {
         setEditing(false);
-        setNoteText(note.text);
         setHover(false);
     };
 
-    const handleTextChange = (event: ChangeEvent<HTMLInputElement>) => {
-        setNoteText(event.target.value);
-    };
-
-    const handleNoteUpdate = (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        update(resource, note.id, { text: noteText }, note, {
-            onSuccess: () => {
-                setEditing(false);
-                setNoteText(note.text);
-                setHover(false);
-            },
-        });
+    const handleNoteUpdate: SubmitHandler<FieldValues> = values => {
+        update(
+            resource,
+            { id: note.id, data: values, previousData: note },
+            {
+                onSuccess: () => {
+                    setEditing(false);
+                    setHover(false);
+                },
+            }
+        );
     };
 
     return (
-        <div
-            className={classes.root}
+        <Box
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}
+            pb={1}
         >
-            <div className={classes.metadata}>
-                <ReferenceField
-                    record={note}
-                    resource="contactNotes"
-                    source="sales_id"
-                    reference="sales"
-                    basePath="/contactNotes"
+            <Stack direction="row" spacing={1} alignItems="center" width="100%">
+                {resource === 'contactNote' ? (
+                    <Avatar width={20} height={20} />
+                ) : (
+                    <ReferenceField
+                        source="company_id"
+                        reference="companies"
+                        link="show"
+                    >
+                        <CompanyAvatar width={20} height={20} />
+                    </ReferenceField>
+                )}
+                <Typography
+                    sx={{ color: theme => theme.palette.text.secondary }}
+                    variant="body2"
                 >
-                    <TextField source="first_name" variant="body1" />
-                </ReferenceField>{' '}
-                <Typography component="span" variant="body1">
-                    added a note on{' '}
-                </Typography>
-                <DateField
-                    source="date"
-                    record={note}
-                    variant="body1"
-                    showTime
-                    locales="en"
-                    options={{
-                        dateStyle: 'full',
-                        timeStyle: 'short',
-                    }}
-                />{' '}
-                {showStatus && <Status status={note.status} />}
-            </div>
-            {isEditing ? (
-                <form onSubmit={handleNoteUpdate}>
-                    <FilledInput
-                        value={noteText}
-                        onChange={handleTextChange}
-                        fullWidth
-                        multiline
-                        className={classes.textarea}
-                        autoFocus
-                    />
-                    <div className={classes.buttons}>
-                        <Button
-                            className={classes.cancel}
-                            onClick={handleCancelEdit}
-                            color="primary"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            type="submit"
-                            color="primary"
-                            variant="contained"
-                            disabled={loading}
-                        >
-                            Update Note
-                        </Button>
-                    </div>
-                </form>
-            ) : (
-                <div className={classes.content}>
-                    <div className={classes.text}>
-                        {note.text
-                            .split('\n')
-                            .map((paragraph: string, index: number) => (
-                                <p className={classes.paragraph} key={index}>
-                                    {paragraph}
-                                </p>
-                            ))}
-                    </div>
-                    <div
-                        className={classes.toolbar}
-                        style={{ visibility: isHover ? 'visible' : 'hidden' }}
+                    <ReferenceField
+                        record={note}
+                        resource={resource}
+                        source="sales_id"
+                        reference="sales"
+                        link={false}
+                    >
+                        <WithRecord
+                            render={record => <SaleName sale={record} />}
+                        />
+                    </ReferenceField>{' '}
+                    added a note{' '}
+                    {showStatus && note.status && (
+                        <Status status={note.status} />
+                    )}
+                    <Box
+                        component="span"
+                        sx={{
+                            ml: 2,
+                            visibility: isHover ? 'visible' : 'hidden',
+                        }}
                     >
                         <Tooltip title="Edit note">
                             <IconButton
@@ -218,9 +139,66 @@ export const Note = ({
                                 <TrashIcon />
                             </IconButton>
                         </Tooltip>
-                    </div>
-                </div>
+                    </Box>
+                </Typography>
+                <Box flex={1}></Box>
+                <Typography
+                    color="textSecondary"
+                    variant="body2"
+                    component="span"
+                >
+                    <RelativeDate date={note.date} />
+                </Typography>
+            </Stack>
+            {isEditing ? (
+                <Form onSubmit={handleNoteUpdate} record={note}>
+                    <NoteInputs showStatus={showStatus} edition />
+                    <Box display="flex" justifyContent="flex-start" mt={1}>
+                        <Button
+                            type="submit"
+                            color="primary"
+                            variant="contained"
+                            disabled={isPending}
+                            startIcon={<ContentSave />}
+                        >
+                            Update Note
+                        </Button>
+                        <Button
+                            sx={{ ml: 1 }}
+                            onClick={handleCancelEdit}
+                            color="primary"
+                        >
+                            Cancel
+                        </Button>
+                    </Box>
+                </Form>
+            ) : (
+                <Stack
+                    sx={{
+                        paddingTop: '0.5em',
+                        display: 'flex',
+                        '& p:empty': {
+                            minHeight: '0.75em',
+                        },
+                    }}
+                >
+                    {note.text
+                        ?.split('\n')
+                        .map((paragraph: string, index: number) => (
+                            <Typography
+                                component="p"
+                                variant="body2"
+                                lineHeight={1.5}
+                                margin={0}
+                                key={index}
+                            >
+                                {paragraph}
+                            </Typography>
+                        ))}
+
+                    {note.attachments && <NoteAttachments note={note} />}
+                </Stack>
             )}
-        </div>
+        </Box>
     );
 };

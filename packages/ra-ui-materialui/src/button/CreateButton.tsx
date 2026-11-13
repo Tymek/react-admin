@@ -1,14 +1,25 @@
 import * as React from 'react';
-import { FC, ReactElement, memo, useMemo } from 'react';
-import PropTypes from 'prop-types';
-import { Fab, useMediaQuery, Theme } from '@material-ui/core';
-import { makeStyles } from '@material-ui/core/styles';
-import ContentAdd from '@material-ui/icons/Add';
-import classnames from 'classnames';
-import { Link } from 'react-router-dom';
-import { useTranslate, useResourceContext } from 'ra-core';
+import ContentAdd from '@mui/icons-material/Add';
+import { Fab, useMediaQuery, type Theme } from '@mui/material';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
+import clsx from 'clsx';
+import isEqual from 'lodash/isEqual.js';
+import merge from 'lodash/merge.js';
+import type { RouterTo } from 'ra-core';
+import {
+    useCreatePath,
+    useCanAccess,
+    useGetResourceLabel,
+    useResourceContext,
+    useResourceTranslation,
+    LinkBase,
+} from 'ra-core';
 
-import Button, { ButtonProps, sanitizeButtonRestProps } from './Button';
+import { Button, type ButtonProps, type LocationDescriptor } from './Button';
 
 /**
  * Opens the Create view of a given resource
@@ -20,98 +31,192 @@ import Button, { ButtonProps, sanitizeButtonRestProps } from './Button';
  * import { CreateButton } from 'react-admin';
  *
  * const CommentCreateButton = () => (
- *     <CreateButton basePath="/comments" label="Create comment" />
+ *     <CreateButton label="Create comment" />
  * );
  */
-const CreateButton: FC<CreateButtonProps> = props => {
+const CreateButton = React.forwardRef(function CreateButton(
+    inProps: CreateButtonProps,
+    ref: React.ForwardedRef<HTMLAnchorElement>
+) {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
     const {
-        basePath = '',
         className,
-        classes: classesOverride,
         icon = defaultIcon,
-        label = 'ra.action.create',
+        label: labelProp,
+        resource: resourceProp,
         scrollToTop = true,
         variant,
+        to: locationDescriptor,
+        state: initialState = {},
         ...rest
     } = props;
-    const classes = useStyles(props);
-    const translate = useTranslate();
+
+    const resource = useResourceContext(props);
+
+    if (!resource) {
+        throw new Error(
+            '<CreateButton> components should be used inside a <Resource> component or provided the resource prop.'
+        );
+    }
+
+    const { canAccess, isPending } = useCanAccess({
+        action: 'create',
+        resource,
+    });
+    const createPath = useCreatePath();
+    const getResourceLabel = useGetResourceLabel();
+    const label = useResourceTranslation({
+        resourceI18nKey: `resources.${resource}.action.create`,
+        baseI18nKey: 'ra.action.create',
+        options: {
+            name: getResourceLabel(resource, 1),
+        },
+        userText: labelProp,
+    });
     const isSmall = useMediaQuery((theme: Theme) =>
-        theme.breakpoints.down('sm')
+        theme.breakpoints.down('md')
     );
-    const resource = useResourceContext();
-    const location = useMemo(
-        () => ({
-            pathname: basePath ? `${basePath}/create` : `/${resource}/create`,
-            state: { _scrollToTop: scrollToTop },
-        }),
-        [basePath, resource, scrollToTop]
+    const state = merge(
+        {},
+        scrollStates.get(String(scrollToTop)),
+        initialState
     );
+    // Duplicated behavior of Button component (legacy use) which will be removed in v5.
+    const linkParams = getLinkParams(locationDescriptor);
+
+    if (!canAccess || isPending) {
+        return null;
+    }
     return isSmall ? (
-        <Fab
-            component={Link}
+        <StyledFab
+            component={LinkBase}
+            ref={ref}
+            to={createPath({ resource, type: 'create' })}
+            state={state}
+            // @ts-ignore FabProps ships its own runtime palette `FabPropsColorOverrides` provoking an overlap error with `ButtonProps`
             color="primary"
-            className={classnames(classes.floating, className)}
-            to={location}
-            aria-label={label && translate(label)}
-            {...sanitizeButtonRestProps(rest)}
+            className={clsx(CreateButtonClasses.floating, className)}
+            // If users provide a ReactNode as label, its their responsibility to also provide an aria-label should they need it
+            aria-label={typeof label === 'string' ? label : undefined}
+            {...rest}
+            {...linkParams}
         >
             {icon}
-        </Fab>
+        </StyledFab>
     ) : (
-        <Button
-            component={Link}
-            to={location}
-            className={className}
-            label={label}
+        <StyledButton
+            component={LinkBase}
+            ref={ref}
+            to={createPath({ resource, type: 'create' })}
+            state={state}
+            className={clsx(CreateButtonClasses.root, className)}
+            // avoid double translation
+            label={<>{label}</>}
+            // If users provide a ReactNode as label, its their responsibility to also provide an aria-label should they need it
+            aria-label={typeof label === 'string' ? label : undefined}
             variant={variant}
             {...(rest as any)}
+            {...linkParams}
         >
             {icon}
-        </Button>
+        </StyledButton>
     );
-};
+});
+
+// avoids using useMemo to get a constant value for the link state
+const scrollStates = new Map([
+    ['true', { _scrollToTop: true }],
+    ['false', {}],
+]);
 
 const defaultIcon = <ContentAdd />;
 
-const useStyles = makeStyles(
-    theme => ({
-        floating: {
-            color: theme.palette.getContrastText(theme.palette.primary.main),
-            margin: 0,
-            top: 'auto',
-            right: 20,
-            bottom: 60,
-            left: 'auto',
-            position: 'fixed',
-            zIndex: 1000,
-        },
-    }),
-    { name: 'RaCreateButton' }
-);
-
 interface Props {
-    basePath?: string;
-    icon?: ReactElement;
+    resource?: string;
+    icon?: React.ReactNode;
     scrollToTop?: boolean;
+    to?: LocationDescriptor | RouterTo;
 }
 
-export type CreateButtonProps = Props & ButtonProps;
+export type CreateButtonProps = Props &
+    Omit<ButtonProps<typeof LinkBase>, 'to'>;
 
-CreateButton.propTypes = {
-    basePath: PropTypes.string,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    icon: PropTypes.element,
-    label: PropTypes.string,
+const PREFIX = 'RaCreateButton';
+
+export const CreateButtonClasses = {
+    root: `${PREFIX}-root`,
+    floating: `${PREFIX}-floating`,
 };
 
-export default memo(CreateButton, (prevProps, nextProps) => {
+const StyledFab = styled(Fab, {
+    name: PREFIX,
+    overridesResolver: (_props, styles) => styles.root,
+})(({ theme }) => ({
+    [`&.${CreateButtonClasses.floating}`]: {
+        color: (theme.vars || theme).palette.primary.contrastText,
+        margin: 0,
+        top: 'auto',
+        right: 20,
+        bottom: 60,
+        left: 'auto',
+        position: 'fixed',
+        zIndex: 1000,
+    },
+})) as unknown as typeof Fab;
+
+const StyledButton = styled(Button, {
+    name: PREFIX,
+    overridesResolver: (_props, styles) => styles.root,
+})({});
+
+export default React.memo(CreateButton, (prevProps, nextProps) => {
     return (
-        prevProps.basePath === nextProps.basePath &&
+        prevProps.resource === nextProps.resource &&
         prevProps.label === nextProps.label &&
         prevProps.translate === nextProps.translate &&
-        prevProps.to === nextProps.to &&
-        prevProps.disabled === nextProps.disabled
+        prevProps.disabled === nextProps.disabled &&
+        isEqual(prevProps.to, nextProps.to) &&
+        isEqual(prevProps.state, nextProps.state)
     );
 });
+
+const getLinkParams = (locationDescriptor?: LocationDescriptor | string) => {
+    // eslint-disable-next-line
+    if (locationDescriptor == undefined) {
+        return undefined;
+    }
+
+    if (typeof locationDescriptor === 'string') {
+        return { to: locationDescriptor };
+    }
+
+    const { redirect, replace, state, ...to } = locationDescriptor;
+    return {
+        to,
+        redirect,
+        replace,
+        state,
+    };
+};
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaCreateButton: 'root' | 'floating';
+    }
+
+    interface ComponentsPropsList {
+        RaCreateButton: Partial<CreateButtonProps>;
+    }
+
+    interface Components {
+        RaCreateButton?: {
+            defaultProps?: ComponentsPropsList['RaCreateButton'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaCreateButton'];
+        };
+    }
+}

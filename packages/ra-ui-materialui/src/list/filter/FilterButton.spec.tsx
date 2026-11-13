@@ -1,54 +1,399 @@
 import * as React from 'react';
 import expect from 'expect';
-import { render, fireEvent } from '@testing-library/react';
-import { ThemeProvider } from '@material-ui/styles';
-import { createMuiTheme } from '@material-ui/core/styles';
+import { render, fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { createTheme } from '@mui/material/styles';
+import {
+    ListContextProvider,
+    ListControllerResult,
+    ResourceContextProvider,
+} from 'ra-core';
 
-import FilterButton from './FilterButton';
-import TextInput from '../../input/TextInput';
+import { AdminContext } from '../../AdminContext';
+import { FilterButton } from './FilterButton';
+import { TextInput } from '../../input';
+import { Basic, WithAutoCompleteArrayInput } from './FilterButton.stories';
 
-const theme = createMuiTheme();
+const theme = createTheme();
 
 describe('<FilterButton />', () => {
-    const defaultProps = {
+    const defaultListContext = {
         resource: 'post',
-        filters: [
-            <TextInput source="title" label="Title" />,
-            <TextInput source="customer.name" label="Name" />,
-        ],
         displayedFilters: {
             title: true,
             'customer.name': true,
         },
         showFilter: () => {},
         filterValues: {},
+    } as unknown as ListControllerResult;
+
+    const defaultProps = {
+        filters: [
+            <TextInput source="title" label="Title" />,
+            <TextInput source="customer.name" label="Name" />,
+        ],
     };
 
-    describe('filter button', () => {
-        it('should not be rendered, if all filters are already being displayed', () => {
-            const { queryByText } = render(<FilterButton {...defaultProps} />);
-            expect(queryByText('ra.action.add_filter')).toBeNull();
-        });
+    beforeAll(() => {
+        window.scrollTo = jest.fn();
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterAll(() => {
+        jest.clearAllMocks();
     });
 
     describe('filter selection menu', () => {
-        it('should display only hidden filters', () => {
+        it('should control filters display by checking/unchecking them in the menu', async () => {
+            render(<Basic />);
+
+            fireEvent.click(await screen.findByLabelText('Add filter'));
+
+            let checkboxes: HTMLInputElement[] =
+                screen.getAllByRole('menuitemcheckbox');
+            expect(checkboxes).toHaveLength(3);
+            expect(checkboxes[0].getAttribute('aria-checked')).toBe('false');
+            expect(checkboxes[1].getAttribute('aria-checked')).toBe('false');
+            expect(checkboxes[2].getAttribute('aria-checked')).toBe('false');
+
+            fireEvent.click(checkboxes[0]);
+
+            await screen.findByRole('textbox', {
+                name: 'Title',
+            });
+            fireEvent.click(screen.getByLabelText('Add filter'));
+
+            checkboxes = screen.getAllByRole('menuitemcheckbox');
+            expect(checkboxes).toHaveLength(3);
+            expect(checkboxes[0].getAttribute('aria-checked')).toBe('true');
+            expect(checkboxes[1].getAttribute('aria-checked')).toBe('false');
+            expect(checkboxes[2].getAttribute('aria-checked')).toBe('false');
+
+            // wait for a bit before clicking the checkbox again
+            await new Promise(resolve => setTimeout(resolve, 510));
+            fireEvent.click(checkboxes[0]);
+
+            await waitFor(
+                () => {
+                    expect(
+                        screen.queryByRole('textbox', {
+                            name: 'Title',
+                        })
+                    ).toBeNull();
+                },
+                { timeout: 2000 }
+            );
+
+            fireEvent.click(screen.getByLabelText('Add filter'));
+            checkboxes = screen.getAllByRole('menuitemcheckbox');
+            expect(checkboxes).toHaveLength(3);
+            expect(checkboxes[0].getAttribute('aria-checked')).toBe('false');
+            expect(checkboxes[1].getAttribute('aria-checked')).toBe('false');
+            expect(checkboxes[2].getAttribute('aria-checked')).toBe('false');
+        }, 7000);
+
+        it('should display the added filters in the order they were added', async () => {
+            render(<Basic />);
+
+            fireEvent.click(await screen.findByLabelText('Add filter'));
+            fireEvent.click(screen.getAllByRole('menuitemcheckbox')[2]);
+            await screen.findByRole('textbox', { name: 'Body' });
+
+            fireEvent.click(screen.getByLabelText('Add filter'));
+            fireEvent.click(screen.getAllByRole('menuitemcheckbox')[0]);
+            await screen.findByRole('textbox', { name: 'Title' });
+
+            expect(
+                screen
+                    .getAllByRole('textbox')
+                    .map(input => input.getAttribute('name'))
+            ).toEqual(['q', 'body', 'title']);
+        });
+
+        it('should remove the checked state of the menu item when removing its matching filter', async () => {
+            render(<Basic />);
+
+            fireEvent.click(await screen.findByLabelText('Add filter'));
+
+            let checkboxes: HTMLInputElement[] =
+                screen.getAllByRole('menuitemcheckbox');
+            fireEvent.click(checkboxes[0]);
+
+            await screen.findByRole('textbox', {
+                name: 'Title',
+            });
+
+            // wait for a bit before removing the filter
+            await new Promise(resolve => setTimeout(resolve, 510));
+            fireEvent.click(screen.getByTitle('Remove this filter'));
+
+            await waitFor(
+                () => {
+                    expect(
+                        screen.queryByRole('textbox', {
+                            name: 'Title',
+                        })
+                    ).toBeNull();
+                },
+                { timeout: 2000 }
+            );
+
+            fireEvent.click(screen.getByLabelText('Add filter'));
+            checkboxes = screen.getAllByRole('menuitemcheckbox');
+            expect(checkboxes).toHaveLength(3);
+            expect(checkboxes[0].getAttribute('aria-checked')).toBe('false');
+            expect(checkboxes[1].getAttribute('aria-checked')).toBe('false');
+            expect(checkboxes[2].getAttribute('aria-checked')).toBe('false');
+        });
+
+        it('should remove the checked state of the menu item when removing its matching filter even when 2 filters were set', async () => {
+            render(<Basic />);
+
+            fireEvent.click(await screen.findByLabelText('Add filter'));
+            fireEvent.click(screen.getAllByRole('menuitemcheckbox')[0]);
+            await screen.findByRole('textbox', {
+                name: 'Title',
+            });
+
+            await screen.findByText('1-1 of 1');
+
+            // wait for a bit before changing the filters again
+            await new Promise(resolve => setTimeout(resolve, 510));
+            fireEvent.click(await screen.findByLabelText('Add filter'));
+            fireEvent.click(screen.getAllByRole('menuitemcheckbox')[2]);
+            fireEvent.change(
+                await screen.findByRole('textbox', {
+                    name: 'Body',
+                }),
+                {
+                    target: { value: 'foo' },
+                }
+            );
+            await screen.findByText(
+                'No Posts found using the current filters.'
+            );
+
+            // wait for a bit before changing the filters again
+            await new Promise(resolve => setTimeout(resolve, 510));
+            fireEvent.click(screen.getAllByTitle('Remove this filter')[1]);
+            await screen.findByText('1-1 of 1');
+
+            await waitFor(
+                () => {
+                    expect(
+                        screen.queryByRole('textbox', {
+                            name: 'Body',
+                        })
+                    ).toBeNull();
+                },
+                { timeout: 2000 }
+            );
+
+            // wait for a bit before changing the filters again
+            await new Promise(resolve => setTimeout(resolve, 510));
+            fireEvent.click(screen.getByTitle('Remove this filter'));
+            await screen.findByText('1-10 of 13');
+
+            await waitFor(
+                () => {
+                    expect(
+                        screen.queryByRole('textbox', {
+                            name: 'Title',
+                        })
+                    ).toBeNull();
+                },
+                { timeout: 2000 }
+            );
+        }, 10000);
+
+        it('should display the filter button if all filters are shown and there is a filter value', () => {
+            render(
+                <AdminContext theme={theme}>
+                    <ResourceContextProvider value="posts">
+                        <ListContextProvider
+                            value={{
+                                ...defaultListContext,
+                                displayedFilters: {
+                                    title: true,
+                                    'customer.name': true,
+                                },
+                                filterValues: { title: 'foo' },
+                            }}
+                        >
+                            <FilterButton
+                                filters={[
+                                    <TextInput source="title" label="Title" />,
+                                    <TextInput
+                                        source="customer.name"
+                                        label="Name"
+                                    />,
+                                ]}
+                            />
+                        </ListContextProvider>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(
+                screen.queryByLabelText('ra.action.add_filter')
+            ).not.toBeNull();
+            fireEvent.click(screen.getByLabelText('ra.action.add_filter'));
+            screen.getByText('ra.saved_queries.new_label');
+        });
+
+        it('should return disabled filter menu item when "disabled" passed to filter', () => {
             const hiddenFilter = (
-                <TextInput source="Returned" label="Returned" />
+                <TextInput source="Returned" label="Returned" disabled={true} />
             );
             const { getByLabelText, queryByText } = render(
-                <ThemeProvider theme={theme}>
-                    <FilterButton
-                        {...defaultProps}
-                        filters={defaultProps.filters.concat(hiddenFilter)}
-                    />
-                </ThemeProvider>
+                <AdminContext theme={theme}>
+                    <ResourceContextProvider value="posts">
+                        <ListContextProvider value={defaultListContext}>
+                            <FilterButton
+                                filters={defaultProps.filters.concat(
+                                    hiddenFilter
+                                )}
+                            />
+                        </ListContextProvider>
+                    </ResourceContextProvider>
+                </AdminContext>
             );
 
             fireEvent.click(getByLabelText('ra.action.add_filter'));
 
-            expect(queryByText('Returned')).not.toBeNull();
-            expect(queryByText('Name')).toBeNull();
+            const disabledFilter = queryByText('Returned')?.closest('li');
+
+            expect(disabledFilter).not.toBeNull();
+            expect(disabledFilter?.getAttribute('aria-disabled')).toEqual(
+                'true'
+            );
         });
+
+        it('should remove all filters when the "Remove all filters" button is clicked', async () => {
+            render(<Basic />);
+
+            // First, check we don't have a clear filters option yet
+            await screen.findByText('Add filter');
+            fireEvent.click(screen.getByText('Add filter'));
+
+            await screen.findByText('Title', { selector: 'li span' });
+            expect(screen.queryByDisplayValue('Remove all filters')).toBeNull();
+
+            // Then we apply a filter
+            fireEvent.click(screen.getByText('Title', { selector: 'li span' }));
+            await screen.findByDisplayValue(
+                'Accusantium qui nihil voluptatum quia voluptas maxime ab similique'
+            );
+
+            // Then we clear all filters
+            fireEvent.click(screen.getByText('Add filter'));
+            await screen.findByText('Remove all filters');
+            fireEvent.click(screen.getByText('Remove all filters'));
+
+            // We check that the previously applied filter has been removed
+            await waitFor(() => {
+                expect(
+                    screen.queryByDisplayValue(
+                        'Accusantium qui nihil voluptatum quia voluptas maxime ab similique'
+                    )
+                ).toBeNull();
+            });
+        });
+
+        it('should remove all alwaysOn filters when the "Remove all filters" button is clicked', async () => {
+            render(<Basic />);
+
+            // First, check we don't have a clear filters option yet
+            await screen.findByText('Add filter');
+            fireEvent.click(screen.getByText('Add filter'));
+
+            await screen.findByText('Title', { selector: 'li span' });
+            expect(screen.queryByDisplayValue('Remove all filters')).toBeNull();
+
+            // Then we apply a filter to an alwaysOn filter
+            fireEvent.change(screen.getByLabelText('Search'), {
+                target: {
+                    value: 'Accusantium qui nihil voluptatum quia voluptas maxime ab similique',
+                },
+            });
+            await screen.findByDisplayValue(
+                'Accusantium qui nihil voluptatum quia voluptas maxime ab similique'
+            );
+
+            // Then we clear all filters
+            fireEvent.click(screen.getByText('Add filter'));
+            await screen.findByText('Remove all filters');
+            fireEvent.click(screen.getByText('Remove all filters'));
+
+            // We check that the previously applied filter has been removed
+            await waitFor(() => {
+                expect(
+                    screen.queryByDisplayValue(
+                        'Accusantium qui nihil voluptatum quia voluptas maxime ab similique'
+                    )
+                ).toBeNull();
+            });
+        });
+
+        it('should not display save query in filter button', async () => {
+            const { queryByText } = render(
+                <AdminContext theme={theme}>
+                    <ResourceContextProvider value="posts">
+                        <ListContextProvider
+                            value={{
+                                ...defaultListContext,
+                                filterValues: { title: 'foo' },
+                            }}
+                        >
+                            <FilterButton
+                                filters={[
+                                    <TextInput
+                                        source="Returned"
+                                        label="Returned"
+                                    />,
+                                ]}
+                                disableSaveQuery
+                            />
+                        </ListContextProvider>
+                    </ResourceContextProvider>
+                </AdminContext>
+            );
+            expect(
+                screen.queryByLabelText('ra.action.add_filter')
+            ).not.toBeNull();
+
+            fireEvent.click(screen.getByLabelText('ra.action.add_filter'));
+
+            await screen.findByText('Returned');
+
+            expect(queryByText('ra.saved_queries.new_label')).toBeNull();
+        });
+
+        it('should close the filter menu on removing all filters', async () => {
+            const user = userEvent.setup();
+            render(<WithAutoCompleteArrayInput />);
+
+            // Open Posts List
+            await user.click(await screen.findByText('Posts'));
+
+            await screen.findByText('1-10 of 13');
+
+            await user.click(await screen.findByLabelText('Open'));
+            await user.click(await screen.findByText('Sint...'));
+
+            await screen.findByLabelText('Add filter');
+            expect(screen.queryAllByText('Close')).toHaveLength(0);
+            await screen.findByText('1-1 of 1');
+            await user.click(screen.getByLabelText('Add filter'));
+            await user.click(await screen.findByText('Remove all filters'));
+
+            await screen.findByText('1-10 of 13');
+
+            await user.click(await screen.findByLabelText('Open'));
+            await user.click(await screen.findByText('Sint...'));
+
+            await screen.findByText('1-1 of 1');
+
+            expect(screen.queryByText('Save current query...')).toBeNull();
+        }, 20000);
     });
 });

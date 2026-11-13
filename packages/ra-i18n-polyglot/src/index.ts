@@ -1,6 +1,6 @@
 import Polyglot from 'node-polyglot';
 
-import { I18nProvider, TranslationMessages } from 'ra-core';
+import { I18nProvider, TranslationMessages, Locale } from 'ra-core';
 
 type GetMessages = (
     locale: string
@@ -11,7 +11,8 @@ type GetMessages = (
  *
  * @example
  *
- * import { Admin, Resource, polyglotI18nProvider } from 'react-admin';
+ * import { Admin, Resource } from 'react-admin';
+ * import polyglotI18nProvider from 'ra-i18n-polyglot';
  * import englishMessages from 'ra-language-english';
  * import frenchMessages from 'ra-language-french';
  *
@@ -19,11 +20,16 @@ type GetMessages = (
  *     fr: frenchMessages,
  *     en: englishMessages,
  * };
- * const i18nProvider = polyglotI18nProvider(locale => messages[locale])
+ * const i18nProvider = polyglotI18nProvider(
+ *     locale => messages[locale],
+ *     'en',
+ *     [{ locale: 'en', name: 'English' }, { locale: 'fr', name: 'Français' }]
+ * )
  */
 export default (
     getMessages: GetMessages,
     initialLocale: string = 'en',
+    availableLocales: Locale[] | any = [{ locale: 'en', name: 'English' }],
     polyglotOptions: any = {}
 ): I18nProvider => {
     let locale = initialLocale;
@@ -33,10 +39,21 @@ export default (
             `The i18nProvider returned a Promise for the messages of the default locale (${initialLocale}). Please update your i18nProvider to return the messages of the default locale in a synchronous way.`
         );
     }
+
+    let availableLocalesFinal, polyglotOptionsFinal;
+    if (Array.isArray(availableLocales)) {
+        // third argument is an array of locales
+        availableLocalesFinal = availableLocales;
+        polyglotOptionsFinal = polyglotOptions;
+    } else {
+        // third argument is the polyglotOptions
+        availableLocalesFinal = [{ locale: 'en', name: 'English' }];
+        polyglotOptionsFinal = availableLocales;
+    }
     const polyglot = new Polyglot({
         locale,
         phrases: { '': '', ...messages },
-        ...polyglotOptions,
+        ...polyglotOptionsFinal,
     });
     let translate = polyglot.t.bind(polyglot);
 
@@ -57,5 +74,6 @@ export default (
                 }
             ),
         getLocale: () => locale,
+        getLocales: () => availableLocalesFinal,
     };
 };

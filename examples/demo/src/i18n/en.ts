@@ -22,8 +22,7 @@ const customEnglishMessages: TranslationMessages = {
             all_customers: 'See all customers',
             pending_orders: 'Pending Orders',
             order: {
-                items:
-                    'by %{customer_name}, one item |||| by %{customer_name}, %{nb_items} items',
+                items: 'by %{customer_name}, one item |||| by %{customer_name}, %{nb_items} items',
             },
             welcome: {
                 title: 'Welcome to the react-admin e-commerce demo',
@@ -38,13 +37,22 @@ const customEnglishMessages: TranslationMessages = {
             catalog: 'Catalog',
             customers: 'Customers',
         },
+        events: {
+            review: {
+                title: 'Posted review on "%{product}"',
+            },
+            order: {
+                title: 'Ordered 1 poster |||| Ordered %{smart_count} posters',
+            },
+        },
     },
     resources: {
         customers: {
             name: 'Customer |||| Customers',
             fields: {
-                commands: 'Orders',
+                orders: 'Orders',
                 first_seen: 'First seen',
+                full_name: 'Name',
                 groups: 'Segments',
                 last_seen: 'Last seen',
                 last_seen_gte: 'Visited Since',
@@ -81,8 +89,16 @@ const customEnglishMessages: TranslationMessages = {
                 password_mismatch:
                     'The password confirmation is not the same as the password.',
             },
+            notifications: {
+                created:
+                    'Customer created |||| %{smart_count} customers created',
+                updated:
+                    'Customer updated |||| %{smart_count} customers updated',
+                deleted:
+                    'Customer deleted |||| %{smart_count} customers deleted',
+            },
         },
-        commands: {
+        orders: {
             name: 'Order |||| Orders',
             amount: '1 order |||| %{smart_count} orders',
             title: 'Order %{reference}',
@@ -113,17 +129,27 @@ const customEnglishMessages: TranslationMessages = {
                 items: 'Items',
                 total: 'Totals',
             },
+            notifications: {
+                created: 'Order created |||| %{smart_count} orders created',
+                updated: 'Order updated |||| %{smart_count} orders updated',
+                deleted: 'Order deleted |||| %{smart_count} orders deleted',
+            },
         },
         invoices: {
             name: 'Invoice |||| Invoices',
             fields: {
                 date: 'Invoice date',
                 customer_id: 'Customer',
-                command_id: 'Order',
+                order_id: 'Order',
                 date_gte: 'Passed Since',
                 date_lte: 'Passed Before',
                 total_gte: 'Min amount',
                 address: 'Address',
+            },
+            notifications: {
+                created: 'Invoice created |||| %{smart_count} invoices created',
+                updated: 'Invoice updated |||| %{smart_count} invoices updated',
+                deleted: 'Invoice deleted |||| %{smart_count} invoices deleted',
             },
         },
         products: {
@@ -163,11 +189,24 @@ const customEnglishMessages: TranslationMessages = {
                 low_sellers: 'Low',
                 never_sold: 'Never sold',
             },
+            notifications: {
+                created: 'Poster created |||| %{smart_count} posters created',
+                updated: 'Poster updated |||| %{smart_count} posters updated',
+                deleted: 'Poster deleted |||| %{smart_count} posters deleted',
+            },
         },
         categories: {
             name: 'Category |||| Categories',
             fields: {
                 products: 'Products',
+            },
+            notifications: {
+                created:
+                    'Category created |||| %{smart_count} categories created',
+                updated:
+                    'Category updated |||| %{smart_count} categories updated',
+                deleted:
+                    'Category deleted |||| %{smart_count} categories deleted',
             },
         },
         reviews: {
@@ -177,7 +216,7 @@ const customEnglishMessages: TranslationMessages = {
             detail: 'Review detail',
             fields: {
                 customer_id: 'Customer',
-                command_id: 'Order',
+                order_id: 'Order',
                 product_id: 'Product',
                 date_gte: 'Posted since',
                 date_lte: 'Posted before',
@@ -189,7 +228,10 @@ const customEnglishMessages: TranslationMessages = {
                 accept: 'Accept',
                 reject: 'Reject',
             },
-            notification: {
+            notifications: {
+                created: 'Review created |||| %{smart_count} reviews created',
+                updated: 'Review updated |||| %{smart_count} reviews updated',
+                deleted: 'Review deleted |||| %{smart_count} reviews deleted',
                 approved_success: 'Review approved',
                 approved_error: 'Error: Review not approved',
                 rejected_success: 'Review rejected',

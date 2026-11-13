@@ -1,11 +1,10 @@
 {
     "extends": "../../tsconfig.json",
     "compilerOptions": {
-        "outDir": "lib",
+        "outDir": "dist",
         "rootDir": "src",
-        "declaration": true,
-        "declarationMap": true
+        "strictNullChecks": true
     },
-    "exclude": ["**/*.spec.ts", "**/*.spec.tsx", "**/*.spec.js"],
+    "exclude": ["**/*.spec.ts", "**/*.spec.tsx", "**/*.spec.js", "**/*.stories.tsx"],
     "include": ["src"]
 }

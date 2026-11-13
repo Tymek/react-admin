@@ -2,21 +2,19 @@
 import * as React from 'react';
 import {
     Create,
-    SimpleForm,
-    TextField,
+    SimpleFormConfigurable,
     TextInput,
     required,
     TranslatableInputs,
 } from 'react-admin';
 
-const TagCreate = props => (
-    <Create {...props}>
-        <SimpleForm redirect="list">
-            <TextField source="id" />
+const TagCreate = () => (
+    <Create redirect="list">
+        <SimpleFormConfigurable>
             <TranslatableInputs locales={['en', 'fr']}>
                 <TextInput source="name" validate={[required()]} />
             </TranslatableInputs>
-        </SimpleForm>
+        </SimpleFormConfigurable>
     </Create>
 );
 

@@ -1,35 +1,55 @@
 import React from 'react';
 import {
     Admin as RaAdmin,
-    AdminProps as RaAdminProps,
+    AdminProps,
     Resource,
+    CustomRoutes,
 } from 'react-admin';
 import localStorageDataProvider from 'ra-data-local-storage';
-import { Create, Edit, List } from './builders';
+import { Create, Edit, List, Show } from './builders';
 import {
     useResourcesConfiguration,
+    ResourceConfigurationPage,
     ResourceConfigurationProvider,
 } from './ResourceConfiguration';
-import { Layout, Ready } from './ui';
+import { Layout } from './ui';
+import { Route } from 'react-router';
+import { useApplication } from './ApplicationContext';
 
-const dataProvider = localStorageDataProvider();
-
-export const Admin = (props: AdminProps) => (
-    <ResourceConfigurationProvider dataProvider={dataProvider}>
-        <InnerAdmin {...props} />
-    </ResourceConfigurationProvider>
-);
+export const Admin = (props: Omit<AdminProps, 'dataProvider'>) => {
+    const { application } = useApplication();
+    if (!application) {
+        return null;
+    }
+    const dataProvider = localStorageDataProvider({
+        localStorageKey: `@@ra-no-code/${application.name}/data`,
+    });
+    return (
+        <ResourceConfigurationProvider
+            dataProvider={dataProvider}
+            storageKey={`@@ra-no-code/${application.name}`}
+        >
+            <InnerAdmin
+                {...props}
+                title={application.name}
+                dataProvider={dataProvider}
+            />
+        </ResourceConfigurationProvider>
+    );
+};
 
 const InnerAdmin = (props: AdminProps) => {
     const [resources] = useResourcesConfiguration();
     const hasResources = !!resources && Object.keys(resources).length > 0;
+
     return (
-        <RaAdmin
-            dataProvider={dataProvider}
-            ready={Ready}
-            layout={Layout}
-            {...props}
-        >
+        <RaAdmin layout={Layout} {...props}>
+            <CustomRoutes>
+                <Route
+                    path="/configure/:resource"
+                    element={<ResourceConfigurationPage />}
+                />
+            </CustomRoutes>
             {hasResources
                 ? Object.keys(resources).map(resource => (
                       <Resource
@@ -39,11 +59,10 @@ const InnerAdmin = (props: AdminProps) => {
                           list={List}
                           edit={Edit}
                           create={Create}
+                          show={Show}
                       />
                   ))
-                : undefined}
+                : null}
         </RaAdmin>
     );
 };
-
-interface AdminProps extends Omit<RaAdminProps, 'dataProvider'> {}

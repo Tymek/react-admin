@@ -1,15 +1,9 @@
 import * as React from 'react';
-import { ReactElement } from 'react';
-import PropTypes from 'prop-types';
-import {
-    CreateContextProvider,
-    ResourceContextProvider,
-    useCheckMinimumRequiredProps,
-    useCreateController,
-} from 'ra-core';
+import { CreateBase, CreateBaseProps, Identifier, RaRecord } from 'ra-core';
+import { useThemeProps } from '@mui/material/styles';
 
-import { CreateProps } from '../types';
-import { CreateView } from './CreateView';
+import { CreateView, CreateViewProps } from './CreateView';
+import { Loading } from '../layout';
 
 /**
  * Page component for the Create view
@@ -21,10 +15,12 @@ import { CreateView } from './CreateView';
  *
  * The <Create> component accepts the following props:
  *
+ * - children: Component rendering the Form Layout
+ * - render: Alternative to children. A function to render the Form Layout. Receives the create context as its argument.
  * - actions
  * - aside
  * - component
- * - successMessage
+ * - mutationOptions
  * - title
  *
  * @example
@@ -33,8 +29,8 @@ import { CreateView } from './CreateView';
  * import * as React from "react";
  * import { Create, SimpleForm, TextInput } from 'react-admin';
  *
- * export const PostCreate = (props) => (
- *     <Create {...props}>
+ * export const PostCreate = () => (
+ *     <Create>
  *         <SimpleForm>
  *             <TextInput source="title" />
  *         </SimpleForm>
@@ -54,43 +50,66 @@ import { CreateView } from './CreateView';
  * );
  * export default App;
  */
-export const Create = (
-    props: CreateProps & { children: ReactElement }
-): ReactElement => {
-    useCheckMinimumRequiredProps('Create', ['children'], props);
-    const controllerProps = useCreateController(props);
-    const body = (
-        <CreateContextProvider value={controllerProps}>
-            <CreateView {...props} {...controllerProps} />
-        </CreateContextProvider>
-    );
-    return props.resource ? (
-        // support resource override via props
-        <ResourceContextProvider value={props.resource}>
-            {body}
-        </ResourceContextProvider>
-    ) : (
-        body
+export const Create = <
+    RecordType extends Omit<RaRecord, 'id'> = any,
+    ResultRecordType extends RaRecord = RecordType & { id: Identifier },
+>(
+    inProps: CreateProps<RecordType, Error, ResultRecordType>
+) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+
+    const {
+        resource,
+        record,
+        redirect,
+        transform,
+        mutationMode,
+        mutationOptions,
+        disableAuthentication,
+        hasEdit,
+        hasShow,
+        loading,
+        authLoading = loading ?? defaultAuthLoading,
+        ...rest
+    } = props;
+
+    if (!props.render && !props.children) {
+        throw new Error(
+            '<Create> requires either a `render` prop or `children` prop'
+        );
+    }
+
+    return (
+        <CreateBase<RecordType, ResultRecordType>
+            resource={resource}
+            record={record}
+            redirect={redirect}
+            transform={transform}
+            mutationMode={mutationMode}
+            mutationOptions={mutationOptions}
+            disableAuthentication={disableAuthentication}
+            hasEdit={hasEdit}
+            hasShow={hasShow}
+            authLoading={authLoading}
+        >
+            <CreateView {...rest} />
+        </CreateBase>
     );
 };
 
-Create.propTypes = {
-    actions: PropTypes.element,
-    aside: PropTypes.element,
-    children: PropTypes.element,
-    classes: PropTypes.object,
-    className: PropTypes.string,
-    hasCreate: PropTypes.bool,
-    hasEdit: PropTypes.bool,
-    hasShow: PropTypes.bool,
-    resource: PropTypes.string,
-    title: PropTypes.node,
-    record: PropTypes.object,
-    hasList: PropTypes.bool,
-    successMessage: PropTypes.string,
-    onSuccess: PropTypes.func,
-    onFailure: PropTypes.func,
-    transform: PropTypes.func,
-};
+export interface CreateProps<
+    RecordType extends Omit<RaRecord, 'id'> = any,
+    MutationOptionsError = Error,
+    ResultRecordType extends RaRecord = RecordType & { id: Identifier },
+> extends Omit<
+            CreateBaseProps<RecordType, ResultRecordType, MutationOptionsError>,
+            'children' | 'render'
+        >,
+        CreateViewProps {}
 
-export default Create;
+const defaultAuthLoading = <Loading />;
+
+const PREFIX = 'RaCreate'; // Types declared in CreateView.

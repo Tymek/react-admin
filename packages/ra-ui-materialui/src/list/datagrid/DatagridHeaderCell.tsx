@@ -1,64 +1,86 @@
 import * as React from 'react';
+import {
+    type ComponentsOverrides,
+    styled,
+    useThemeProps,
+} from '@mui/material/styles';
 import { memo } from 'react';
-import PropTypes from 'prop-types';
-import classnames from 'classnames';
-import { TableCell, TableSortLabel, Tooltip } from '@material-ui/core';
-import { TableCellProps } from '@material-ui/core/TableCell';
-import { makeStyles } from '@material-ui/core/styles';
+import clsx from 'clsx';
+import {
+    TableCell,
+    type TableCellProps,
+    TableSortLabel,
+    Tooltip,
+} from '@mui/material';
 import {
     FieldTitle,
+    type SortPayload,
     useTranslate,
-    SortPayload,
     useResourceContext,
+    useTranslateLabel,
 } from 'ra-core';
+import type { DatagridField } from './types';
 
-import { ClassesOverride } from '../../types';
+const oppositeOrder: Record<SortPayload['order'], SortPayload['order']> = {
+    ASC: 'DESC',
+    DESC: 'ASC',
+};
 
-// remove the sort icons when not active
-const useStyles = makeStyles(
-    {
-        icon: {
-            display: 'none',
-        },
-        active: {
-            '& $icon': {
-                display: 'inline',
-            },
-        },
-    },
-    { name: 'RaDatagridHeaderCell' }
-);
+export const DatagridHeaderCell = (inProps: DatagridHeaderCellProps) => {
+    const props = useThemeProps({
+        props: inProps,
+        name: PREFIX,
+    });
+    const { className, field, sort, updateSort, isSorting, ...rest } = props;
+    const resource = useResourceContext();
 
-export const DatagridHeaderCell = (
-    props: DatagridHeaderCellProps
-): JSX.Element => {
-    const {
-        className,
-        classes: classesOverride,
-        field,
-        currentSort,
-        updateSort,
-        isSorting,
-        ...rest
-    } = props;
-    const resource = useResourceContext(props);
-    const classes = useStyles(props);
     const translate = useTranslate();
+    const translateLabel = useTranslateLabel();
+    const nextSortOrder = field
+        ? sort && sort.field === (field.props.sortBy || field.props.source)
+            ? // active sort field, use opposite order
+              oppositeOrder[sort.order]
+            : // non active sort field, use default order
+              field?.props.sortByOrder ?? 'ASC'
+        : undefined;
+    const fieldLabel = field
+        ? translateLabel({
+              label:
+                  typeof field.props.label === 'string'
+                      ? field.props.label
+                      : undefined,
+              resource,
+              source: field.props.source,
+          })
+        : undefined;
+    const sortLabel = translate('ra.sort.sort_by', {
+        field: fieldLabel,
+        field_lower_first:
+            typeof fieldLabel === 'string'
+                ? fieldLabel.charAt(0).toLowerCase() + fieldLabel.slice(1)
+                : undefined,
+        order: translate(`ra.sort.${nextSortOrder}`),
+        _: translate('ra.action.sort'),
+    });
 
     return (
-        <TableCell
-            className={classnames(className, field.props.headerClassName)}
-            align={field.props.textAlign}
+        <StyledTableCell
+            className={clsx(className, field?.props.headerClassName)}
+            align={field?.props.textAlign || field?.type.textAlign}
             variant="head"
             {...rest}
         >
             {updateSort &&
+            sort &&
+            field &&
             field.props.sortable !== false &&
+            field.type.sortable !== false &&
             (field.props.sortBy || field.props.source) ? (
                 <Tooltip
-                    title={translate('ra.action.sort')}
+                    title={sortLabel}
                     placement={
-                        field.props.textAlign === 'right'
+                        field.props.textAlign === 'right' ||
+                        field.type.textAlign === 'right'
                             ? 'bottom-end'
                             : 'bottom-start'
                     }
@@ -66,15 +88,14 @@ export const DatagridHeaderCell = (
                 >
                     <TableSortLabel
                         active={
-                            currentSort.field ===
+                            sort.field ===
                             (field.props.sortBy || field.props.source)
                         }
-                        direction={currentSort.order === 'ASC' ? 'asc' : 'desc'}
-                        data-sort={field.props.sortBy || field.props.source} // @deprecated. Use data-field instead.
+                        direction={sort.order === 'ASC' ? 'asc' : 'desc'}
                         data-field={field.props.sortBy || field.props.source}
                         data-order={field.props.sortByOrder || 'ASC'}
                         onClick={updateSort}
-                        classes={classes}
+                        classes={DatagridHeaderCellClasses}
                     >
                         <FieldTitle
                             label={field.props.label}
@@ -85,36 +106,21 @@ export const DatagridHeaderCell = (
                 </Tooltip>
             ) : (
                 <FieldTitle
-                    label={field.props.label}
-                    source={field.props.source}
+                    label={field?.props.label}
+                    source={field?.props.source}
                     resource={resource}
                 />
             )}
-        </TableCell>
+        </StyledTableCell>
     );
 };
 
-DatagridHeaderCell.propTypes = {
-    className: PropTypes.string,
-    classes: PropTypes.object,
-    field: PropTypes.element,
-    currentSort: PropTypes.shape({
-        sort: PropTypes.string,
-        order: PropTypes.string,
-    }).isRequired,
-    isSorting: PropTypes.bool,
-    resource: PropTypes.string,
-    updateSort: PropTypes.func,
-};
-
 export interface DatagridHeaderCellProps
-    extends Omit<TableCellProps, 'classes'> {
+    extends Omit<TableCellProps, 'classes' | 'resource'> {
     className?: string;
-    classes?: ClassesOverride<typeof useStyles>;
-    field?: JSX.Element;
+    field?: DatagridField;
     isSorting?: boolean;
-    resource: string;
-    currentSort: SortPayload;
+    sort?: SortPayload;
     updateSort?: (event: any) => void;
 }
 
@@ -122,8 +128,45 @@ export default memo(
     DatagridHeaderCell,
     (props, nextProps) =>
         props.updateSort === nextProps.updateSort &&
-        props.currentSort.field === nextProps.currentSort.field &&
-        props.currentSort.order === nextProps.currentSort.order &&
-        props.isSorting === nextProps.isSorting &&
-        props.resource === nextProps.resource
+        props.sort?.field === nextProps.sort?.field &&
+        props.sort?.order === nextProps.sort?.order &&
+        props.isSorting === nextProps.isSorting
 );
+
+const PREFIX = 'RaDatagridHeaderCell';
+
+export const DatagridHeaderCellClasses = {
+    icon: `${PREFIX}-icon`,
+};
+
+// Remove the sort icons when not active
+const StyledTableCell = styled(TableCell, {
+    name: PREFIX,
+    overridesResolver: (props, styles) => styles.root,
+})({
+    [`& .MuiTableSortLabel-icon`]: {
+        display: 'none',
+    },
+    [`& .Mui-active .MuiTableSortLabel-icon`]: {
+        display: 'inline',
+    },
+});
+
+declare module '@mui/material/styles' {
+    interface ComponentNameToClassKey {
+        RaDatagridHeaderCell: 'root' | 'icon';
+    }
+
+    interface ComponentsPropsList {
+        RaDatagridHeaderCell: Partial<DatagridHeaderCellProps>;
+    }
+
+    interface Components {
+        RaDatagridHeaderCell?: {
+            defaultProps?: ComponentsPropsList['RaDatagridHeaderCell'];
+            styleOverrides?: ComponentsOverrides<
+                Omit<Theme, 'components'>
+            >['RaDatagridHeaderCell'];
+        };
+    }
+}

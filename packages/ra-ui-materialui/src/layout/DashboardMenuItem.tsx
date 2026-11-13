@@ -1,43 +1,33 @@
-import * as React from 'react';
-import { FC } from 'react';
-import PropTypes from 'prop-types';
-import DashboardIcon from '@material-ui/icons/Dashboard';
-import { useTranslate } from 'ra-core';
+import React from 'react';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import { useBasename } from 'ra-core';
 
-import MenuItemLink from './MenuItemLink';
+import { MenuItemLink, MenuItemLinkProps } from './MenuItemLink';
 
-const DashboardMenuItem: FC<DashboardMenuItemProps> = ({
-    locale,
-    onClick,
-    ...props
-}) => {
-    const translate = useTranslate();
+export const DashboardMenuItem = (props: DashboardMenuItemProps) => {
+    const basename = useBasename();
+    const {
+        leftIcon = <DashboardIcon />,
+        to = `${basename}/`,
+        primaryText = 'ra.page.dashboard',
+        ...rest
+    } = props;
+
     return (
         <MenuItemLink
-            onClick={onClick}
-            to="/"
-            primaryText={translate('ra.page.dashboard')}
-            leftIcon={<DashboardIcon />}
-            exact
-            {...props}
+            leftIcon={leftIcon}
+            to={to}
+            primaryText={primaryText}
+            {...rest}
         />
     );
 };
 
-export interface DashboardMenuItemProps {
-    classes?: object;
-    locale?: string;
-    onClick?: () => void;
-    dense?: boolean;
-    sidebarIsOpen: boolean;
+export interface DashboardMenuItemProps
+    extends Omit<MenuItemLinkProps, 'to'>,
+        Partial<Pick<MenuItemLinkProps, 'to'>> {
+    /**
+     * @deprecated
+     */
+    sidebarIsOpen?: boolean;
 }
-
-DashboardMenuItem.propTypes = {
-    classes: PropTypes.object,
-    locale: PropTypes.string,
-    onClick: PropTypes.func,
-    dense: PropTypes.bool,
-    sidebarIsOpen: PropTypes.bool,
-};
-
-export default DashboardMenuItem;
